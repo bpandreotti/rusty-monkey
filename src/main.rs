@@ -2,13 +2,25 @@ mod token;
 mod lexer;
 
 use lexer::Lexer;
+use token::Token;
 
 fn main() {
-    let input = "Hello, world!".into();
+    let input = r#"
+        let five = 5;
+        let ten = 10;
+
+        let add = fn(x, y) {
+            x + y;
+        };
+
+        let result = add(five, ten);
+    "#.into();
+
+
     let mut lexer = Lexer::new(input);
-    
-    while let Some(c) = lexer.current_char {
-        println!("{}", c);
-        lexer.read_char();
+    let mut tk = lexer.next_token();
+    while tk != Token::EOF {
+        println!("{:?}", tk);
+        tk = lexer.next_token();
     }
 }
