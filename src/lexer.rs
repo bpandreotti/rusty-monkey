@@ -1,6 +1,4 @@
 use crate::token::*;
-use std::iter::Peekable;
-use std::str::Chars;
 
 pub struct Lexer {
     chars: Vec<char>,
@@ -27,6 +25,7 @@ impl Lexer {
     }
 
     pub fn next_token(&mut self) -> Token {
+        self.consume_whitespace();
         let tok = match self.current_char {
             Some('=') => Token::Assign,
             Some(';') => Token::Semicolon,
@@ -36,27 +35,25 @@ impl Lexer {
             Some('}') => Token::CloseBrace,
             Some(',') => Token::Comma,
             Some('+') => Token::Plus,
-            
+
             // Early exit, because we don't need to `read_char()` after the match block.
-            Some(c) if c.is_alphabetic() => return self.read_identifier(),
-            
-            // Whitespace and numbers are for now considered illegal.
+            Some(c) if c.is_ascii_digit() => return self.read_number(),
+            // Identifiers can have any alphanumeric character, but they can't begin with an ascii
+            // digit, in which case it will be interpreted as a number.
+            Some(c) if c.is_alphanumeric() => return self.read_identifier(),
             Some(c) => Token::Illegal(c),
             None => Token::EOF,
         };
         self.read_char();
-        
+
         tok
     }
 
     fn read_identifier(&mut self) -> Token {
         let mut literal = String::new();
         while let Some(ch) = self.current_char {
-            if ch.is_alphanumeric() {
-                literal.push(ch);
-            } else {
-                break;
-            }
+            if !ch.is_alphanumeric() { break; }
+            literal.push(ch);
             self.read_char();
         }
 
@@ -64,6 +61,24 @@ impl Lexer {
             "let" => Token::Let,
             "fn" => Token::Function,
             _ => Token::Identifier(literal),
-        }        
+        }
+    }
+
+    fn read_number(&mut self) -> Token {
+        let mut literal = String::new();
+        while let Some(ch) = self.current_char {
+            if !ch.is_ascii_digit() { break; }
+            literal.push(ch);
+            self.read_char();
+        }
+
+        Token::Int(literal.parse().unwrap())
+    }
+
+    fn consume_whitespace(&mut self) {
+        while let Some(ch) = self.current_char {
+            if !ch.is_whitespace() { break; }
+            self.read_char();
+        }
     }
 }
