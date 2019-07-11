@@ -1,0 +1,16 @@
+pub enum Token {
+    Illegal,
+    EOF,
+    Identifier(String),
+    Int(i64),
+    Assign,
+    Plus,
+    Comma,
+    Semicolon,
+    OpenParen,
+    CloseParen,
+    OpenBrace,
+    CloseBrace,
+    Function,
+    Let,
+}
