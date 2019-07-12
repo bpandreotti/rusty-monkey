@@ -27,26 +27,49 @@ impl Lexer {
     pub fn next_token(&mut self) -> Token {
         self.consume_whitespace();
         let tok = match self.current_char {
+            // Operators
             Some('=') => Token::Assign,
+            Some('!') => Token::Bang,
+            Some('+') => Token::Plus,
+            Some('-') => Token::Minus,
+            Some('*') => Token::Asterisk,
+            Some('/') => Token::Slash,
+            Some('<') => Token::LessThan,
+            Some('>') => Token::GreaterThan,
+
+            // Delimiters
+            Some(',') => Token::Comma,
             Some(';') => Token::Semicolon,
             Some('(') => Token::OpenParen,
             Some(')') => Token::CloseParen,
             Some('{') => Token::OpenBrace,
             Some('}') => Token::CloseBrace,
-            Some(',') => Token::Comma,
-            Some('+') => Token::Plus,
 
             // Early exit, because we don't need to `read_char()` after the match block.
             Some(c) if c.is_ascii_digit() => return self.read_number(),
             // Identifiers can have any alphanumeric character, but they can't begin with an ascii
             // digit, in which case it will be interpreted as a number.
             Some(c) if c.is_alphanumeric() => return self.read_identifier(),
+            
             Some(c) => Token::Illegal(c),
             None => Token::EOF,
         };
         self.read_char();
 
         tok
+    }
+
+    fn match_keyword(literal: &str) -> Option<Token> {
+        match literal {
+            "fn" => Some(Token::Function),
+            "let" => Some(Token::Let),
+            "true" => Some(Token::True),
+            "false" => Some(Token::False),
+            "if" => Some(Token::If),
+            "else" => Some(Token::Else),
+            "return" => Some(Token::Return),
+            _ => None,
+        }
     }
 
     fn read_identifier(&mut self) -> Token {
@@ -57,11 +80,8 @@ impl Lexer {
             self.read_char();
         }
 
-        match &literal as &str {
-            "let" => Token::Let,
-            "fn" => Token::Function,
-            _ => Token::Identifier(literal),
-        }
+        // Checks if the literal matches any keyword. If it doesn't, it's an identifier.
+        Lexer::match_keyword(&literal).unwrap_or(Token::Identifier(literal))
     }
 
     fn read_number(&mut self) -> Token {
