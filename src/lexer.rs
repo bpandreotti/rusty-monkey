@@ -19,15 +19,6 @@ impl Lexer {
         }
     }
 
-    pub fn read_char(&mut self) {
-        self.position += 1;
-        self.current_char = self.chars.get(self.position).copied();
-    }
-
-    pub fn peek_char(&self) -> Option<char> {
-        self.chars.get(self.position + 1).copied()
-    }
-
     pub fn next_token(&mut self) -> Token {
         self.consume_whitespace();
         let tok = match self.current_char {
@@ -69,17 +60,13 @@ impl Lexer {
         tok
     }
 
-    fn match_keyword(literal: &str) -> Option<Token> {
-        match literal {
-            "fn" => Some(Token::Function),
-            "let" => Some(Token::Let),
-            "true" => Some(Token::True),
-            "false" => Some(Token::False),
-            "if" => Some(Token::If),
-            "else" => Some(Token::Else),
-            "return" => Some(Token::Return),
-            _ => None,
-        }
+    fn read_char(&mut self) {
+        self.position += 1;
+        self.current_char = self.chars.get(self.position).copied();
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        self.chars.get(self.position + 1).copied()
     }
 
     fn read_identifier(&mut self) -> Token {
@@ -110,5 +97,72 @@ impl Lexer {
             if !ch.is_whitespace() { break; }
             self.read_char();
         }
+    }
+    
+    fn match_keyword(literal: &str) -> Option<Token> {
+        match literal {
+            "fn" => Some(Token::Function),
+            "let" => Some(Token::Let),
+            "true" => Some(Token::True),
+            "false" => Some(Token::False),
+            "if" => Some(Token::If),
+            "else" => Some(Token::Else),
+            "return" => Some(Token::Return),
+            _ => None,
+        }
+    }
+}
+
+mod tests {
+    use super::*;
+    use crate::token::Token;
+
+    #[test]
+    fn test_next_token() {
+        let input: String = r#"
+            let five = 5;
+            let add = fn(x, y) {
+                x + y;
+            };
+
+            !-/*5;
+
+            if (5 < 10) {
+                return true;
+            } else {
+                return false;
+            }
+
+            10 == 10;
+            != <= >= ?
+        "#
+        .into();
+
+        let expected = [
+            Token::Let,         Token::Identifier("five".into()),       Token::Assign,
+            Token::Int(5),      Token::Semicolon,   Token::Let,
+            Token::Identifier("add".into()),        Token::Assign,      Token::Function,
+            Token::OpenParen,   Token::Identifier("x".into()),          Token::Comma,
+            Token::Identifier("y".into()),          Token::CloseParen,  Token::OpenBrace,
+            Token::Identifier("x".into()),          Token::Plus,
+            Token::Identifier("y".into()),          Token::Semicolon,   Token::CloseBrace,
+            Token::Semicolon,   Token::Bang,        Token::Minus,       Token::Slash,
+            Token::Asterisk,    Token::Int(5),      Token::Semicolon,   Token::If,
+            Token::OpenParen,   Token::Int(5),      Token::LessThan,    Token::Int(10),
+            Token::CloseParen,  Token::OpenBrace,   Token::Return,      Token::True,
+            Token::Semicolon,   Token::CloseBrace,  Token::Else,        Token::OpenBrace,
+            Token::Return,      Token::False,       Token::Semicolon,   Token::CloseBrace,
+            Token::Int(10),     Token::Equal,       Token::Int(10),     Token::Semicolon,
+            Token::NotEqual,    Token::LessEq,      Token::GreaterEq,   Token::Illegal('?'),
+        ];
+
+        let mut lex = Lexer::new(input);
+        let mut got = lex.next_token();
+        for expected_token in expected.iter() {
+            assert_eq!(&got, expected_token);
+            got = lex.next_token();
+        }
+
+        assert_eq!(got, Token::EOF);
     }
 }
