@@ -15,6 +15,10 @@ pub enum Token {
     Slash,
     LessThan,
     GreaterThan,
+    Equal,
+    NotEqual,
+    LessEq,
+    GreaterEq,
 
     // Delimiters
     Comma,
@@ -23,7 +27,7 @@ pub enum Token {
     CloseParen,
     OpenBrace,
     CloseBrace,
-    
+
     // Keywords
     Function,
     Let,

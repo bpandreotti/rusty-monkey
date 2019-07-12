@@ -22,6 +22,9 @@ fn main() {
         } else {
             return false;
         }
+
+        10 == 10;
+        10 != 9;
     "#.into();
 
 

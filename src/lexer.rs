@@ -24,10 +24,20 @@ impl Lexer {
         self.current_char = self.chars.get(self.position).copied();
     }
 
+    pub fn peek_char(&self) -> Option<char> {
+        self.chars.get(self.position + 1).copied()
+    }
+
     pub fn next_token(&mut self) -> Token {
         self.consume_whitespace();
         let tok = match self.current_char {
             // Operators
+            // Two character operators (==, !=, <=, >=)
+            Some('=') if self.peek_char() == Some('=') => { self.read_char(); Token::Equal },
+            Some('!') if self.peek_char() == Some('=') => { self.read_char(); Token::NotEqual },
+            Some('<') if self.peek_char() == Some('=') => { self.read_char(); Token::LessEq },
+            Some('>') if self.peek_char() == Some('=') => { self.read_char(); Token::GreaterEq },
+            // Single character operators
             Some('=') => Token::Assign,
             Some('!') => Token::Bang,
             Some('+') => Token::Plus,
@@ -50,7 +60,7 @@ impl Lexer {
             // Identifiers can have any alphanumeric character, but they can't begin with an ascii
             // digit, in which case it will be interpreted as a number.
             Some(c) if c.is_alphanumeric() => return self.read_identifier(),
-            
+
             Some(c) => Token::Illegal(c),
             None => Token::EOF,
         };
