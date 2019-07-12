@@ -1,37 +1,13 @@
 mod token;
 mod lexer;
+mod repl;
 
-use lexer::Lexer;
-use token::Token;
+use std::error::Error;
 
-fn main() {
-    let input = r#"
-        let five = 5;
-        let ten = 10;
+fn main() -> Result<(), Box<dyn Error>> {
 
-        let add = fn(x, y) {
-        x + y;
-        };
+    println!("Hello! This is the Monkey programming language!");
+    repl::start()?;
 
-        let result = add(five, ten);
-        !-/*5;
-        5 < 10 > 5;
-
-        if (5 < 10) {
-            return true;
-        } else {
-            return false;
-        }
-
-        10 == 10;
-        10 != 9;
-    "#.into();
-
-
-    let mut lexer = Lexer::new(input);
-    let mut tk = lexer.next_token();
-    while tk != Token::EOF {
-        println!("{:?}", tk);
-        tk = lexer.next_token();
-    }
+    Ok(())
 }
