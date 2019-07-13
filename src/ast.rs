@@ -5,7 +5,8 @@ pub enum Expression {
 
 #[derive(Debug)]
 pub enum Statement {
-    LetStatement(Box<LetStatement>),
+    Let(Box<LetStatement>),
+    Return(Box<Expression>),
 }
 
 #[derive(Debug)]

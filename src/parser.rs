@@ -19,7 +19,7 @@ impl Parser {
         }
     }
 
-    pub fn read_token(&mut self) {        
+    pub fn read_token(&mut self) {
         // Little trick to move the borrowed value without having to clone anything. I'm
         // effectively doing this:
         //   self.current_token = self.peek_token;
@@ -30,7 +30,7 @@ impl Parser {
 
     pub fn parse_program(&mut self) -> Result<Vec<Statement>, ()> {
         let mut program: Vec<Statement> = Vec::new();
-        
+
         while self.current_token != Token::EOF {
             let statement = self.parse_statement()?;
             program.push(statement);
@@ -43,8 +43,12 @@ impl Parser {
     fn parse_statement(&mut self) -> Result<Statement, ()> {
         match self.current_token {
             Token::Let => {
-                let let_st = Box::new(self.parse_let_statement()?);
-                Ok(Statement::LetStatement(let_st))
+                let st = Box::new(self.parse_let_statement()?);
+                Ok(Statement::Let(st))
+            },
+            Token::Return => {
+                let st = Box::new(self.parse_return_statement()?);
+                Ok(Statement::Return(st))
             },
             _ => Err(()),
         }
@@ -53,7 +57,7 @@ impl Parser {
     fn parse_let_statement(&mut self) -> Result<LetStatement, ()> {
         if let Token::Identifier(iden) = &self.peek_token {
             let name = iden.clone(); // We have to clone this here to satisfy the borrow checker.
-            
+
             self.read_token();
             if self.peek_token != Token::Assign {
                 return Err(());
@@ -64,7 +68,7 @@ impl Parser {
             while self.current_token != Token::Semicolon && self.current_token != Token::EOF {
                 self.read_token();
             }
-            
+
             Ok(LetStatement {
                 identifier: name,
                 value: Expression::Nil,
@@ -72,5 +76,15 @@ impl Parser {
         } else {
             Err(())
         }
+    }
+
+    fn parse_return_statement(&mut self) -> Result<Expression, ()> {
+        self.read_token();
+        // @TODO: Same thing as in `parse_let_statement`.
+        while self.current_token != Token::Semicolon && self.current_token != Token::EOF {
+            self.read_token();
+        }
+
+        Ok(Expression::Nil)
     }
 }
