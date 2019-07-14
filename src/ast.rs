@@ -1,5 +1,7 @@
 #[derive(Debug)]
 pub enum Expression {
+    Identifier(String),
+    IntLiteral(i64),
     Nil,
 }
 
@@ -7,6 +9,7 @@ pub enum Expression {
 pub enum Statement {
     Let(Box<LetStatement>),
     Return(Box<Expression>),
+    ExpressionStatement(Box<Expression>),
 }
 
 #[derive(Debug)]

@@ -2,6 +2,20 @@ use crate::token::*;
 use crate::lexer::*;
 use crate::ast::*;
 
+type PrefixParseFn = fn(&mut Parser) -> Result<Expression, ()>;
+type InfixParseFn = fn(&mut Parser, Expression) -> Result<Expression, ()>;
+
+#[derive(PartialEq, PartialOrd)]
+enum Precedence {
+    Lowest,
+    Equals,
+    LessGreater,
+    Sum,
+    Product,
+    Prefix,
+    Call,
+}
+
 pub struct Parser {
     lexer: Lexer,
     current_token: Token,
@@ -50,7 +64,10 @@ impl Parser {
                 let st = Box::new(self.parse_return_statement()?);
                 Ok(Statement::Return(st))
             },
-            _ => Err(()),
+            _ => {
+                let st = Box::new(self.parse_expression_statement()?);
+                Ok(Statement::ExpressionStatement(st))
+            }
         }
     }
 
@@ -86,5 +103,51 @@ impl Parser {
         }
 
         Ok(Expression::Nil)
+    }
+
+    fn parse_expression_statement(&mut self) -> Result<Expression, ()> {
+        let exp = self.parse_expression(Precedence::Lowest)?;
+
+        if self.peek_token == Token::Semicolon {
+            self.read_token();
+        }
+
+        Ok(exp)
+    }
+
+    fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ()> {
+        let prefix_parse_function = Parser::get_prefix_parse_function(&self.current_token);
+
+        match prefix_parse_function {
+            Some(function) => (function)(self),
+            None => Err(()),
+        }
+    }
+
+    fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
+        match token {
+            // @TODO: Maybe making these closures actual methods would make the code cleaner.
+            Token::Identifier(_) => Some(|parser| {
+                match &parser.current_token {
+                    Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
+                    _ => panic!(),
+                }
+            }),
+
+            Token::Int(_) => Some(|parser| {
+                match &parser.current_token {
+                    Token::Int(x) => Ok(Expression::IntLiteral(*x)),
+                    _ => panic!(),
+                }
+            }),
+
+            _ => None,
+        }
+    }
+
+    fn get_infix_parse_function(token: Token) -> Option<InfixParseFn> {
+        match token {
+            _ => None,
+        }
     }
 }
