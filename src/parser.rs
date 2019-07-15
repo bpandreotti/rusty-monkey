@@ -25,7 +25,7 @@ impl From<&str> for ParserError {
 pub type ParserResult<T> = Result<T, ParserError>;
 
 type PrefixParseFn = fn(&mut Parser) -> ParserResult<Expression>;
-type InfixParseFn = fn(&mut Parser, Expression) -> ParserResult<Expression>;
+type InfixParseFn = fn(&mut Parser, Box<Expression>) -> ParserResult<Expression>;
 
 #[derive(PartialEq, PartialOrd)]
 enum Precedence {
@@ -138,32 +138,50 @@ impl Parser {
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> ParserResult<Expression> {
-        let prefix_parse_function = Parser::get_prefix_parse_function(&self.current_token);
+        let prefix_parse_fn = Parser::get_prefix_parse_function(&self.current_token);
 
-        match prefix_parse_function {
-            Some(function) => (function)(self),
+        let mut left_expression = match prefix_parse_fn {
+            Some(function) => function(self),
             None => Err("No prefix parse function found for current token".into()),
+        }?;
+
+        while self.peek_token != Token::Semicolon
+            && precedence < Parser::get_precedence(&self.peek_token)
+        {
+            let infix_parse_fn = Parser::get_infix_parse_function(&self.peek_token);
+
+            match infix_parse_fn {
+                Some(function) => {
+                    self.read_token();
+                    left_expression = function(self, Box::new(left_expression))?;
+                }
+                None => break,
+            }
         }
+
+        Ok(left_expression)
     }
 
     fn parse_prefix_expression(&mut self) -> ParserResult<Expression> {
-        // @TODO: This is pretty ugly. I could parse the right side expression before I match, but
-        // for that I would have to remember the prefix token, which means I would have to
-        // #[derive(Clone)] for Token.
         match &self.current_token {
-            Token::Bang => {
+            Token::Bang | Token::Minus => {
+                let operator = self.current_token.clone();
                 self.read_token();
                 let right_side = Box::new(self.parse_expression(Precedence::Prefix)?);
-                Ok(Expression::PrefixBang(right_side))
-            },
-            Token::Minus => {
-                self.read_token();
-                let right_side = Box::new(self.parse_expression(Precedence::Prefix)?);
-                Ok(Expression::PrefixMinus(right_side))
+                Ok(Expression::PrefixExpression(operator, right_side))
             },
             _ => Err("Trying to parse prefix expression, but current token is not `Token::Bang` \
                      or `Token::Minus`. This error should never happen.".into()),
         }
+    }
+
+    fn parse_infix_expression(&mut self, left_side: Box<Expression>) -> ParserResult<Expression> {
+        let operator = self.current_token.clone();
+        let precedence = Parser::get_precedence(&operator);
+        self.read_token();
+        let right_side = Box::new(self.parse_expression(precedence)?);
+
+        Ok(Expression::InfixExpression(left_side, operator, right_side))
     }
 
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
@@ -191,10 +209,30 @@ impl Parser {
         }
     }
 
-    fn get_infix_parse_function(token: Token) -> Option<InfixParseFn> {
+    fn get_infix_parse_function(token: &Token) -> Option<InfixParseFn> {
         match token {
+            Token::Equals
+            | Token::NotEquals
+            | Token::LessThan
+            | Token::LessEq
+            | Token::GreaterThan
+            | Token::GreaterEq
+            | Token::Plus
+            | Token::Minus
+            | Token::Slash
+            | Token::Asterisk => Some(Parser::parse_infix_expression),
             _ => None,
         }
     }
-}
 
+    fn get_precedence(token: &Token) -> Precedence {
+        use Token::*;
+        match token {
+            Equals | NotEquals                          => Precedence::Equals,
+            LessThan | LessEq | GreaterThan | GreaterEq => Precedence::LessGreater,
+            Plus | Minus                                => Precedence::Sum,
+            Slash | Asterisk                            => Precedence::Product,
+            _                                           => Precedence::Lowest,
+        }
+    }
+}

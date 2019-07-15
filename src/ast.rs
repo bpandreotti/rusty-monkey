@@ -1,9 +1,11 @@
+use crate::token::*;
+
 #[derive(Debug)]
 pub enum Expression {
     Identifier(String),
     IntLiteral(i64),
-    PrefixBang(Box<Expression>),
-    PrefixMinus(Box<Expression>),
+    PrefixExpression(Token, Box<Expression>),
+    InfixExpression(Box<Expression>, Token, Box<Expression>),
     Nil,
 }
 

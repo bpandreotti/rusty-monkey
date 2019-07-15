@@ -24,8 +24,8 @@ impl Lexer {
         let tok = match self.current_char {
             // Operators
             // Two character operators (==, !=, <=, >=)
-            Some('=') if self.peek_char() == Some('=') => { self.read_char(); Token::Equal },
-            Some('!') if self.peek_char() == Some('=') => { self.read_char(); Token::NotEqual },
+            Some('=') if self.peek_char() == Some('=') => { self.read_char(); Token::Equals },
+            Some('!') if self.peek_char() == Some('=') => { self.read_char(); Token::NotEquals },
             Some('<') if self.peek_char() == Some('=') => { self.read_char(); Token::LessEq },
             Some('>') if self.peek_char() == Some('=') => { self.read_char(); Token::GreaterEq },
             // Single character operators
@@ -153,8 +153,8 @@ mod tests {
             Token::CloseParen,  Token::OpenBrace,   Token::Return,      Token::True,
             Token::Semicolon,   Token::CloseBrace,  Token::Else,        Token::OpenBrace,
             Token::Return,      Token::False,       Token::Semicolon,   Token::CloseBrace,
-            Token::Int(10),     Token::Equal,       Token::Int(10),     Token::Semicolon,
-            Token::NotEqual,    Token::LessEq,      Token::GreaterEq,   Token::Illegal('?'),
+            Token::Int(10),     Token::Equals,       Token::Int(10),     Token::Semicolon,
+            Token::NotEquals,    Token::LessEq,      Token::GreaterEq,   Token::Illegal('?'),
         ];
 
         let mut lex = Lexer::new(input);
