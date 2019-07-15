@@ -142,21 +142,43 @@ impl Parser {
 
         match prefix_parse_function {
             Some(function) => (function)(self),
-            None => Err("No prefix parse function found".into()),
+            None => Err("No prefix parse function found for current token".into()),
+        }
+    }
+
+    fn parse_prefix_expression(&mut self) -> ParserResult<Expression> {
+        // @TODO: This is pretty ugly. I could parse the right side expression before I match, but
+        // for that I would have to remember the prefix token, which means I would have to
+        // #[derive(Clone)] for Token.
+        match &self.current_token {
+            Token::Bang => {
+                self.read_token();
+                let right_side = Box::new(self.parse_expression(Precedence::Prefix)?);
+                Ok(Expression::PrefixBang(right_side))
+            },
+            Token::Minus => {
+                self.read_token();
+                let right_side = Box::new(self.parse_expression(Precedence::Prefix)?);
+                Ok(Expression::PrefixMinus(right_side))
+            },
+            _ => Err("Trying to parse prefix expression, but current token is not `Token::Bang` \
+                     or `Token::Minus`. This error should never happen.".into()),
         }
     }
 
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
-            _ => panic!(),
+            _ => Err("Trying to parse identifier, but current token is not `Token::Identifier`. \
+                     This error should never happen.".into()),
         }
     }
 
     fn parse_int_literal(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Int(x) => Ok(Expression::IntLiteral(*x)),
-            _ => panic!(),
+            _ => Err("Trying to parse int literal, but current token is not `Token::Int`. This \
+                     error should never happen.".into()),
         }
     }
 
@@ -164,7 +186,7 @@ impl Parser {
         match token {
             Token::Identifier(_) => Some(Parser::parse_identifier),
             Token::Int(_) => Some(Parser::parse_int_literal),
-
+            Token::Bang | Token::Minus => Some(Parser::parse_prefix_expression),
             _ => None,
         }
     }

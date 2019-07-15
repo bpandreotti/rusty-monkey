@@ -2,6 +2,8 @@
 pub enum Expression {
     Identifier(String),
     IntLiteral(i64),
+    PrefixBang(Box<Expression>),
+    PrefixMinus(Box<Expression>),
     Nil,
 }
 
