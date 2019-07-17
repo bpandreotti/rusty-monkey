@@ -43,7 +43,7 @@ impl Token {
     pub fn type_str(&self) -> &'static str {
         use Token::*; // So the big-ass table doesn't need to have "Token::" everywhere.
         match self {
-            Identifier(_)   => "identifier literal",
+            Identifier(_)   => "identifier",
             Int(_)          => "integer literal",
             Assign          => "`=`",
             Bang            => "`!`",
@@ -69,7 +69,7 @@ impl Token {
             If              => "`if`",
             Else            => "`else`",
             Return          => "`return`",
-            Illegal(_)      => "Token::Illegal",
+            Illegal(_)      => "illegal",
             EOF             => "EOF",
         }
     }

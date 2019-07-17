@@ -1,10 +1,11 @@
 // @TODO: Add tests for this module.
-use crate::token::*;
-use crate::lexer::*;
 use crate::ast::*;
+use crate::lexer::*;
+use crate::token::*;
 
 use std::error::Error;
 use std::fmt;
+use std::mem;
 
 #[derive(Debug)]
 pub struct ParserError(String);
@@ -47,13 +48,9 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(mut lexer: Lexer) -> Parser {
-        let first_token = lexer.next_token();
-        let second_token = lexer.next_token();
-        Parser {
-            lexer: lexer,
-            current_token: first_token,
-            peek_token: second_token,
-        }
+        let current_token = lexer.next_token();
+        let peek_token = lexer.next_token();
+        Parser { lexer, current_token, peek_token }
     }
 
     pub fn read_token(&mut self) {
@@ -62,7 +59,7 @@ impl Parser {
         //   self.current_token = self.peek_token;
         //   self.peek_token = self.lexer.next_token();
         // but this way the borrow checker is pleased.
-        self.current_token = std::mem::replace(&mut self.peek_token, self.lexer.next_token());
+        self.current_token = mem::replace(&mut self.peek_token, self.lexer.next_token());
     }
 
     pub fn parse_program(&mut self) -> ParserResult<Vec<Statement>> {
@@ -78,7 +75,7 @@ impl Parser {
     }
 
     fn expect_token(&mut self, expected: Token) -> ParserResult<()> {
-        if std::mem::discriminant(&self.peek_token) != std::mem::discriminant(&expected) {
+        if mem::discriminant(&self.peek_token) != mem::discriminant(&expected) {
             Err(ParserError(format!(
                 "Expected {} token, got {}.",
                 expected.type_str(),
@@ -95,11 +92,11 @@ impl Parser {
             Token::Let => {
                 let st = Box::new(self.parse_let_statement()?);
                 Ok(Statement::Let(st))
-            },
+            }
             Token::Return => {
                 let st = Box::new(self.parse_return_statement()?);
                 Ok(Statement::Return(st))
-            },
+            }
             _ => {
                 let st = Box::new(self.parse_expression_statement()?);
                 Ok(Statement::ExpressionStatement(st))
@@ -125,9 +122,10 @@ impl Parser {
                 value: Expression::Nil,
             })
         } else {
-            Err(
-                ParserError(format!("Expected literal token, got {}.", self.peek_token.type_str()))
-            )
+            Err(ParserError(format!(
+                "Expected literal token, got {}.",
+                self.peek_token.type_str()
+            )))
         }
     }
 
@@ -143,19 +141,13 @@ impl Parser {
 
     fn parse_expression_statement(&mut self) -> ParserResult<Expression> {
         let exp = self.parse_expression(Precedence::Lowest)?;
-
         if self.peek_token == Token::Semicolon {
-            self.read_token();
+            self.read_token(); // Consume optional semicolon
         }
-
         Ok(exp)
     }
 
     fn parse_block_statement(&mut self) -> ParserResult<Vec<Statement>> {
-        if self.current_token != Token::OpenBrace {
-            return Err("Trying to parse block statement, but current token is not \
-                       `Token::OpenBrace`. This error should never happen.".into())
-        }
         self.read_token();
 
         let mut statements = Vec::new();
@@ -163,7 +155,7 @@ impl Parser {
             statements.push(self.parse_statement()?);
             self.read_token();
         }
-        
+
         Ok(statements)
     }
 
@@ -171,13 +163,11 @@ impl Parser {
         let prefix_parse_fn = Parser::get_prefix_parse_function(&self.current_token);
 
         let mut left_expression = match prefix_parse_fn {
-            Some(function) => function(self),
-            None => {
-                Err(ParserError(format!(
-                    "No prefix parse function found for current token ({}).",
-                    self.current_token.type_str()
-                )))
-            },
+            Some(parse_function) => parse_function(self),
+            None => Err(ParserError(format!(
+                "No prefix parse function found for current token ({}).",
+                self.current_token.type_str()
+            ))),
         }?;
 
         while self.peek_token != Token::Semicolon
@@ -186,9 +176,9 @@ impl Parser {
             let infix_parse_fn = Parser::get_infix_parse_function(&self.peek_token);
 
             match infix_parse_fn {
-                Some(function) => {
+                Some(parse_function) => {
                     self.read_token();
-                    left_expression = function(self, Box::new(left_expression))?;
+                    left_expression = parse_function(self, Box::new(left_expression))?;
                 }
                 None => break,
             }
@@ -204,9 +194,8 @@ impl Parser {
                 self.read_token();
                 let right_side = Box::new(self.parse_expression(Precedence::Prefix)?);
                 Ok(Expression::PrefixExpression(operator, right_side))
-            },
-            _ => Err("Trying to parse prefix expression, but current token is not `Token::Bang` \
-                     or `Token::Minus`. This error should never happen.".into()),
+            }
+            _ => panic!(),
         }
     }
 
@@ -215,20 +204,15 @@ impl Parser {
         let precedence = Parser::get_precedence(&operator);
         self.read_token();
         let right_side = Box::new(self.parse_expression(precedence)?);
-
         Ok(Expression::InfixExpression(left_side, operator, right_side))
     }
 
     fn parse_if_expression(&mut self) -> ParserResult<Expression> {
-        self.read_token(); // Consume `if` token
+        self.read_token();
 
-        // Maybe it would be nice to make the parenthesis around the if condition optional, like
-        // Rust. It doesn't appear to cause any problems for the parser.
-        // self.expect_token(Token::OpenParen)?;
         let condition = self.parse_expression(Precedence::Lowest)?;
-        // self.expect_token(Token::CloseParen)?;        
-        
-        self.expect_token(Token::OpenBrace)?;        
+
+        self.expect_token(Token::OpenBrace)?;
         let consequence = self.parse_block_statement()?;
 
         let alternative = if self.peek_token == Token::Else {
@@ -249,7 +233,6 @@ impl Parser {
     fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
         self.read_token();
         let exp = self.parse_expression(Precedence::Lowest)?;
-
         self.expect_token(Token::CloseParen)?;
         Ok(exp)
     }
@@ -257,16 +240,14 @@ impl Parser {
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
-            _ => Err("Trying to parse identifier, but current token is not `Token::Identifier`. \
-                     This error should never happen.".into()),
+            _ => panic!()
         }
     }
 
     fn parse_int_literal(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Int(x) => Ok(Expression::IntLiteral(*x)),
-            _ => Err("Trying to parse int literal, but current token is not `Token::Int`. This \
-                     error should never happen.".into()),
+            _ => panic!()
         }
     }
 
@@ -274,19 +255,18 @@ impl Parser {
         match &self.current_token {
             Token::True => Ok(Expression::Boolean(true)),
             Token::False => Ok(Expression::Boolean(false)),
-            _ => Err("Trying to parse boolean, but current token is not `Token::True` or \
-                     `Token::False`. This error should never happen.".into()),
+            _ => panic!()
         }
     }
 
     fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
         match token {
-            Token::Identifier(_) => Some(Parser::parse_identifier),
-            Token::Int(_) => Some(Parser::parse_int_literal),
-            Token::True | Token::False => Some(Parser::parse_boolean),
-            Token::Bang | Token::Minus => Some(Parser::parse_prefix_expression),
-            Token::OpenParen => Some(Parser::parse_grouped_expression),
-            Token::If => Some(Parser::parse_if_expression),
+            Token::Identifier(_)        => Some(Parser::parse_identifier),
+            Token::Int(_)               => Some(Parser::parse_int_literal),
+            Token::Bang | Token::Minus  => Some(Parser::parse_prefix_expression),
+            Token::OpenParen            => Some(Parser::parse_grouped_expression),
+            Token::True | Token::False  => Some(Parser::parse_boolean),
+            Token::If                   => Some(Parser::parse_if_expression),
             _ => None,
         }
     }
