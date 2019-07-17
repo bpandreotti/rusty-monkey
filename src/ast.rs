@@ -4,6 +4,7 @@ use crate::token::*;
 pub enum Expression {
     Identifier(String),
     IntLiteral(i64),
+    Boolean(bool),
     PrefixExpression(Token, Box<Expression>),
     InfixExpression(Box<Expression>, Token, Box<Expression>),
     Nil,

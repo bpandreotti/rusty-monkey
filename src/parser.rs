@@ -1,3 +1,4 @@
+// @TODO: Add tests for this module.
 use crate::token::*;
 use crate::lexer::*;
 use crate::ast::*;
@@ -200,10 +201,20 @@ impl Parser {
         }
     }
 
+    fn parse_boolean(&mut self) -> ParserResult<Expression> {
+        match &self.current_token {
+            Token::True => Ok(Expression::Boolean(true)),
+            Token::False => Ok(Expression::Boolean(false)),
+            _ => Err("Trying to parse boolean, but current token is not `Token::True` or \
+                     `Token::False`. This error should never happen.".into()),
+        }
+    }
+
     fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
         match token {
             Token::Identifier(_) => Some(Parser::parse_identifier),
             Token::Int(_) => Some(Parser::parse_int_literal),
+            Token::True | Token::False => Some(Parser::parse_boolean),
             Token::Bang | Token::Minus => Some(Parser::parse_prefix_expression),
             _ => None,
         }
