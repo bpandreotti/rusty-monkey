@@ -100,7 +100,8 @@ impl Parser {
 
             self.read_token();
             if self.peek_token != Token::Assign {
-                return Err("Expected `=` token".into());
+                // @TODO: Add "got <token>" to error message.
+                return Err("Expected `=` token.".into());
             }
 
             // @TODO: Since we can't yet parse expressions, we're ignoring the actual value of the
@@ -114,7 +115,7 @@ impl Parser {
                 value: Expression::Nil,
             })
         } else {
-            Err("Expected identifier token".into())
+            Err("Expected identifier token.".into()) // @TODO: Add "got <token>" to error message.
         }
     }
 
@@ -143,7 +144,8 @@ impl Parser {
 
         let mut left_expression = match prefix_parse_fn {
             Some(function) => function(self),
-            None => Err("No prefix parse function found for current token".into()),
+            // @TODO: Add "got <token>" to error message.
+            None => Err("No prefix parse function found for current token.".into()),
         }?;
 
         while self.peek_token != Token::Semicolon
@@ -185,6 +187,19 @@ impl Parser {
         Ok(Expression::InfixExpression(left_side, operator, right_side))
     }
 
+    fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
+        self.read_token();
+        let exp = self.parse_expression(Precedence::Lowest)?;
+
+        match self.peek_token {
+            Token::CloseParen => {
+                self.read_token();
+                Ok(exp)
+            },
+            _ => Err("Expected `)` token.".into())  // @TODO: Add "got <token>" to error message.
+        }
+    }
+
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
@@ -216,6 +231,7 @@ impl Parser {
             Token::Int(_) => Some(Parser::parse_int_literal),
             Token::True | Token::False => Some(Parser::parse_boolean),
             Token::Bang | Token::Minus => Some(Parser::parse_prefix_expression),
+            Token::OpenParen => Some(Parser::parse_grouped_expression),
             _ => None,
         }
     }
