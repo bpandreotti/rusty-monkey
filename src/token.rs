@@ -37,3 +37,40 @@ pub enum Token {
     Else,
     Return,
 }
+
+impl Token {
+    /// Returns a string representing the token type, i.e., the enum variant.
+    pub fn type_str(&self) -> &'static str {
+        use Token::*; // So the big-ass table doesn't need to have "Token::" everywhere.
+        match self {
+            Identifier(_)   => "identifier literal",
+            Int(_)          => "integer literal",
+            Assign          => "`=`",
+            Bang            => "`!`",
+            Plus            => "`+`",
+            Minus           => "`-`",
+            Asterisk        => "`*`",
+            Slash           => "`/`",
+            LessThan        => "`<`",
+            GreaterThan     => "`>`",
+            Equals          => "`==`",
+            NotEquals       => "`!=`",
+            LessEq          => "`<=`",
+            GreaterEq       => "`>=`",
+            Comma           => "`,`",
+            Semicolon       => "`;`",
+            OpenParen       => "`(`",
+            CloseParen      => "`)`",
+            OpenBrace       => "`{`",
+            CloseBrace      => "`}`",
+            Function        => "`fn`",
+            Let             => "`let`",
+            True | False    => "boolean literal",
+            If              => "`if`",
+            Else            => "`else`",
+            Return          => "`return`",
+            Illegal(_)      => "Token::Illegal",
+            EOF             => "EOF",
+        }
+    }
+}

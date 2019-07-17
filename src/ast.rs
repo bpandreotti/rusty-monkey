@@ -7,6 +7,11 @@ pub enum Expression {
     Boolean(bool),
     PrefixExpression(Token, Box<Expression>),
     InfixExpression(Box<Expression>, Token, Box<Expression>),
+    IfExpression {
+        condition: Box<Expression>,
+        consequence: Vec<Statement>,
+        alternative: Vec<Statement>,
+    },
     Nil,
 }
 
@@ -15,6 +20,7 @@ pub enum Statement {
     Let(Box<LetStatement>),
     Return(Box<Expression>),
     ExpressionStatement(Box<Expression>),
+    BlockStatement(Vec<Statement>),
 }
 
 #[derive(Debug)]

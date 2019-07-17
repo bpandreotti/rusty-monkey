@@ -77,6 +77,19 @@ impl Parser {
         Ok(program)
     }
 
+    fn expect_token(&mut self, expected: Token) -> ParserResult<()> {
+        if std::mem::discriminant(&self.peek_token) != std::mem::discriminant(&expected) {
+            Err(ParserError(format!(
+                "Expected {} token, got {}.",
+                expected.type_str(),
+                self.peek_token.type_str()
+            )))
+        } else {
+            self.read_token();
+            Ok(())
+        }
+    }
+
     fn parse_statement(&mut self) -> ParserResult<Statement> {
         match self.current_token {
             Token::Let => {
@@ -99,10 +112,7 @@ impl Parser {
             let name = iden.clone(); // We have to clone this here to satisfy the borrow checker.
 
             self.read_token();
-            if self.peek_token != Token::Assign {
-                // @TODO: Add "got <token>" to error message.
-                return Err("Expected `=` token.".into());
-            }
+            self.expect_token(Token::Assign)?;
 
             // @TODO: Since we can't yet parse expressions, we're ignoring the actual value of the
             // let statement. I'm just skipping tokens until we find a semicolon.
@@ -115,7 +125,9 @@ impl Parser {
                 value: Expression::Nil,
             })
         } else {
-            Err("Expected identifier token.".into()) // @TODO: Add "got <token>" to error message.
+            Err(
+                ParserError(format!("Expected literal token, got {}.", self.peek_token.type_str()))
+            )
         }
     }
 
@@ -139,13 +151,33 @@ impl Parser {
         Ok(exp)
     }
 
+    fn parse_block_statement(&mut self) -> ParserResult<Vec<Statement>> {
+        if self.current_token != Token::OpenBrace {
+            return Err("Trying to parse block statement, but current token is not \
+                       `Token::OpenBrace`. This error should never happen.".into())
+        }
+        self.read_token();
+
+        let mut statements = Vec::new();
+        while self.current_token != Token::CloseBrace {
+            statements.push(self.parse_statement()?);
+            self.read_token();
+        }
+        
+        Ok(statements)
+    }
+
     fn parse_expression(&mut self, precedence: Precedence) -> ParserResult<Expression> {
         let prefix_parse_fn = Parser::get_prefix_parse_function(&self.current_token);
 
         let mut left_expression = match prefix_parse_fn {
             Some(function) => function(self),
-            // @TODO: Add "got <token>" to error message.
-            None => Err("No prefix parse function found for current token.".into()),
+            None => {
+                Err(ParserError(format!(
+                    "No prefix parse function found for current token ({}).",
+                    self.current_token.type_str()
+                )))
+            },
         }?;
 
         while self.peek_token != Token::Semicolon
@@ -187,17 +219,39 @@ impl Parser {
         Ok(Expression::InfixExpression(left_side, operator, right_side))
     }
 
+    fn parse_if_expression(&mut self) -> ParserResult<Expression> {
+        self.read_token(); // Consume `if` token
+
+        // Maybe it would be nice to make the parenthesis around the if condition optional, like
+        // Rust. It doesn't appear to cause any problems for the parser.
+        // self.expect_token(Token::OpenParen)?;
+        let condition = self.parse_expression(Precedence::Lowest)?;
+        // self.expect_token(Token::CloseParen)?;        
+        
+        self.expect_token(Token::OpenBrace)?;        
+        let consequence = self.parse_block_statement()?;
+
+        let alternative = if self.peek_token == Token::Else {
+            self.read_token();
+            self.expect_token(Token::OpenBrace)?;
+            self.parse_block_statement()?
+        } else {
+            Vec::new()
+        };
+
+        Ok(Expression::IfExpression {
+            condition: Box::new(condition),
+            consequence,
+            alternative,
+        })
+    }
+
     fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
         self.read_token();
         let exp = self.parse_expression(Precedence::Lowest)?;
 
-        match self.peek_token {
-            Token::CloseParen => {
-                self.read_token();
-                Ok(exp)
-            },
-            _ => Err("Expected `)` token.".into())  // @TODO: Add "got <token>" to error message.
-        }
+        self.expect_token(Token::CloseParen)?;
+        Ok(exp)
     }
 
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
@@ -232,6 +286,7 @@ impl Parser {
             Token::True | Token::False => Some(Parser::parse_boolean),
             Token::Bang | Token::Minus => Some(Parser::parse_prefix_expression),
             Token::OpenParen => Some(Parser::parse_grouped_expression),
+            Token::If => Some(Parser::parse_if_expression),
             _ => None,
         }
     }
