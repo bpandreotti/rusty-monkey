@@ -12,6 +12,10 @@ pub enum Expression {
         consequence: Vec<Statement>,
         alternative: Vec<Statement>,
     },
+    FunctionLiteral {
+        parameters: Vec<String>,
+        body: Vec<Statement>,
+    },
     Nil,
 }
 

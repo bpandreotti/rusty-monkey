@@ -230,6 +230,52 @@ impl Parser {
         })
     }
 
+    fn parse_function_literal(&mut self) -> ParserResult<Expression> {
+        self.expect_token(Token::OpenParen)?;
+        let parameters = self.parse_function_parameters()?;
+        self.expect_token(Token::OpenBrace)?;
+        let body = self.parse_block_statement()?;
+
+        Ok(Expression::FunctionLiteral {
+            parameters,
+            body,
+        })
+    }
+
+    fn parse_function_parameters(&mut self) -> ParserResult<Vec<String>> {
+        let mut params = Vec::new();
+
+        // In case of empty parameter list
+        if self.peek_token == Token::CloseParen {
+            self.read_token();
+            return Ok(params);
+        }
+
+        self.expect_token(Token::Identifier("".into()))?;
+
+        // The `expect_token` calls assure that the while condition is always true. The while loop
+        // only exits on the `break`, if the parser encounters a `)` token, or if there are any
+        // errors.
+        while let Token::Identifier(iden) = &self.current_token {
+            params.push(iden.clone());
+
+            match &self.peek_token {
+                Token::CloseParen => break,
+                Token::Comma => {
+                    self.read_token();
+                    self.expect_token(Token::Identifier("".into()))?;
+                }
+                invalid => return Err(ParserError(format!(
+                    "Expected `,` or `)` token, got {}.",
+                    invalid.type_str()
+                ))),
+            }
+        }
+
+        self.expect_token(Token::CloseParen)?;
+        Ok(params)
+    }
+
     fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
         self.read_token();
         let exp = self.parse_expression(Precedence::Lowest)?;
@@ -267,6 +313,7 @@ impl Parser {
             Token::OpenParen            => Some(Parser::parse_grouped_expression),
             Token::True | Token::False  => Some(Parser::parse_boolean),
             Token::If                   => Some(Parser::parse_if_expression),
+            Token::Function             => Some(Parser::parse_function_literal),
             _ => None,
         }
     }
