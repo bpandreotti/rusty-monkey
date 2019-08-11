@@ -242,6 +242,12 @@ impl Parser {
         })
     }
 
+    fn parse_call_expression(&mut self, function: Box<Expression>) -> ParserResult<Expression> {
+        let arguments = self.parse_call_arguments()?;
+
+        Ok(Expression::CallExpression { function, arguments })
+    }
+
     fn parse_function_parameters(&mut self) -> ParserResult<Vec<String>> {
         let mut params = Vec::new();
 
@@ -274,6 +280,29 @@ impl Parser {
 
         self.expect_token(Token::CloseParen)?;
         Ok(params)
+    }
+
+    fn parse_call_arguments(&mut self) -> ParserResult<Vec<Expression>> {
+        let mut args = Vec::new();
+
+        // In case of empty argument list
+        if self.peek_token == Token::CloseParen {
+            self.read_token();
+            return Ok(args);
+        }
+
+        self.read_token();
+        args.push(self.parse_expression(Precedence::Lowest)?);
+
+        while self.peek_token == Token::Comma {
+            self.read_token();
+            self.read_token();
+            args.push(self.parse_expression(Precedence::Lowest)?);
+        }
+
+        self.expect_token(Token::CloseParen)?;
+
+        Ok(args)
     }
 
     fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
@@ -330,6 +359,7 @@ impl Parser {
             | Token::Minus
             | Token::Slash
             | Token::Asterisk => Some(Parser::parse_infix_expression),
+            Token::OpenParen => Some(Parser::parse_call_expression),
             _ => None,
         }
     }
@@ -341,6 +371,7 @@ impl Parser {
             LessThan | LessEq | GreaterThan | GreaterEq => Precedence::LessGreater,
             Plus | Minus                                => Precedence::Sum,
             Slash | Asterisk                            => Precedence::Product,
+            OpenParen                                   => Precedence::Call,
             _                                           => Precedence::Lowest,
         }
     }

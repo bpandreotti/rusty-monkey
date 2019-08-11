@@ -16,6 +16,10 @@ pub enum Expression {
         parameters: Vec<String>,
         body: Vec<Statement>,
     },
+    CallExpression {
+        function: Box<Expression>,
+        arguments: Vec<Expression>,
+    },
     Nil,
 }
 
