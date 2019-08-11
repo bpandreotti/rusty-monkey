@@ -108,19 +108,21 @@ impl Parser {
         if let Token::Identifier(iden) = &self.peek_token {
             let name = iden.clone(); // We have to clone this here to satisfy the borrow checker.
 
-            self.read_token();
+            self.read_token(); // Consume identifier token.
             self.expect_token(Token::Assign)?;
+            self.read_token(); // Consume `=` token.
 
-            // @TODO: Since we can't yet parse expressions, we're ignoring the actual value of the
-            // let statement. I'm just skipping tokens until we find a semicolon.
-            while self.current_token != Token::Semicolon && self.current_token != Token::EOF {
+            let value = self.parse_expression(Precedence::Lowest)?;
+
+            if self.peek_token == Token::Semicolon {
                 self.read_token();
             }
 
             Ok(LetStatement {
                 identifier: name,
-                value: Expression::Nil,
+                value,
             })
+
         } else {
             Err(ParserError(format!(
                 "Expected literal token, got {}.",
@@ -131,12 +133,14 @@ impl Parser {
 
     fn parse_return_statement(&mut self) -> ParserResult<Expression> {
         self.read_token();
-        // @TODO: Same thing as in `parse_let_statement`.
-        while self.current_token != Token::Semicolon && self.current_token != Token::EOF {
+
+        let return_value = self.parse_expression(Precedence::Lowest)?;
+
+        if self.peek_token == Token::Semicolon {
             self.read_token();
         }
 
-        Ok(Expression::Nil)
+        Ok(return_value)
     }
 
     fn parse_expression_statement(&mut self) -> ParserResult<Expression> {
