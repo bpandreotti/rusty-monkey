@@ -384,10 +384,10 @@ mod tests {
     use super::*;
     use crate::lexer::Lexer;
 
-    fn assert_parse(input: String, expected: &[&str]) {
-        let lex = Lexer::new(input);
+    fn assert_parse(input: &str, expected: &[&str]) {
+        let lex = Lexer::new(input.into());
         let mut pars = Parser::new(lex);
-        let output = pars.parse_program().unwrap();
+        let output = pars.parse_program().expect("Parser error during test");
         assert_eq!(output.len(), expected.len());
 
         for i in 0..output.len() {
@@ -395,22 +395,31 @@ mod tests {
         }
     }
 
+    fn assert_parse_fails(input: &str) {
+        let lex = Lexer::new(input.into());
+        let mut pars = Parser::new(lex);
+        let output = pars.parse_program();
+        assert!(output.is_err());
+    }
+
     #[test]
     fn test_prefix_expressions() {
-        let input = "-5; !true; --!!-foo;".into();
+        let input = "-5; !true; --!!-foo;";
         let expected = [
             "ExpressionStatement(PrefixExpression(Minus, IntLiteral(5)))",
             "ExpressionStatement(PrefixExpression(Bang, Boolean(true)))",
             "ExpressionStatement(PrefixExpression(Minus, PrefixExpression(Minus, PrefixExpression(\
             Bang, PrefixExpression(Bang, PrefixExpression(Minus, Identifier(\"foo\")))))))"
         ];
-
         assert_parse(input, &expected);
+        
+        assert_parse_fails("!;");
+        assert_parse_fails("-");
     }
 
     #[test]
     fn test_infix_expressions() {
-        let input = "1 + 2; 4 * 5 - 2 / 3; 1 >= 2 == 2 < 3 != true;".into();
+        let input = "1 + 2; 4 * 5 - 2 / 3; 1 >= 2 == 2 < 3 != true;";
         let expected = [
             "ExpressionStatement(InfixExpression(IntLiteral(1), Plus, IntLiteral(2)))",
             
@@ -421,7 +430,29 @@ mod tests {
             GreaterEq, IntLiteral(2)), Equals, InfixExpression(IntLiteral(2), LessThan, \
             IntLiteral(3))), NotEquals, Boolean(true)))"
         ];
-
         assert_parse(input, &expected);
+
+        assert_parse_fails("1 + 2 -");
+        assert_parse_fails("1 == + 2");
+        assert_parse_fails("> 1 + 2");
+    }
+
+    #[test]
+    fn test_let_statements() {
+        assert_parse(
+            "let a = 1;",
+            &["Let(LetStatement { identifier: \"a\", value: IntLiteral(1) })"]
+        );
+        assert_parse_fails("let 2 = 3;");
+        assert_parse_fails("let foo whatever 3;");
+        assert_parse_fails("let bar = ;");
+        assert_parse_fails("let baz;");
+    }
+
+    #[test]
+    fn test_return_statements() {
+        // Not much to test here, to be honest
+        assert_parse("return 0;", &["Return(IntLiteral(0))"]);
+        assert_parse_fails("return;");
     }
 }
