@@ -53,15 +53,6 @@ impl Parser {
         Parser { lexer, current_token, peek_token }
     }
 
-    pub fn read_token(&mut self) {
-        // Little trick to move the borrowed value without having to clone anything. I'm
-        // effectively doing this:
-        //   self.current_token = self.peek_token;
-        //   self.peek_token = self.lexer.next_token();
-        // but this way the borrow checker is pleased.
-        self.current_token = mem::replace(&mut self.peek_token, self.lexer.next_token());
-    }
-
     pub fn parse_program(&mut self) -> ParserResult<Vec<Statement>> {
         let mut program: Vec<Statement> = Vec::new();
 
@@ -72,6 +63,15 @@ impl Parser {
         }
 
         Ok(program)
+    }
+
+    fn read_token(&mut self) {
+        // Little trick to move the borrowed value without having to clone anything. I'm
+        // effectively doing this:
+        //   self.current_token = self.peek_token;
+        //   self.peek_token = self.lexer.next_token();
+        // but this way the borrow checker is pleased.
+        self.current_token = mem::replace(&mut self.peek_token, self.lexer.next_token());
     }
 
     fn expect_token(&mut self, expected: Token) -> ParserResult<()> {
@@ -378,5 +378,32 @@ impl Parser {
             OpenParen                                   => Precedence::Call,
             _                                           => Precedence::Lowest,
         }
+    }}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+
+    #[test]
+    fn test_prefix_expressions() {
+        let input: String = "-5; !true; --!!-foo;".into();
+        let lex = Lexer::new(input);
+        let mut pars = Parser::new(lex);
+        let output = pars.parse_program().unwrap();
+
+        assert_eq!(
+            format!("{:?}", output[0]),
+            "ExpressionStatement(PrefixExpression(Minus, IntLiteral(5)))"
+        );
+        assert_eq!(
+            format!("{:?}", output[1]),
+            "ExpressionStatement(PrefixExpression(Bang, Boolean(true)))"
+        );
+        assert_eq!(
+            format!("{:?}", output[2]),
+            "ExpressionStatement(PrefixExpression(Minus, PrefixExpression(Minus, PrefixExpression(\
+            Bang, PrefixExpression(Bang, PrefixExpression(Minus, Identifier(\"foo\")))))))"
+        );
     }
 }

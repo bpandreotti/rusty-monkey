@@ -1,6 +1,6 @@
 use crate::token::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(String),
     IntLiteral(i64),
@@ -20,10 +20,9 @@ pub enum Expression {
         function: Box<Expression>,
         arguments: Vec<Expression>,
     },
-    Nil,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let(Box<LetStatement>),
     Return(Box<Expression>),
@@ -31,7 +30,7 @@ pub enum Statement {
     BlockStatement(Vec<Statement>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub identifier: String,
     pub value: Expression,

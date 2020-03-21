@@ -3,19 +3,20 @@ use crate::token::*;
 pub struct Lexer {
     chars: Vec<char>,
     position: usize,
-    pub current_char: Option<char>,
+    current_char: Option<char>,
 }
 
 impl Lexer {
     pub fn new(input: String) -> Lexer {
         let chars: Vec<char> = input.chars().collect();
-        // `copied` turns an `Option<&T>` into an `Option<T>`.
+        // Using `copied` because the input might be empty, in which case we want to copy over the
+        // `None` returned from `get`.
         let current_char = chars.get(0).copied();
 
         Lexer {
-            chars: chars,
+            chars,
             position: 0,
-            current_char: current_char,
+            current_char,
         }
     }
 
@@ -120,6 +121,13 @@ mod tests {
 
     #[test]
     fn test_next_token() {
+        use Token::*;
+
+        // Shortcut to create a `Token::Identifier` from a string literal.
+        macro_rules! iden {
+            ($x:expr) => { Token::Identifier($x.into()) }
+        }
+
         let input: String = r#"
             let five = 5;
             let add = fn(x, y) {
@@ -140,21 +148,14 @@ mod tests {
         .into();
 
         let expected = [
-            Token::Let,         Token::Identifier("five".into()),       Token::Assign,
-            Token::Int(5),      Token::Semicolon,   Token::Let,
-            Token::Identifier("add".into()),        Token::Assign,      Token::Function,
-            Token::OpenParen,   Token::Identifier("x".into()),          Token::Comma,
-            Token::Identifier("y".into()),          Token::CloseParen,  Token::OpenBrace,
-            Token::Identifier("x".into()),          Token::Plus,
-            Token::Identifier("y".into()),          Token::Semicolon,   Token::CloseBrace,
-            Token::Semicolon,   Token::Bang,        Token::Minus,       Token::Slash,
-            Token::Asterisk,    Token::Int(5),      Token::Semicolon,   Token::If,
-            Token::OpenParen,   Token::Int(5),      Token::LessThan,    Token::Int(10),
-            Token::CloseParen,  Token::OpenBrace,   Token::Return,      Token::True,
-            Token::Semicolon,   Token::CloseBrace,  Token::Else,        Token::OpenBrace,
-            Token::Return,      Token::False,       Token::Semicolon,   Token::CloseBrace,
-            Token::Int(10),     Token::Equals,       Token::Int(10),     Token::Semicolon,
-            Token::NotEquals,    Token::LessEq,      Token::GreaterEq,   Token::Illegal('?'),
+            Let,        iden!("five"),          Assign,     Int(5),     Semicolon,  Let,
+            iden!("add"),           Assign,     Function,   OpenParen,  iden!("x"), Comma,
+            iden!("y"), CloseParen, OpenBrace,  iden!("x"), Plus,       iden!("y"), Semicolon,
+            CloseBrace, Semicolon,  Bang,       Minus,      Slash,      Asterisk,   Int(5),
+            Semicolon,  If,         OpenParen,  Int(5),     LessThan,   Int(10),    CloseParen,
+            OpenBrace,  Return,     True,       Semicolon,  CloseBrace, Else,       OpenBrace,
+            Return,     False,      Semicolon,  CloseBrace, Int(10),    Equals,     Int(10),
+            Semicolon,  NotEquals,  LessEq,     GreaterEq,  Illegal('?'),           EOF,
         ];
 
         let mut lex = Lexer::new(input);

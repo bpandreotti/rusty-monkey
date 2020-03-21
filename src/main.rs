@@ -1,8 +1,8 @@
-mod token;
-mod lexer;
-mod repl;
-mod ast;
-mod parser;
+pub mod token;
+pub mod lexer;
+pub mod repl;
+pub mod ast;
+pub mod parser;
 
 use std::error::Error;
 
