@@ -122,7 +122,6 @@ impl Parser {
                 identifier: name,
                 value,
             })
-
         } else {
             Err(ParserError(format!(
                 "Expected literal token, got {}.",
@@ -240,10 +239,7 @@ impl Parser {
         self.expect_token(Token::OpenBrace)?;
         let body = self.parse_block_statement()?;
 
-        Ok(Expression::FunctionLiteral {
-            parameters,
-            body,
-        })
+        Ok(Expression::FunctionLiteral { parameters, body })
     }
 
     fn parse_call_expression(&mut self, function: Box<Expression>) -> ParserResult<Expression> {
@@ -275,10 +271,12 @@ impl Parser {
                     self.read_token();
                     self.expect_token(Token::Identifier("".into()))?;
                 }
-                invalid => return Err(ParserError(format!(
-                    "Expected `,` or `)` token, got {}.",
-                    invalid.type_str()
-                ))),
+                invalid => {
+                    return Err(ParserError(format!(
+                        "Expected `,` or `)` token, got {}.",
+                        invalid.type_str()
+                    )))
+                }
             }
         }
 
@@ -319,14 +317,14 @@ impl Parser {
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
     fn parse_int_literal(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Int(x) => Ok(Expression::IntLiteral(*x)),
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
@@ -334,7 +332,7 @@ impl Parser {
         match &self.current_token {
             Token::True => Ok(Expression::Boolean(true)),
             Token::False => Ok(Expression::Boolean(false)),
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
@@ -378,32 +376,52 @@ impl Parser {
             OpenParen                                   => Precedence::Call,
             _                                           => Precedence::Lowest,
         }
-    }}
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
 
-    #[test]
-    fn test_prefix_expressions() {
-        let input: String = "-5; !true; --!!-foo;".into();
+    fn assert_parse(input: String, expected: &[&str]) {
         let lex = Lexer::new(input);
         let mut pars = Parser::new(lex);
         let output = pars.parse_program().unwrap();
+        assert_eq!(output.len(), expected.len());
 
-        assert_eq!(
-            format!("{:?}", output[0]),
-            "ExpressionStatement(PrefixExpression(Minus, IntLiteral(5)))"
-        );
-        assert_eq!(
-            format!("{:?}", output[1]),
-            "ExpressionStatement(PrefixExpression(Bang, Boolean(true)))"
-        );
-        assert_eq!(
-            format!("{:?}", output[2]),
+        for i in 0..output.len() {
+            assert_eq!(format!("{:?}", output[i]), expected[i]);
+        }
+    }
+
+    #[test]
+    fn test_prefix_expressions() {
+        let input = "-5; !true; --!!-foo;".into();
+        let expected = [
+            "ExpressionStatement(PrefixExpression(Minus, IntLiteral(5)))",
+            "ExpressionStatement(PrefixExpression(Bang, Boolean(true)))",
             "ExpressionStatement(PrefixExpression(Minus, PrefixExpression(Minus, PrefixExpression(\
             Bang, PrefixExpression(Bang, PrefixExpression(Minus, Identifier(\"foo\")))))))"
-        );
+        ];
+
+        assert_parse(input, &expected);
+    }
+
+    #[test]
+    fn test_infix_expressions() {
+        let input = "1 + 2; 4 * 5 - 2 / 3; 1 >= 2 == 2 < 3 != true;".into();
+        let expected = [
+            "ExpressionStatement(InfixExpression(IntLiteral(1), Plus, IntLiteral(2)))",
+            
+            "ExpressionStatement(InfixExpression(InfixExpression(IntLiteral(4), Asterisk, \
+            IntLiteral(5)), Minus, InfixExpression(IntLiteral(2), Slash, IntLiteral(3))))",
+            
+            "ExpressionStatement(InfixExpression(InfixExpression(InfixExpression(IntLiteral(1), \
+            GreaterEq, IntLiteral(2)), Equals, InfixExpression(IntLiteral(2), LessThan, \
+            IntLiteral(3))), NotEquals, Boolean(true)))"
+        ];
+
+        assert_parse(input, &expected);
     }
 }
