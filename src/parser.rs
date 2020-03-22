@@ -407,70 +407,10 @@ mod tests {
     }
 
     #[test]
-    fn test_prefix_expressions() {
-        let input = "-5; !true; --!!-foo;";
-        let expected = [
-            "ExpressionStatement(PrefixExpression(Minus, IntLiteral(5)))",
-            "ExpressionStatement(PrefixExpression(Bang, Boolean(true)))",
-            "ExpressionStatement(PrefixExpression(Minus, PrefixExpression(Minus, PrefixExpression(\
-            Bang, PrefixExpression(Bang, PrefixExpression(Minus, Identifier(\"foo\")))))))"
-        ];
-        assert_parse(input, &expected);
-        
-        assert_parse_fails("!;");
-        assert_parse_fails("-");
-    }
-
-    #[test]
-    fn test_infix_expressions() {
-        let input = "1 + 2; 4 * 5 - 2 / 3; 1 >= 2 == 2 < 3 != true;";
-        let expected = [
-            "ExpressionStatement(InfixExpression(IntLiteral(1), Plus, IntLiteral(2)))",
-            
-            "ExpressionStatement(InfixExpression(InfixExpression(IntLiteral(4), Asterisk, \
-            IntLiteral(5)), Minus, InfixExpression(IntLiteral(2), Slash, IntLiteral(3))))",
-            
-            "ExpressionStatement(InfixExpression(InfixExpression(InfixExpression(IntLiteral(1), \
-            GreaterEq, IntLiteral(2)), Equals, InfixExpression(IntLiteral(2), LessThan, \
-            IntLiteral(3))), NotEquals, Boolean(true)))"
-        ];
-        assert_parse(input, &expected);
-
-        assert_parse_fails("1 + 2 -");
-        assert_parse_fails("1 == + 2");
-        assert_parse_fails("> 1 + 2");
-    }
-
-    #[test]
-    fn test_if_expressions() {
-        let input = "
-            if 1 { 1 } else { 0 }
-            if 2 { 2 }
-            if (true) {}
-        ";
-        let expected = [
-            "ExpressionStatement(IfExpression { condition: IntLiteral(1), consequence: \
-            [ExpressionStatement(IntLiteral(1))], alternative: [ExpressionStatement(\
-            IntLiteral(0))] })",
-            
-            "ExpressionStatement(IfExpression { condition: IntLiteral(2), consequence: \
-            [ExpressionStatement(IntLiteral(2))], alternative: [] })",
-            
-            "ExpressionStatement(IfExpression { condition: Boolean(true), consequence: \
-            [], alternative: [] })",
-        ];
-        assert_parse(input, &expected);
-
-        assert_parse_fails("if true");
-        assert_parse_fails("if { return 1; }");
-        assert_parse_fails("if true {} else");
-    }
-    
-    #[test]
     fn test_let_statements() {
         assert_parse(
             "let a = 1;",
-            &["Let(LetStatement { identifier: \"a\", value: IntLiteral(1) })"]
+            &["Let(LetStatement { identifier: \"a\", value: IntLiteral(1) })"],
         );
         assert_parse_fails("let 2 = 3;");
         assert_parse_fails("let foo whatever 3;");
@@ -498,5 +438,79 @@ mod tests {
             "BlockStatement([])",
         ];
         assert_parse(input, &expected);
+
+        assert_parse_fails("{ return 0");
+    }
+
+    #[test]
+    fn test_prefix_expressions() {
+        let input = "-5; !true; --!!-foo;";
+        let expected = [
+            "ExpressionStatement(PrefixExpression(Minus, IntLiteral(5)))",
+            "ExpressionStatement(PrefixExpression(Bang, Boolean(true)))",
+            "ExpressionStatement(PrefixExpression(Minus, PrefixExpression(Minus, PrefixExpression(\
+            Bang, PrefixExpression(Bang, PrefixExpression(Minus, Identifier(\"foo\")))))))",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("!;");
+        assert_parse_fails("-");
+    }
+
+    #[test]
+    fn test_infix_expressions() {
+        let input = "1 + 2; 4 * 5 - 2 / 3; 1 >= 2 == 2 < 3 != true;";
+        let expected = [
+            "ExpressionStatement(InfixExpression(IntLiteral(1), Plus, IntLiteral(2)))",
+            "ExpressionStatement(InfixExpression(InfixExpression(IntLiteral(4), Asterisk, \
+            IntLiteral(5)), Minus, InfixExpression(IntLiteral(2), Slash, IntLiteral(3))))",
+            "ExpressionStatement(InfixExpression(InfixExpression(InfixExpression(IntLiteral(1), \
+            GreaterEq, IntLiteral(2)), Equals, InfixExpression(IntLiteral(2), LessThan, \
+            IntLiteral(3))), NotEquals, Boolean(true)))",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("1 + 2 -");
+        assert_parse_fails("1 == + 2");
+        assert_parse_fails("> 1 + 2");
+    }
+
+    #[test]
+    fn test_if_expressions() {
+        let input = "
+            if 1 { 1 } else { 0 }
+            if 2 { 2 }
+            if (true) {}
+        ";
+        let expected = [
+            "ExpressionStatement(IfExpression { condition: IntLiteral(1), consequence: \
+            [ExpressionStatement(IntLiteral(1))], alternative: [ExpressionStatement(\
+            IntLiteral(0))] })",
+            "ExpressionStatement(IfExpression { condition: IntLiteral(2), consequence: \
+            [ExpressionStatement(IntLiteral(2))], alternative: [] })",
+            "ExpressionStatement(IfExpression { condition: Boolean(true), consequence: \
+            [], alternative: [] })",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("if true");
+        assert_parse_fails("if { return 1; }");
+        assert_parse_fails("if true {} else");
+    }
+
+    #[test]
+    fn test_grouped_expression() {
+        let input = "(2 + 3) * (5 + 7); (1 + (1 + (1 + 1)))";
+        let expected = [
+            "ExpressionStatement(InfixExpression(InfixExpression(IntLiteral(2), Plus, \
+            IntLiteral(3)), Asterisk, InfixExpression(IntLiteral(5), Plus, IntLiteral(7))))",
+            "ExpressionStatement(InfixExpression(IntLiteral(1), Plus, InfixExpression(\
+            IntLiteral(1), Plus, InfixExpression(IntLiteral(1), Plus, IntLiteral(1)))))",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("(1 + 1");
+        assert_parse_fails("1 + 1)");
+        assert_parse_fails(")(");
     }
 }
