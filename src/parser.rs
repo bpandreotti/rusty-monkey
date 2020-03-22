@@ -97,6 +97,10 @@ impl Parser {
                 let st = Box::new(self.parse_return_statement()?);
                 Ok(Statement::Return(st))
             }
+            Token::OpenBrace => {
+                let st = self.parse_block_statement()?;
+                Ok(Statement::BlockStatement(st))
+            }
             _ => {
                 let st = Box::new(self.parse_expression_statement()?);
                 Ok(Statement::ExpressionStatement(st))
