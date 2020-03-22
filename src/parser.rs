@@ -438,6 +438,31 @@ mod tests {
     }
 
     #[test]
+    fn test_if_expressions() {
+        let input = "
+            if 1 { 1 } else { 0 }
+            if 2 { 2 }
+            if (true) {}
+        ";
+        let expected = [
+            "ExpressionStatement(IfExpression { condition: IntLiteral(1), consequence: \
+            [ExpressionStatement(IntLiteral(1))], alternative: [ExpressionStatement(\
+            IntLiteral(0))] })",
+            
+            "ExpressionStatement(IfExpression { condition: IntLiteral(2), consequence: \
+            [ExpressionStatement(IntLiteral(2))], alternative: [] })",
+            
+            "ExpressionStatement(IfExpression { condition: Boolean(true), consequence: \
+            [], alternative: [] })",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("if true");
+        assert_parse_fails("if { return 1; }");
+        assert_parse_fails("if true {} else");
+    }
+    
+    #[test]
     fn test_let_statements() {
         assert_parse(
             "let a = 1;",
@@ -454,5 +479,20 @@ mod tests {
         // Not much to test here, to be honest
         assert_parse("return 0;", &["Return(IntLiteral(0))"]);
         assert_parse_fails("return;");
+    }
+
+    #[test]
+    fn test_block_statements() {
+        let input = "
+            { let foo = 2; return 1; }
+            { return 0 }
+            {}
+        ";
+        let expected = [
+            "BlockStatement([Let(LetStatement { identifier: \"foo\", value: IntLiteral(2) }), Return(IntLiteral(1))])",
+            "BlockStatement([Return(IntLiteral(0))])",
+            "BlockStatement([])",
+        ];
+        assert_parse(input, &expected);
     }
 }
