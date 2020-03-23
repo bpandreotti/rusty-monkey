@@ -139,7 +139,7 @@ impl Parser {
                 self.read_token(); // Consume optional semicolon
             }
 
-            Ok(LetStatement { identifier, value })
+            Ok((identifier, value))
         } else {
             pars_err!("Expected literal token, got {}.", self.current_token.type_str())
         }

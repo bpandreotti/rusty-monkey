@@ -1,5 +1,7 @@
 use crate::token::*;
 
+pub type LetStatement = (String, Expression);
+
 #[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(String),
@@ -28,10 +30,4 @@ pub enum Statement {
     Return(Box<Expression>),
     ExpressionStatement(Box<Expression>),
     BlockStatement(Vec<Statement>),
-}
-
-#[derive(Debug, Clone)]
-pub struct LetStatement {
-    pub identifier: String,
-    pub value: Expression,
 }
