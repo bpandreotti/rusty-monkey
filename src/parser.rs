@@ -1,4 +1,3 @@
-// @TODO: Add tests for this module.
 use crate::ast::*;
 use crate::lexer::*;
 use crate::token::*;
@@ -22,6 +21,10 @@ impl From<&str> for ParserError {
     fn from(s: &str) -> ParserError {
         ParserError(s.into())
     }
+}
+
+macro_rules! pars_err {
+    ($($arg:expr),*) => { Err(ParserError(format!($($arg),*))) }
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -53,6 +56,8 @@ impl Parser {
         Parser { lexer, current_token, peek_token }
     }
 
+    /// Parses the program passed to the lexer. Reads tokens from the lexer until reaching EOF, and
+    /// outputs the parsed statements into a `Vec`.
     pub fn parse_program(&mut self) -> ParserResult<Vec<Statement>> {
         let mut program: Vec<Statement> = Vec::new();
 
@@ -65,6 +70,7 @@ impl Parser {
         Ok(program)
     }
 
+    /// Reads a token from the lexer and updates `self.current_token` and `self.peek_token`.
     fn read_token(&mut self) {
         // Little trick to move the borrowed value without having to clone anything. I'm
         // effectively doing this:
@@ -74,19 +80,25 @@ impl Parser {
         self.current_token = mem::replace(&mut self.peek_token, self.lexer.next_token());
     }
 
+    /// Checks if `self.peek_token` has the same discriminant as the token passed. If so, reads
+    /// this token from the lexer. Otherwise, if `self.peek_token` is not the expected token,
+    /// does nothing and returns an error.
     fn expect_token(&mut self, expected: Token) -> ParserResult<()> {
         if mem::discriminant(&self.peek_token) != mem::discriminant(&expected) {
-            Err(ParserError(format!(
+            pars_err!(
                 "Expected {} token, got {}.",
                 expected.type_str(),
                 self.peek_token.type_str()
-            )))
+            )
         } else {
             self.read_token();
             Ok(())
         }
     }
 
+    /// Parses a statement from the program. A statement can be a "let" statement, a "return"
+    /// statement, an expression statement, or a block of statements. May return an error if 
+    /// parsing fails.
     fn parse_statement(&mut self) -> ParserResult<Statement> {
         match self.current_token {
             Token::Let => {
@@ -108,44 +120,44 @@ impl Parser {
         }
     }
 
+    /// Parses a "let" statement. Expects an "=" token, followed by an identifier and finally an
+    /// expression. Returns an error if any of those steps fail. Doesn't check if
+    /// `self.current_token` is a "let" token.
     fn parse_let_statement(&mut self) -> ParserResult<LetStatement> {
-        if let Token::Identifier(iden) = &self.peek_token {
-            let name = iden.clone(); // We have to clone this here to satisfy the borrow checker.
+        self.read_token(); // Read identifier token
+        if let Token::Identifier(iden) = &self.current_token {
+            // We have to clone this here to satisfy the borrow checker
+            let identifier = iden.clone();
 
-            self.read_token(); // Consume identifier token.
-            self.expect_token(Token::Assign)?;
-            self.read_token(); // Consume `=` token.
+            self.expect_token(Token::Assign)?; // Expect "=" token
+            self.read_token(); // Read first token from the expression
 
+            // At this point, self.current_token is the first token in the expression
             let value = self.parse_expression(Precedence::Lowest)?;
 
             if self.peek_token == Token::Semicolon {
-                self.read_token();
+                self.read_token(); // Consume optional semicolon
             }
 
-            Ok(LetStatement {
-                identifier: name,
-                value,
-            })
+            Ok(LetStatement { identifier, value })
         } else {
-            Err(ParserError(format!(
-                "Expected literal token, got {}.",
-                self.peek_token.type_str()
-            )))
+            pars_err!("Expected literal token, got {}.", self.current_token.type_str())
         }
     }
 
+    /// Parses a "return" statement. Expects a valid expression, and returns an error if its
+    /// parsing fails. Doesn't check if `self.current_token` is a "return" token.
     fn parse_return_statement(&mut self) -> ParserResult<Expression> {
-        self.read_token();
-
+        self.read_token(); // Read first token from the expression
         let return_value = self.parse_expression(Precedence::Lowest)?;
 
         if self.peek_token == Token::Semicolon {
-            self.read_token();
+            self.read_token(); // Consume optional semicolon
         }
-
         Ok(return_value)
     }
 
+    /// Parses an expression statement, returns an error if parsing fails.
     fn parse_expression_statement(&mut self) -> ParserResult<Expression> {
         let exp = self.parse_expression(Precedence::Lowest)?;
         if self.peek_token == Token::Semicolon {
@@ -154,9 +166,11 @@ impl Parser {
         Ok(exp)
     }
 
+    /// Parses a block of statements. A block of statements must be enclosed by curly braces.
+    /// Returns an error if the parsing of any statement inside fails. Doesn't check if
+    /// `self.current_token` is "{".
     fn parse_block_statement(&mut self) -> ParserResult<Vec<Statement>> {
         self.read_token();
-
         let mut statements = Vec::new();
         while self.current_token != Token::CloseBrace {
             statements.push(self.parse_statement()?);
@@ -166,16 +180,21 @@ impl Parser {
         Ok(statements)
     }
 
+    /// Parses an expression. First, parses an expression using a prefix parse function. This step
+    /// parses all expressions except for infix operator expressions and function call expresisons.
+    /// After that, attempts to use the parsed expression as the left side of another expression,
+    /// now using an infix parse function. This step deals with the aforementioned remaining cases.
+    /// Returns an error if no prefix parse function is encountered, or the parsing fails.
     fn parse_expression(&mut self, precedence: Precedence) -> ParserResult<Expression> {
-        let prefix_parse_fn = Parser::get_prefix_parse_function(&self.current_token);
-
-        let mut left_expression = match prefix_parse_fn {
-            Some(parse_function) => parse_function(self),
-            None => Err(ParserError(format!(
+        let prefix_parse_fn = match Parser::get_prefix_parse_function(&self.current_token) {
+            Some(f) => f,
+            None => return pars_err!(
                 "No prefix parse function found for current token ({}).",
                 self.current_token.type_str()
-            ))),
-        }?;
+            ),
+        };
+
+        let mut left_expression = prefix_parse_fn(self)?;
 
         while self.peek_token != Token::Semicolon
             && precedence < Parser::get_precedence(&self.peek_token)
@@ -183,17 +202,24 @@ impl Parser {
             let infix_parse_fn = Parser::get_infix_parse_function(&self.peek_token);
 
             match infix_parse_fn {
-                Some(parse_function) => {
+                Some(f) => {
                     self.read_token();
-                    left_expression = parse_function(self, Box::new(left_expression))?;
+                    left_expression = f(self, Box::new(left_expression))?;
                 }
-                None => break,
+                None => break, // @TODO: Maybe we should panic here? Or return an error?
+                // This is only reached if `self.peek_token` has a higher precedence than the
+                // current one, and if it doesn't have an infix parse function associated with it.
+                // Currently, all tokens that don't have infix parse functions have the lowest
+                // precedence, so that is impossible
             }
         }
 
         Ok(left_expression)
     }
 
+    /// Parses a prefix expression. These are composed of a prefix operator (like "-" or "!") and
+    /// an expression for the right side. May return an error if the parsing of the right side
+    /// fails. Panics if `self.current_token` is not a valid prefix operator.
     fn parse_prefix_expression(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Bang | Token::Minus => {
@@ -206,6 +232,10 @@ impl Parser {
         }
     }
 
+    /// Parses an infix expression. These are composed of a left side expression, an infix operator
+    /// (like "+" or ">") and a right side expression. Takes an already parsed left side and parses
+    /// the right side using the operator's precedence. `self.current_token` must be a valid
+    /// operator token. Returns an error if the right side parsing fails.
     fn parse_infix_expression(&mut self, left_side: Box<Expression>) -> ParserResult<Expression> {
         let operator = self.current_token.clone();
         let precedence = Parser::get_precedence(&operator);
@@ -214,16 +244,19 @@ impl Parser {
         Ok(Expression::InfixExpression(left_side, operator, right_side))
     }
 
+    /// Parses an "if" expression. These are composed of the "if" keyword, a condition expression,
+    /// and a block of statements as a consequence. Optionally, there can be an "else" branch,
+    /// composed of the "else" keyword and another block of statements. May return an error if
+    /// parsing fails at any point. Doesn't check if `self.current_token` is an "if" token.
     fn parse_if_expression(&mut self) -> ParserResult<Expression> {
-        self.read_token();
-
+        self.read_token(); // Read first token from the condition expression
         let condition = self.parse_expression(Precedence::Lowest)?;
 
         self.expect_token(Token::OpenBrace)?;
         let consequence = self.parse_block_statement()?;
 
         let alternative = if self.peek_token == Token::Else {
-            self.read_token();
+            self.read_token(); // Consume "else" token
             self.expect_token(Token::OpenBrace)?;
             self.parse_block_statement()?
         } else {
@@ -237,6 +270,9 @@ impl Parser {
         })
     }
 
+    /// Parses a function literal. Expects a valid function parameter list enclosed by parentheses,
+    /// followed by a block of statements. May return an error if parsing fails. Doesn't check if 
+    /// `self.current_token` is an "fn" token.
     fn parse_function_literal(&mut self) -> ParserResult<Expression> {
         self.expect_token(Token::OpenParen)?;
         let parameters = self.parse_function_parameters()?;
@@ -246,12 +282,19 @@ impl Parser {
         Ok(Expression::FunctionLiteral { parameters, body })
     }
 
+    /// Parses a function call expression. The function name must be already parsed, and passed as
+    /// an identifier expression. Expects a valid list of call arguments. Doesn't check if
+    /// `self.current_token` is an "(" token. May return an error if parsing fails.
     fn parse_call_expression(&mut self, function: Box<Expression>) -> ParserResult<Expression> {
         let arguments = self.parse_call_arguments()?;
 
         Ok(Expression::CallExpression { function, arguments })
     }
 
+    /// Parses a function parameter list. These are a list of identifiers, enclosed by parentheses
+    /// and separated by commas. There should be no trailing comma. Returns an error if the parser
+    /// encounters an unexpected token while parsing. Doesn't check if `self.current_token` is an
+    /// "(" token.
     fn parse_function_parameters(&mut self) -> ParserResult<Vec<String>> {
         let mut params = Vec::new();
 
@@ -264,8 +307,8 @@ impl Parser {
         self.expect_token(Token::Identifier("".into()))?;
 
         // The `expect_token` calls assure that the while condition is always true. The while loop
-        // only exits on the `break`, if the parser encounters a `)` token, or if there are any
-        // errors.
+        // only exits on the `break`, if the parser encounters a ")" token, or if there are any
+        // errors
         while let Token::Identifier(iden) = &self.current_token {
             params.push(iden.clone());
 
@@ -276,10 +319,7 @@ impl Parser {
                     self.expect_token(Token::Identifier("".into()))?;
                 }
                 invalid => {
-                    return Err(ParserError(format!(
-                        "Expected `,` or `)` token, got {}.",
-                        invalid.type_str()
-                    )))
+                    return pars_err!("Expected `,` or `)` token, got {}.", invalid.type_str())
                 }
             }
         }
@@ -288,6 +328,10 @@ impl Parser {
         Ok(params)
     }
 
+    /// Parses a list of call arguments. Expects a list of expressions, enclosed by parentheses and
+    /// separated by commas. There should be no trailing comma. May return an error if parsing of
+    /// an argument fails, or if the parser encounters an unexpected token. Doesn't check if
+    /// `self.current_token` is an "(" token.
     fn parse_call_arguments(&mut self) -> ParserResult<Vec<Expression>> {
         let mut args = Vec::new();
 
@@ -297,12 +341,12 @@ impl Parser {
             return Ok(args);
         }
 
-        self.read_token();
+        self.read_token(); // Read first token of expression
         args.push(self.parse_expression(Precedence::Lowest)?);
 
         while self.peek_token == Token::Comma {
-            self.read_token();
-            self.read_token();
+            self.read_token(); // Consume comma token
+            self.read_token(); // Read first token of expression
             args.push(self.parse_expression(Precedence::Lowest)?);
         }
 
@@ -311,6 +355,9 @@ impl Parser {
         Ok(args)
     }
 
+    /// Parses a grouped expression, that is, an expression enclosed by parentheses. This only has
+    /// the effect of parsing the inner expression with a lower precedence. Returns an error if the
+    /// parsing of the inner expression fails, or if the parser doesn't encounter the ")" token.
     fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
         self.read_token();
         let exp = self.parse_expression(Precedence::Lowest)?;
@@ -318,6 +365,7 @@ impl Parser {
         Ok(exp)
     }
 
+    /// Parses an identifier token into an identifier expression.
     fn parse_identifier(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
@@ -325,6 +373,7 @@ impl Parser {
         }
     }
 
+    /// Parses an integer token into an integer literal expression.
     fn parse_int_literal(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::Int(x) => Ok(Expression::IntLiteral(*x)),
@@ -332,6 +381,7 @@ impl Parser {
         }
     }
 
+    /// Parses a boolean token into a boolean literal expression.
     fn parse_boolean(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
             Token::True => Ok(Expression::Boolean(true)),
@@ -340,6 +390,7 @@ impl Parser {
         }
     }
 
+    /// Returns the prefix parse function associated with the given token.
     fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
         match token {
             Token::Identifier(_)        => Some(Parser::parse_identifier),
@@ -353,6 +404,7 @@ impl Parser {
         }
     }
 
+    /// Returns the infix parse function associated with the given token.
     fn get_infix_parse_function(token: &Token) -> Option<InfixParseFn> {
         match token {
             Token::Equals
@@ -370,6 +422,7 @@ impl Parser {
         }
     }
 
+    /// Returns the operator precedence associated with the given token.
     fn get_precedence(token: &Token) -> Precedence {
         use Token::*;
         match token {
@@ -385,6 +438,7 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    // @TODO: Add tests for `parse_function_literal` and `parse_call_expression`
     use super::*;
     use crate::lexer::Lexer;
 
