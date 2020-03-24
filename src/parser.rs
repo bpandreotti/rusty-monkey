@@ -464,7 +464,7 @@ mod tests {
     fn test_let_statements() {
         assert_parse(
             "let a = 1;",
-            &["Let(LetStatement { identifier: \"a\", value: IntLiteral(1) })"],
+            &["Let((\"a\", IntLiteral(1)))"],
         );
         assert_parse_fails("let 2 = 3;");
         assert_parse_fails("let foo whatever 3;");
@@ -487,7 +487,7 @@ mod tests {
             {}
         ";
         let expected = [
-            "BlockStatement([Let(LetStatement { identifier: \"foo\", value: IntLiteral(2) }), Return(IntLiteral(1))])",
+            "BlockStatement([Let((\"foo\", IntLiteral(2))), Return(IntLiteral(1))])",
             "BlockStatement([Return(IntLiteral(0))])",
             "BlockStatement([])",
         ];
