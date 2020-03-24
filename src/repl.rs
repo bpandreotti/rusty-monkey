@@ -1,13 +1,14 @@
-use std::io::BufRead;
-
+use crate::eval;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+
+use std::io::BufRead;
 
 const PROMPT: &str = "monkey » ";
 
 pub fn start() -> Result<(), std::io::Error> {
     println!("Hello! This is the Monkey programming language!");
-    
+
     let stdin = std::io::stdin();
     eprint!("{}", PROMPT);
     for line in stdin.lock().lines() {
@@ -16,16 +17,16 @@ pub fn start() -> Result<(), std::io::Error> {
             break;
         }
 
-        let lex = Lexer::new(line);
-        let mut pars = Parser::new(lex);
+        let program = Parser::new(Lexer::new(line)).parse_program();
 
-        match pars.parse_program() {
-            Ok(statements) => for s in statements {
-                println!("{:#?}", s);
-            },
+        match program {
+            Ok(statements) => {
+                for s in statements {
+                    println!("{}", eval::eval_statement(s));
+                }
+            }
             Err(e) => println!("PARSER ERROR: {:?}", e),
         }
-
         eprint!("{}", PROMPT);
     }
 
