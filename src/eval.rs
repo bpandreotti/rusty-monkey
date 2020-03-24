@@ -1,10 +1,10 @@
-// @TODO: Add proper error handling: currently, all evaluation functions panic instead of returning
+// @WIP: This whole module is a work in progress, expect function signatures to change
+// @TODO: Add proper error handling. Currently, all evaluation functions panic instead of returning
 // errors
 use crate::ast::*;
 use crate::object::*;
 use crate::token::Token;
 
-// @WIP
 pub fn eval_expression(expression: Expression) -> Object {
     match expression {
         Expression::IntLiteral(i) => Object::Integer(i),
@@ -17,7 +17,6 @@ pub fn eval_expression(expression: Expression) -> Object {
     }
 }
 
-// @WIP
 pub fn eval_statement(statement: Statement) -> Object {
     match statement {
         Statement::ExpressionStatement(exp) => eval_expression(*exp),
@@ -32,12 +31,21 @@ pub fn eval_statement(statement: Statement) -> Object {
     }
 }
 
-// @WIP
 fn eval_prefix_operator(operator: Token, right: Object) -> Object {
     match (operator, right) {
-        (Token::Bang, Object::Boolean(b)) => Object::Boolean(!b),
         (Token::Minus, Object::Integer(i)) => Object::Integer(-i),
-        _ => panic!()
+        (Token::Bang, obj) => Object::Boolean(!get_truth_value(obj)),
+        _ => panic!(),
+    }
+}
+
+fn get_truth_value(obj: Object) -> bool {
+    match obj {
+        Object::Boolean(b) => b,
+        Object::Nil => false,
+        // I am unsure if I want integer values to have a truth value or not. For now, I will stick
+        // to the book, which specifies that they do
+        Object::Integer(i) => i != 0,
     }
 }
 
@@ -94,8 +102,8 @@ mod tests {
 
     #[test]
     fn test_bang_operator() {
-        let input = "!true; !!false; !!true";
-        let expected = [Boolean(false), Boolean(false), Boolean(true)];
+        let input = "!!false; !0; !6";
+        let expected = [Boolean(false), Boolean(true), Boolean(false)];
         assert_eval(input, &expected);
     }
 
