@@ -38,6 +38,14 @@ pub fn eval_expression(expression: Expression) -> EvalResult {
             let right_side = eval_expression(*r)?;
             eval_infix_expression(tk, left_side, right_side)
         }
+        Expression::IfExpression { condition, consequence, alternative } => {
+            let value = eval_expression(*condition)?;
+            if is_truthy(value) {
+                eval_block(consequence)
+            } else {
+                eval_block(alternative)
+            }
+        }
         _ => panic!("Expression type still not supported"),
     }
 }
@@ -45,21 +53,23 @@ pub fn eval_expression(expression: Expression) -> EvalResult {
 pub fn eval_statement(statement: Statement) -> EvalResult {
     match statement {
         Statement::ExpressionStatement(exp) => eval_expression(*exp),
-        Statement::BlockStatement(block) => {
-            let mut last = Object::Nil;
-            for s in block {
-                last = eval_statement(s)?;
-            }
-            Ok(last)
-        }
+        Statement::BlockStatement(block) => eval_block(block),
         _ => panic!("Statement type still not supported"),
     }
+}
+
+fn eval_block(block: Vec<Statement>) -> EvalResult {
+    let mut last = Object::Nil;
+    for s in block {
+        last = eval_statement(s)?;
+    }
+    Ok(last)
 }
 
 fn eval_prefix_expression(operator: Token, right: Object) -> EvalResult {
     match (operator, right) {
         (Token::Minus, Object::Integer(i)) => Ok(Object::Integer(-i)),
-        (Token::Bang, obj) => Ok(Object::Boolean(!get_truth_value(obj))),
+        (Token::Bang, obj) => Ok(Object::Boolean(!is_truthy(obj))),
         (op, r) => runtime_err!(
             "Unsuported operand type for prefix operator {}: '{}'",
             op.type_str(), r.type_str()
@@ -106,7 +116,7 @@ fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> EvalResu
     }
 }
 
-fn get_truth_value(obj: Object) -> bool {
+fn is_truthy(obj: Object) -> bool {
     match obj {
         Object::Boolean(b) => b,
         Object::Nil => false,
@@ -211,6 +221,29 @@ mod tests {
             }
         ";
         let expected = [Integer(5), Boolean(false), Integer(3)];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_eval_if_expression() {
+        let input = "
+            if true { 10 }
+            if false { 10 }
+            if 1 { 10 }
+            if 0 { 10 }
+            if 2 < 5 { 10 }
+            if true { 10 } else { 20 }
+            if false { 10 } else { 20 }
+        ";
+        let expected = [
+            Integer(10),
+            Nil,
+            Integer(10),
+            Nil,
+            Integer(10),
+            Integer(10),
+            Integer(20),
+        ];
         assert_eval(input, &expected);
     }
 }
