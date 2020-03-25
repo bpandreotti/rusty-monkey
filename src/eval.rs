@@ -11,7 +11,12 @@ pub fn eval_expression(expression: Expression) -> Object {
         Expression::Boolean(b) => Object::Boolean(b),
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(*e);
-            eval_prefix_operator(tk, right_side)
+            eval_prefix_expression(tk, right_side)
+        }
+        Expression::InfixExpression(l, tk, r) => {
+            let left_side = eval_expression(*l);
+            let right_side = eval_expression(*r);
+            eval_infix_expression(tk, left_side, right_side)
         }
         _ => panic!(),
     }
@@ -31,12 +36,30 @@ pub fn eval_statement(statement: Statement) -> Object {
     }
 }
 
-fn eval_prefix_operator(operator: Token, right: Object) -> Object {
+fn eval_prefix_expression(operator: Token, right: Object) -> Object {
     match (operator, right) {
         (Token::Minus, Object::Integer(i)) => Object::Integer(-i),
         (Token::Bang, obj) => Object::Boolean(!get_truth_value(obj)),
         _ => panic!(),
     }
+}
+
+fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => eval_int_infix_expression(operator, l, r),
+        _ => panic!(),
+    }
+}
+
+fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> Object {
+    let result = match operator {
+        Token::Plus => left + right,
+        Token::Minus => left - right,
+        Token::Asterisk => left * right,
+        Token::Slash => left / right,
+        _ => panic!(),
+    };
+    Object::Integer(result)
 }
 
 fn get_truth_value(obj: Object) -> bool {
@@ -58,20 +81,46 @@ mod tests {
         use crate::lexer::Lexer;
         use crate::parser::Parser;
 
-        Parser::new(Lexer::new(input.into()))
-            .parse_program() // Parse program into vector of statements
-            .expect("Parser error during test")
+        // Parse program into vector of statements
+        let parsed = Parser::new(Lexer::new(input.into()))
+            .parse_program()
+            .expect("Parser error during test");
+
+        assert_eq!(parsed.len(), expected.len());
+
+        // Eval program statements and compare with expected
+        parsed
             .into_iter()
-            .map(eval_statement) // Eval program statements
+            .map(eval_statement)
             .zip(expected)
-            .for_each(|(got, exp)| assert_eq!(&got, exp)); // Compare with expected
+            .for_each(|(got, exp)| assert_eq!(&got, exp));
     }
 
     #[test]
-    fn test_eval_int_literal() {
-        assert_eq!(eval_expression(Expression::IntLiteral(1)), Integer(1));
-        assert_eq!(eval_expression(Expression::IntLiteral(2)), Integer(2));
-        assert_eq!(eval_expression(Expression::IntLiteral(3)), Integer(3));
+    fn test_eval_int_expression() {
+        let input = "
+            5;
+            -10;
+            --42;
+            -0;
+            2 + 2;
+            1 * 2 + 3;
+            1 + 2 * 3;
+            (1 + 1) * (2 + 2);
+            66 / (2 * 3 + 5);
+        ";
+        let expected = [
+            Integer(5),
+            Integer(-10),
+            Integer(42),
+            Integer(0),
+            Integer(4),
+            Integer(5),
+            Integer(7),
+            Integer(8),
+            Integer(6),
+        ];
+        assert_eval(input, &expected);
     }
 
     #[test]
@@ -104,13 +153,6 @@ mod tests {
     fn test_bang_operator() {
         let input = "!!false; !0; !6";
         let expected = [Boolean(false), Boolean(true), Boolean(false)];
-        assert_eval(input, &expected);
-    }
-
-    #[test]
-    fn test_prefix_minus_operator() {
-        let input = "-5; --42; -0";
-        let expected = [Integer(-5), Integer(42), Integer(0)];
         assert_eval(input, &expected);
     }
 }
