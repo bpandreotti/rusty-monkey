@@ -1,10 +1,21 @@
+use crate::environment::Environment;
+use crate::ast::Statement;
+
 use std::fmt;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
+pub struct FunctionObject {
+    pub environment: Environment,
+    pub parameters: Vec<String>,
+    pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
     ReturnValue(Box<Object>),
+    Function(FunctionObject),
     Nil,
 }
 
@@ -15,6 +26,13 @@ impl fmt::Display for Object {
             Object::Boolean(b) => write!(f, "{}", b),
             Object::Nil => write!(f, "nil"),
             Object::ReturnValue(v) => write!(f, "return({})", v), // @DEBUG
+
+            // @DEBUG
+            Object::Function(fo) => {
+                writeln!(f, "fn")?;
+                writeln!(f, "{:?}", fo.parameters)?;
+                writeln!(f, "{:?}", fo.body)
+            }
         }
     }
 }
@@ -26,6 +44,7 @@ impl Object {
             Object::Boolean(_) => "bool",
             Object::Nil => "nil",
             Object::ReturnValue(_) => "ReturnValue object",
+            Object::Function(_) => "function"
         }
     }
 }

@@ -1,7 +1,7 @@
 // @WIP: This whole module is a work in progress, expect function signatures to change
 use crate::ast::*;
 use crate::environment::Environment;
-use crate::object::Object;
+use crate::object::*;
 use crate::token::Token;
 
 use std::error::Error;
@@ -27,6 +27,7 @@ pub type EvalResult = Result<Object, RuntimeError>;
 pub fn eval_expression(expression: Expression, env: &Environment) -> EvalResult {
     match expression {
         Expression::Identifier(s) => {
+            // note: this clones the object
             match env.get(&s).cloned() {
                 Some(value) => Ok(value),
                 None => runtime_err!("Identifier not found: {}", s),
@@ -52,6 +53,12 @@ pub fn eval_expression(expression: Expression, env: &Environment) -> EvalResult 
             }
         }
         Expression::Nil => Ok(Object::Nil),
+        Expression::FunctionLiteral { parameters, body } => {
+            let fo = FunctionObject {
+                environment: env.clone(), parameters, body
+            };
+            Ok(Object::Function(fo))
+        }
         _ => panic!("Expression type still not supported"),
     }
 }
@@ -154,6 +161,7 @@ fn is_truthy(obj: Object) -> bool {
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for error handling
+    // @TODO: Add tests for function declaration
     use super::*;
     use Object::*;
 
@@ -172,7 +180,7 @@ mod tests {
         // Eval program statements and compare with expected
         for (st, exp) in parsed.into_iter().zip(expected) {
             let got = eval_statement(st, &mut env).expect("Runtime error during test");
-            assert_eq!(&got, exp);
+            assert_eq!(format!("{}", got), format!("{}", exp));
         }
     }
 
