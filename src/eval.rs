@@ -5,74 +5,104 @@ use crate::ast::*;
 use crate::object::*;
 use crate::token::Token;
 
-pub fn eval_expression(expression: Expression) -> Object {
-    match expression {
-        Expression::IntLiteral(i) => Object::Integer(i),
-        Expression::Boolean(b) => Object::Boolean(b),
-        Expression::PrefixExpression(tk, e) => {
-            let right_side = eval_expression(*e);
-            eval_prefix_expression(tk, right_side)
-        }
-        Expression::InfixExpression(l, tk, r) => {
-            let left_side = eval_expression(*l);
-            let right_side = eval_expression(*r);
-            eval_infix_expression(tk, left_side, right_side)
-        }
-        _ => panic!(),
+use std::error::Error;
+use std::fmt;
+
+#[derive(Debug)]
+pub struct RuntimeError(String);
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
-pub fn eval_statement(statement: Statement) -> Object {
+impl Error for RuntimeError {}
+
+macro_rules! runtime_err {
+    ($($arg:expr),*) => { Err(RuntimeError(format!($($arg),*))) }
+}
+
+pub type EvalResult = Result<Object, RuntimeError>;
+
+pub fn eval_expression(expression: Expression) -> EvalResult {
+    match expression {
+        Expression::IntLiteral(i) => Ok(Object::Integer(i)),
+        Expression::Boolean(b) => Ok(Object::Boolean(b)),
+        Expression::PrefixExpression(tk, e) => {
+            let right_side = eval_expression(*e)?;
+            eval_prefix_expression(tk, right_side)
+        }
+        Expression::InfixExpression(l, tk, r) => {
+            let left_side = eval_expression(*l)?;
+            let right_side = eval_expression(*r)?;
+            eval_infix_expression(tk, left_side, right_side)
+        }
+        _ => panic!("Expression type still not supported"),
+    }
+}
+
+pub fn eval_statement(statement: Statement) -> EvalResult {
     match statement {
         Statement::ExpressionStatement(exp) => eval_expression(*exp),
         Statement::BlockStatement(block) => {
             let mut last = Object::Nil;
             for s in block {
-                last = eval_statement(s);
+                last = eval_statement(s)?;
             }
-            last
+            Ok(last)
         }
-        _ => panic!(),
+        _ => panic!("Statement type still not supported"),
     }
 }
 
-fn eval_prefix_expression(operator: Token, right: Object) -> Object {
+fn eval_prefix_expression(operator: Token, right: Object) -> EvalResult {
     match (operator, right) {
-        (Token::Minus, Object::Integer(i)) => Object::Integer(-i),
-        (Token::Bang, obj) => Object::Boolean(!get_truth_value(obj)),
-        _ => panic!(),
+        (Token::Minus, Object::Integer(i)) => Ok(Object::Integer(-i)),
+        (Token::Bang, obj) => Ok(Object::Boolean(!get_truth_value(obj))),
+        (op, r) => runtime_err!(
+            "Unsuported operand type for prefix operator {}: '{}'",
+            op.type_str(), r.type_str()
+        ),
     }
 }
 
-fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
-    match (left, right) {
-        (Object::Integer(l), Object::Integer(r)) => eval_int_infix_expression(operator, l, r),
-        (Object::Boolean(l), Object::Boolean(r)) => match operator {
-            Token::Equals => Object::Boolean(l == r),
-            Token::NotEquals => Object::Boolean(l != r),
-            _ => panic!(),
-        },
-        _ => panic!(),
+fn eval_infix_expression(operator: Token, left: Object, right: Object) -> EvalResult {
+    match (left, operator, right) {
+        // int `anything` int
+        (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, l, r),
+        // bool == bool
+        (Object::Boolean(l), Token::Equals, Object::Boolean(r)) => Ok(Object::Boolean(l == r)),
+        // bool != bool
+        (Object::Boolean(l), Token::NotEquals, Object::Boolean(r)) => Ok(Object::Boolean(l != r)),
+
+        (l, op, r) => runtime_err!(
+            "Unsuported operand types for operator {}: '{}' and '{}'",
+            op.type_str(), l.type_str(), r.type_str()
+        ),
     }
 }
 
-fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> Object {
+fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> EvalResult {
     match operator {
         // Arithmetic operators
-        Token::Plus => Object::Integer(left + right),
-        Token::Minus => Object::Integer(left - right),
-        Token::Asterisk => Object::Integer(left * right),
-        Token::Slash => Object::Integer(left / right),
+        Token::Plus => Ok(Object::Integer(left + right)),
+        Token::Minus => Ok(Object::Integer(left - right)),
+        Token::Asterisk => Ok(Object::Integer(left * right)),
+        Token::Slash => Ok(Object::Integer(left / right)),
 
         // Comparison operators
-        Token::Equals => Object::Boolean(left == right),
-        Token::NotEquals => Object::Boolean(left != right),
-        Token::LessThan => Object::Boolean(left < right),
-        Token::LessEq => Object::Boolean(left <= right),
-        Token::GreaterThan => Object::Boolean(left > right),
-        Token::GreaterEq => Object::Boolean(left >= right),
+        Token::Equals => Ok(Object::Boolean(left == right)),
+        Token::NotEquals => Ok(Object::Boolean(left != right)),
+        Token::LessThan => Ok(Object::Boolean(left < right)),
+        Token::LessEq => Ok(Object::Boolean(left <= right)),
+        Token::GreaterThan => Ok(Object::Boolean(left > right)),
+        Token::GreaterEq => Ok(Object::Boolean(left >= right)),
 
-        _ => panic!(),
+        _ => runtime_err!(
+            "Unsuported operand types for operator {}: 'int' and 'int'",
+            operator.type_str()
+        ),
     }
 }
 
@@ -103,11 +133,10 @@ mod tests {
         assert_eq!(parsed.len(), expected.len());
 
         // Eval program statements and compare with expected
-        parsed
-            .into_iter()
-            .map(eval_statement)
-            .zip(expected)
-            .for_each(|(got, exp)| assert_eq!(&got, exp));
+        for (st, exp) in parsed.into_iter().zip(expected) {
+            let got = eval_statement(st).expect("Runtime error during test");
+            assert_eq!(&got, exp);
+        }
     }
 
     #[test]

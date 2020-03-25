@@ -17,12 +17,6 @@ impl fmt::Display for ParserError {
 
 impl Error for ParserError {}
 
-impl From<&str> for ParserError {
-    fn from(s: &str) -> ParserError {
-        ParserError(s.into())
-    }
-}
-
 macro_rules! pars_err {
     ($($arg:expr),*) => { Err(ParserError(format!($($arg),*))) }
 }
@@ -97,7 +91,7 @@ impl Parser {
     }
 
     /// Parses a statement from the program. A statement can be a "let" statement, a "return"
-    /// statement, an expression statement, or a block of statements. May return an error if 
+    /// statement, an expression statement, or a block of statements. May return an error if
     /// parsing fails.
     fn parse_statement(&mut self) -> ParserResult<Statement> {
         match self.current_token {
@@ -271,7 +265,7 @@ impl Parser {
     }
 
     /// Parses a function literal. Expects a valid function parameter list enclosed by parentheses,
-    /// followed by a block of statements. May return an error if parsing fails. Doesn't check if 
+    /// followed by a block of statements. May return an error if parsing fails. Doesn't check if
     /// `self.current_token` is an "fn" token.
     fn parse_function_literal(&mut self) -> ParserResult<Expression> {
         self.expect_token(Token::OpenParen)?;

@@ -7,7 +7,7 @@ use std::io::BufRead;
 const PROMPT: &str = "monkey » ";
 
 pub fn start() -> Result<(), std::io::Error> {
-    println!("Hello! This is the Monkey programming language!");
+    eprintln!("Hello! This is the Monkey programming language!");
 
     let stdin = std::io::stdin();
     eprint!("{}", PROMPT);
@@ -20,16 +20,17 @@ pub fn start() -> Result<(), std::io::Error> {
         let program = Parser::new(Lexer::new(line)).parse_program();
 
         match program {
-            Ok(statements) => {
-                for s in statements {
-                    println!("{}", eval::eval_statement(s));
-                }
-            }
-            Err(e) => println!("PARSER ERROR: {:?}", e),
+            Ok(statements) => statements
+                .into_iter()
+                .for_each(|s| match eval::eval_statement(s) {
+                    Ok(obj) => println!("{}", obj),
+                    Err(e) => eprintln!("Runtime Error: {}", e),
+                }),
+            Err(e) => eprintln!("Parser Error: {}", e),
         }
         eprint!("{}", PROMPT);
     }
 
-    println!("Goodbye!");
+    eprintln!("Goodbye!");
     Ok(())
 }
