@@ -52,14 +52,23 @@ fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object
 }
 
 fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> Object {
-    let result = match operator {
-        Token::Plus => left + right,
-        Token::Minus => left - right,
-        Token::Asterisk => left * right,
-        Token::Slash => left / right,
+    match operator {
+        // Arithmetic operators
+        Token::Plus => Object::Integer(left + right),
+        Token::Minus => Object::Integer(left - right),
+        Token::Asterisk => Object::Integer(left * right),
+        Token::Slash => Object::Integer(left / right),
+
+        // Comparison operators
+        Token::Equals => Object::Boolean(left == right),
+        Token::NotEquals => Object::Boolean(left != right),
+        Token::LessThan => Object::Boolean(left < right),
+        Token::LessEq => Object::Boolean(left <= right),
+        Token::GreaterThan => Object::Boolean(left > right),
+        Token::GreaterEq => Object::Boolean(left >= right),
+
         _ => panic!(),
-    };
-    Object::Integer(result)
+    }
 }
 
 fn get_truth_value(obj: Object) -> bool {
@@ -124,15 +133,29 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_bool_literal() {
-        assert_eq!(eval_expression(Expression::Boolean(true)), Boolean(true));
-        assert_eq!(eval_expression(Expression::Boolean(false)), Boolean(false));
-    }
-
-    #[test]
-    fn test_eval_expression_statement() {
-        let input = "42; true; 9";
-        let expected = [Integer(42), Boolean(true), Integer(9)];
+    fn test_eval_bool_expression() {
+        let input = "
+            false;
+            !true;
+            !!true;
+            1 < 2;
+            2 <= 0;
+            1 > 2;
+            2 >= 0;
+            0 == 0;
+            1 != 0;
+        ";
+        let expected = [
+            Boolean(false),
+            Boolean(false),
+            Boolean(true),
+            Boolean(true),
+            Boolean(false),
+            Boolean(false),
+            Boolean(true),
+            Boolean(true),
+            Boolean(true),
+        ];
         assert_eval(input, &expected);
     }
 
@@ -146,13 +169,6 @@ mod tests {
             }
         ";
         let expected = [Integer(5), Boolean(false), Integer(3)];
-        assert_eval(input, &expected);
-    }
-
-    #[test]
-    fn test_bang_operator() {
-        let input = "!!false; !0; !6";
-        let expected = [Boolean(false), Boolean(true), Boolean(false)];
         assert_eval(input, &expected);
     }
 }
