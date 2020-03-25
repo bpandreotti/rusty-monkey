@@ -4,6 +4,7 @@ use std::fmt;
 pub enum Object {
     Integer(i64),
     Boolean(bool),
+    ReturnValue(Box<Object>),
     Nil, // @TODO: Consider implementing Nil/Null type
 }
 
@@ -13,6 +14,7 @@ impl fmt::Display for Object {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
             Object::Nil => write!(f, "nil"),
+            Object::ReturnValue(v) => write!(f, "return({})", v), // @DEBUG
         }
     }
 }
@@ -23,6 +25,7 @@ impl Object {
             Object::Integer(_) => "int",
             Object::Boolean(_) => "bool",
             Object::Nil => "nil",
+            Object::ReturnValue(_) => "ReturnValue object",
         }
     }
 }

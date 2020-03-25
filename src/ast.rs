@@ -1,3 +1,17 @@
+// @TODO: Implement block expressions. Block expressions are like block statements, but they can
+// can be used in contexts where an expression is expected. Example:
+//     let a = {
+//         let b = 20;
+//         b * (b - 1)
+//     };
+// Currently, this behaviour can be achieved by using an if expression:
+//     let a = if true {
+//         let b = 20;
+//         b * (b - 1)
+//     };
+// Once block expressions are working, consider implementing block statements as expression
+// statements wrapping a block expresison.
+
 use crate::token::*;
 
 pub type LetStatement = (String, Expression);

@@ -54,6 +54,15 @@ pub fn eval_statement(statement: Statement) -> EvalResult {
     match statement {
         Statement::ExpressionStatement(exp) => eval_expression(*exp),
         Statement::BlockStatement(block) => eval_block(block),
+        // @WIP: Return statements are currently a work in progress. For now, the evaluator never
+        // unwraps the `ReturnValue` objects. When I implement functions and function calling, I
+        // will properly implement return values as well. I'm considering not allowing return
+        // statements outside function bodies, partly because it makes the implementation simpler,
+        // but also because I feel it's unecessary to language.
+        Statement::Return(exp) => {
+            let value = eval_expression(*exp)?;
+            Ok(Object::ReturnValue(Box::new(value)))
+        }
         _ => panic!("Statement type still not supported"),
     }
 }
@@ -62,6 +71,9 @@ fn eval_block(block: Vec<Statement>) -> EvalResult {
     let mut last = Object::Nil;
     for s in block {
         last = eval_statement(s)?;
+        if let Object::ReturnValue(_) = &last {
+            return Ok(last);
+        }
     }
     Ok(last)
 }
@@ -123,6 +135,7 @@ fn is_truthy(obj: Object) -> bool {
         // I am unsure if I want integer values to have a truth value or not. For now, I will stick
         // to the book, which specifies that they do
         Object::Integer(i) => i != 0,
+        _ => panic!(), // @DEBUG
     }
 }
 
@@ -243,6 +256,26 @@ mod tests {
             Integer(10),
             Integer(10),
             Integer(20),
+        ];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_eval_return_statement() {
+        // @WIP
+        let input = "
+            { return 5 }
+            { 5; return 10 }
+            { 4; return 9; 3 }
+            { 8; return 6; return 0; 2 }
+            if true { if true { return 1; } return 2; }
+        ";
+        let expected = [
+            ReturnValue(Box::new(Integer(5))),
+            ReturnValue(Box::new(Integer(10))), 
+            ReturnValue(Box::new(Integer(9))),
+            ReturnValue(Box::new(Integer(6))),
+            ReturnValue(Box::new(Integer(1)))
         ];
         assert_eval(input, &expected);
     }
