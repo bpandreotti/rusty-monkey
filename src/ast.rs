@@ -36,6 +36,7 @@ pub enum Expression {
         function: Box<Expression>,
         arguments: Vec<Expression>,
     },
+    Nil,
 }
 
 #[derive(Debug, Clone)]

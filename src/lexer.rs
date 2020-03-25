@@ -99,7 +99,7 @@ impl Lexer {
             self.read_char();
         }
     }
-    
+
     fn match_keyword(literal: &str) -> Option<Token> {
         match literal {
             "fn" => Some(Token::Function),
@@ -109,6 +109,7 @@ impl Lexer {
             "if" => Some(Token::If),
             "else" => Some(Token::Else),
             "return" => Some(Token::Return),
+            "nil" => Some(Token::Nil),
             _ => None,
         }
     }

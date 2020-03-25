@@ -5,7 +5,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     ReturnValue(Box<Object>),
-    Nil, // @TODO: Consider implementing Nil/Null type
+    Nil,
 }
 
 impl fmt::Display for Object {

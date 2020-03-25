@@ -1,6 +1,4 @@
 // @WIP: This whole module is a work in progress, expect function signatures to change
-// @TODO: Add proper error handling. Currently, all evaluation functions panic instead of returning
-// errors
 use crate::ast::*;
 use crate::object::*;
 use crate::token::Token;
@@ -46,6 +44,7 @@ pub fn eval_expression(expression: Expression) -> EvalResult {
                 eval_block(alternative)
             }
         }
+        Expression::Nil => Ok(Object::Nil),
         _ => panic!("Expression type still not supported"),
     }
 }
@@ -141,6 +140,7 @@ fn is_truthy(obj: Object) -> bool {
 
 #[cfg(test)]
 mod tests {
+    // @TODO: Add tests for error handling
     use super::*;
     use Object::*;
 
@@ -272,7 +272,7 @@ mod tests {
         ";
         let expected = [
             ReturnValue(Box::new(Integer(5))),
-            ReturnValue(Box::new(Integer(10))), 
+            ReturnValue(Box::new(Integer(10))),
             ReturnValue(Box::new(Integer(9))),
             ReturnValue(Box::new(Integer(6))),
             ReturnValue(Box::new(Integer(1)))

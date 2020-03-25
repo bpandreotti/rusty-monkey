@@ -384,6 +384,15 @@ impl Parser {
         }
     }
 
+    /// Parses the "nil" keyword into the null value.
+    fn parse_nil(&mut self) -> ParserResult<Expression> {
+        if self.current_token == Token::Nil {
+            Ok(Expression::Nil)
+        } else {
+            panic!()
+        }
+    }
+
     /// Returns the prefix parse function associated with the given token.
     fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
         match token {
@@ -394,6 +403,7 @@ impl Parser {
             Token::True | Token::False  => Some(Parser::parse_boolean),
             Token::If                   => Some(Parser::parse_if_expression),
             Token::Function             => Some(Parser::parse_function_literal),
+            Token::Nil                  => Some(Parser::parse_nil),
             _ => None,
         }
     }

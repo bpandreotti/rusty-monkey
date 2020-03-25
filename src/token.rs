@@ -36,6 +36,7 @@ pub enum Token {
     If,
     Else,
     Return,
+    Nil,
 }
 
 impl Token {
@@ -71,6 +72,7 @@ impl Token {
             Return          => "`return`",
             Illegal(_)      => "illegal",
             EOF             => "EOF",
+            Nil             => "`nil`",
         }
     }
 }
