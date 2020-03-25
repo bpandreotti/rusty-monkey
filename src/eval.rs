@@ -47,6 +47,11 @@ fn eval_prefix_expression(operator: Token, right: Object) -> Object {
 fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => eval_int_infix_expression(operator, l, r),
+        (Object::Boolean(l), Object::Boolean(r)) => match operator {
+            Token::Equals => Object::Boolean(l == r),
+            Token::NotEquals => Object::Boolean(l != r),
+            _ => panic!(),
+        },
         _ => panic!(),
     }
 }
@@ -144,6 +149,10 @@ mod tests {
             2 >= 0;
             0 == 0;
             1 != 0;
+            true == true;
+            false == false;
+            false != false;
+            true != false;
         ";
         let expected = [
             Boolean(false),
@@ -154,6 +163,10 @@ mod tests {
             Boolean(false),
             Boolean(true),
             Boolean(true),
+            Boolean(true),
+            Boolean(true),
+            Boolean(true),
+            Boolean(false),
             Boolean(true),
         ];
         assert_eval(input, &expected);
