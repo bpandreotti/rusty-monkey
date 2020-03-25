@@ -1,6 +1,7 @@
 // @WIP: This whole module is a work in progress, expect function signatures to change
 use crate::ast::*;
-use crate::object::*;
+use crate::environment::Environment;
+use crate::object::Object;
 use crate::token::Token;
 
 use std::error::Error;
@@ -23,25 +24,31 @@ macro_rules! runtime_err {
 
 pub type EvalResult = Result<Object, RuntimeError>;
 
-pub fn eval_expression(expression: Expression) -> EvalResult {
+pub fn eval_expression(expression: Expression, env: &Environment) -> EvalResult {
     match expression {
+        Expression::Identifier(s) => {
+            match env.get(&s).cloned() {
+                Some(value) => Ok(value),
+                None => runtime_err!("Identifier not found: {}", s),
+            }
+        }
         Expression::IntLiteral(i) => Ok(Object::Integer(i)),
         Expression::Boolean(b) => Ok(Object::Boolean(b)),
         Expression::PrefixExpression(tk, e) => {
-            let right_side = eval_expression(*e)?;
+            let right_side = eval_expression(*e, env)?;
             eval_prefix_expression(tk, right_side)
         }
         Expression::InfixExpression(l, tk, r) => {
-            let left_side = eval_expression(*l)?;
-            let right_side = eval_expression(*r)?;
+            let left_side = eval_expression(*l, env)?;
+            let right_side = eval_expression(*r, env)?;
             eval_infix_expression(tk, left_side, right_side)
         }
         Expression::IfExpression { condition, consequence, alternative } => {
-            let value = eval_expression(*condition)?;
+            let value = eval_expression(*condition, env)?;
             if is_truthy(value) {
-                eval_block(consequence)
+                eval_block(consequence, env)
             } else {
-                eval_block(alternative)
+                eval_block(alternative, env)
             }
         }
         Expression::Nil => Ok(Object::Nil),
@@ -49,27 +56,33 @@ pub fn eval_expression(expression: Expression) -> EvalResult {
     }
 }
 
-pub fn eval_statement(statement: Statement) -> EvalResult {
+pub fn eval_statement(statement: Statement, env: &mut Environment) -> EvalResult {
     match statement {
-        Statement::ExpressionStatement(exp) => eval_expression(*exp),
-        Statement::BlockStatement(block) => eval_block(block),
+        Statement::ExpressionStatement(exp) => eval_expression(*exp, env),
+        Statement::BlockStatement(block) => eval_block(block, env),
         // @WIP: Return statements are currently a work in progress. For now, the evaluator never
         // unwraps the `ReturnValue` objects. When I implement functions and function calling, I
         // will properly implement return values as well. I'm considering not allowing return
         // statements outside function bodies, partly because it makes the implementation simpler,
         // but also because I feel it's unecessary to language.
         Statement::Return(exp) => {
-            let value = eval_expression(*exp)?;
+            let value = eval_expression(*exp, env)?;
             Ok(Object::ReturnValue(Box::new(value)))
         }
-        _ => panic!("Statement type still not supported"),
+        Statement::Let(let_statement) => {
+            let (name, exp) = *let_statement;
+            let value = eval_expression(exp, env)?;
+            env.insert(name, value);
+            Ok(Object::Nil)
+        }
     }
 }
 
-fn eval_block(block: Vec<Statement>) -> EvalResult {
+fn eval_block(block: Vec<Statement>, env: &Environment) -> EvalResult {
     let mut last = Object::Nil;
+    let mut new_env = env.clone();
     for s in block {
-        last = eval_statement(s)?;
+        last = eval_statement(s, &mut new_env)?;
         if let Object::ReturnValue(_) = &last {
             return Ok(last);
         }
@@ -154,10 +167,11 @@ mod tests {
             .expect("Parser error during test");
 
         assert_eq!(parsed.len(), expected.len());
+        let mut env = Environment::empty();
 
         // Eval program statements and compare with expected
         for (st, exp) in parsed.into_iter().zip(expected) {
-            let got = eval_statement(st).expect("Runtime error during test");
+            let got = eval_statement(st, &mut env).expect("Runtime error during test");
             assert_eq!(&got, exp);
         }
     }
@@ -276,6 +290,25 @@ mod tests {
             ReturnValue(Box::new(Integer(9))),
             ReturnValue(Box::new(Integer(6))),
             ReturnValue(Box::new(Integer(1)))
+        ];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_eval_let_statement() {
+        let input = "
+            { let a = 5; a }
+            { let a = 5 * 5; a }
+            { let a = 5; let b = a; b }
+            { let a = 5; let b = a; let c = a + b + 5; c }
+            { let a = 5; { let a = 0 } a }
+        ";
+        let expected = [
+            Integer(5),
+            Integer(25),
+            Integer(5),
+            Integer(15),
+            Integer(5),
         ];
         assert_eval(input, &expected);
     }
