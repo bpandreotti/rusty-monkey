@@ -1,11 +1,13 @@
 // @WIP: This whole module is a work in progress, expect function signatures to change
 use crate::ast::*;
-use crate::environment::Environment;
+use crate::environment::*;
 use crate::object::*;
 use crate::token::Token;
 
 use std::error::Error;
 use std::fmt;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct RuntimeError(String);
@@ -24,11 +26,11 @@ macro_rules! runtime_err {
 
 pub type EvalResult = Result<Object, RuntimeError>;
 
-pub fn eval_expression(expression: Expression, env: &Environment) -> EvalResult {
+pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
     match expression {
         Expression::Identifier(s) => {
-            // note: this clones the object
-            match env.get(&s).cloned() {
+            // Note: This clones the object
+            match env.borrow().get(&s) {
                 Some(value) => Ok(value),
                 None => runtime_err!("Identifier not found: {}", s),
             }
@@ -55,15 +57,29 @@ pub fn eval_expression(expression: Expression, env: &Environment) -> EvalResult 
         Expression::Nil => Ok(Object::Nil),
         Expression::FunctionLiteral { parameters, body } => {
             let fo = FunctionObject {
-                environment: env.clone(), parameters, body
+                environment: Rc::clone(env), parameters, body
             };
             Ok(Object::Function(fo))
         }
-        _ => panic!("Expression type still not supported"),
+        Expression::CallExpression { function, arguments } => {
+            // Evaluate the called object and make sure it's a function
+            let obj = eval_expression(*function, env)?;            
+            if let Object::Function(fo) = obj {
+                // Evaluate all arguments sequentially
+                let mut evaluated_args = Vec::with_capacity(arguments.len());
+                for exp in arguments {
+                    evaluated_args.push(eval_expression(exp, env)?);
+                }
+                // Call the function object
+                call_function_object(fo, evaluated_args, &env)
+            } else {
+                runtime_err!("{} is not a function object", obj.type_str())
+            }
+        }
     }
 }
 
-pub fn eval_statement(statement: Statement, env: &mut Environment) -> EvalResult {
+pub fn eval_statement(statement: Statement, env: &EnvHandle) -> EvalResult {
     match statement {
         Statement::ExpressionStatement(exp) => eval_expression(*exp, env),
         Statement::BlockStatement(block) => eval_block(block, env),
@@ -79,17 +95,17 @@ pub fn eval_statement(statement: Statement, env: &mut Environment) -> EvalResult
         Statement::Let(let_statement) => {
             let (name, exp) = *let_statement;
             let value = eval_expression(exp, env)?;
-            env.insert(name, value);
+            env.borrow_mut().insert(name, value);
             Ok(Object::Nil)
         }
     }
 }
 
-fn eval_block(block: Vec<Statement>, env: &Environment) -> EvalResult {
+fn eval_block(block: Vec<Statement>, env: &EnvHandle) -> EvalResult {
     let mut last = Object::Nil;
-    let mut new_env = env.clone();
+    let new_env = Rc::new(RefCell::new(Environment::from_outer(env)));
     for s in block {
-        last = eval_statement(s, &mut new_env)?;
+        last = eval_statement(s, &new_env)?;
         if let Object::ReturnValue(_) = &last {
             return Ok(last);
         }
@@ -147,6 +163,29 @@ fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> EvalResu
     }
 }
 
+fn call_function_object(
+    fo: FunctionObject,
+    args: Vec<Object>,
+    caller_env: &EnvHandle
+) -> EvalResult {
+    if fo.parameters.len() != args.len() {
+        return runtime_err!(
+            "Wrong number of arguments. Expected {} arguments, {} were given",
+            fo.parameters.len(), args.len()
+        );
+    }
+    
+    let mut call_env = fo.environment.borrow().clone();
+    call_env.set_outer(caller_env);
+    // maybe also check the caller env?
+    for (name, value) in fo.parameters.into_iter().zip(args) {
+        call_env.insert(name, value);
+    }
+
+    // @TODO: Unwrap ReturnValue objects
+    eval_block(fo.body, &Rc::new(RefCell::new(call_env)))
+}
+
 fn is_truthy(obj: Object) -> bool {
     match obj {
         Object::Boolean(b) => b,
@@ -175,11 +214,11 @@ mod tests {
             .expect("Parser error during test");
 
         assert_eq!(parsed.len(), expected.len());
-        let mut env = Environment::empty();
+        let env = Rc::new(RefCell::new(Environment::empty()));
 
         // Eval program statements and compare with expected
         for (st, exp) in parsed.into_iter().zip(expected) {
-            let got = eval_statement(st, &mut env).expect("Runtime error during test");
+            let got = eval_statement(st, &env).expect("Runtime error during test");
             assert_eq!(format!("{}", got), format!("{}", exp));
         }
     }

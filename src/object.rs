@@ -1,11 +1,11 @@
-use crate::environment::Environment;
+use crate::environment::*;
 use crate::ast::Statement;
 
 use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct FunctionObject {
-    pub environment: Environment,
+    pub environment: EnvHandle,
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
 }
