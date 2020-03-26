@@ -26,6 +26,14 @@ macro_rules! runtime_err {
 
 pub type EvalResult = Result<Object, RuntimeError>;
 
+pub fn run_program(program: Vec<Statement>) -> Result<(), RuntimeError> {
+    let env = Rc::new(RefCell::new(Environment::empty()));
+    for statement in program {
+        eval_statement(statement, &env)?;
+    }
+    Ok(())
+}
+
 pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
     match expression {
         Expression::Identifier(s) => {
