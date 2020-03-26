@@ -4,10 +4,10 @@ use crate::environment::*;
 use crate::object::*;
 use crate::token::Token;
 
+use std::cell::RefCell;
 use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct RuntimeError(String);
@@ -65,13 +65,15 @@ pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
         Expression::Nil => Ok(Object::Nil),
         Expression::FunctionLiteral { parameters, body } => {
             let fo = FunctionObject {
-                environment: Rc::clone(env), parameters, body
+                environment: Rc::clone(env),
+                parameters,
+                body,
             };
             Ok(Object::Function(fo))
         }
         Expression::CallExpression { function, arguments } => {
             // Evaluate the called object and make sure it's a function
-            let obj = eval_expression(*function, env)?;            
+            let obj = eval_expression(*function, env)?;
             if let Object::Function(fo) = obj {
                 // Evaluate all arguments sequentially
                 let mut evaluated_args = Vec::with_capacity(arguments.len());
@@ -91,12 +93,10 @@ pub fn eval_statement(statement: Statement, env: &EnvHandle) -> EvalResult {
     match statement {
         Statement::ExpressionStatement(exp) => eval_expression(*exp, env),
         Statement::BlockStatement(block) => eval_block(block, env),
-        // @WIP: Return statements are currently a work in progress. For now, the evaluator never
-        // unwraps the `ReturnValue` objects. When I implement functions and function calling, I
-        // will properly implement return values as well. I'm considering not allowing return
-        // statements outside function bodies, partly because it makes the implementation simpler,
-        // but also because I feel it's unecessary to language.
         Statement::Return(exp) => {
+            if !env.borrow().is_fn_context {
+                return runtime_err!("`return` outside function context");
+            }
             let value = eval_expression(*exp, env)?;
             Ok(Object::ReturnValue(Box::new(value)))
         }
@@ -127,7 +127,8 @@ fn eval_prefix_expression(operator: Token, right: Object) -> EvalResult {
         (Token::Bang, obj) => Ok(Object::Boolean(!is_truthy(obj))),
         (op, r) => runtime_err!(
             "Unsuported operand type for prefix operator {}: '{}'",
-            op.type_str(), r.type_str()
+            op.type_str(),
+            r.type_str()
         ),
     }
 }
@@ -143,7 +144,9 @@ fn eval_infix_expression(operator: Token, left: Object, right: Object) -> EvalRe
 
         (l, op, r) => runtime_err!(
             "Unsuported operand types for operator {}: '{}' and '{}'",
-            op.type_str(), l.type_str(), r.type_str()
+            op.type_str(),
+            l.type_str(),
+            r.type_str()
         ),
     }
 }
@@ -174,24 +177,25 @@ fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> EvalResu
 fn call_function_object(
     fo: FunctionObject,
     args: Vec<Object>,
-    caller_env: &EnvHandle
+    caller_env: &EnvHandle,
 ) -> EvalResult {
+
     if fo.parameters.len() != args.len() {
         return runtime_err!(
             "Wrong number of arguments. Expected {} arguments, {} were given",
-            fo.parameters.len(), args.len()
+            fo.parameters.len(),
+            args.len()
         );
     }
-    
     let mut call_env = fo.environment.borrow().clone();
+    call_env.is_fn_context = true;
     call_env.set_outer(caller_env);
-    // maybe also check the caller env?
     for (name, value) in fo.parameters.into_iter().zip(args) {
         call_env.insert(name, value);
     }
 
-    // @TODO: Unwrap ReturnValue objects
-    eval_block(fo.body, &Rc::new(RefCell::new(call_env)))
+    let result = eval_block(fo.body, &Rc::new(RefCell::new(call_env)))?;
+    Ok(unwrap_return_value(result))
 }
 
 fn is_truthy(obj: Object) -> bool {
@@ -205,10 +209,18 @@ fn is_truthy(obj: Object) -> bool {
     }
 }
 
+fn unwrap_return_value(obj: Object) -> Object {
+    match obj {
+        Object::ReturnValue(v) => unwrap_return_value(*v),
+        other => other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for error handling
     // @TODO: Add tests for function declaration
+    // @TODO: Add tests for function calling (closures, recursion, etc.)
     use super::*;
     use Object::*;
 
@@ -331,20 +343,19 @@ mod tests {
 
     #[test]
     fn test_eval_return_statement() {
-        // @WIP
         let input = "
-            { return 5 }
-            { 5; return 10 }
-            { 4; return 9; 3 }
-            { 8; return 6; return 0; 2 }
-            if true { if true { return 1; } return 2; }
+            fn() { return 5 }()
+            fn() { 5; return 10 }()
+            fn() { 4; return 9; 3 }()
+            fn() { 8; return 6; return 0; 2 }()
+            fn() { if true { if true { return 1; } return 2; } }()
         ";
         let expected = [
-            ReturnValue(Box::new(Integer(5))),
-            ReturnValue(Box::new(Integer(10))),
-            ReturnValue(Box::new(Integer(9))),
-            ReturnValue(Box::new(Integer(6))),
-            ReturnValue(Box::new(Integer(1)))
+            Integer(5),
+            Integer(10),
+            Integer(9),
+            Integer(6),
+            Integer(1),
         ];
         assert_eval(input, &expected);
     }
@@ -358,13 +369,7 @@ mod tests {
             { let a = 5; let b = a; let c = a + b + 5; c }
             { let a = 5; { let a = 0 } a }
         ";
-        let expected = [
-            Integer(5),
-            Integer(25),
-            Integer(5),
-            Integer(15),
-            Integer(5),
-        ];
+        let expected = [Integer(5), Integer(25), Integer(5), Integer(15), Integer(5)];
         assert_eval(input, &expected);
     }
 }
