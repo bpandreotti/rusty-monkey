@@ -70,6 +70,7 @@ impl Lexer {
         self.chars.get(self.position + 1).copied()
     }
 
+    // @TODO: Accept "_" in identifiers
     fn read_identifier(&mut self) -> Token {
         let mut literal = String::new();
         while let Some(ch) = self.current_char {

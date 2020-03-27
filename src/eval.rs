@@ -29,12 +29,12 @@ pub type EvalResult = Result<Object, RuntimeError>;
 pub fn run_program(program: Vec<Statement>) -> Result<(), RuntimeError> {
     let env = Rc::new(RefCell::new(Environment::empty()));
     for statement in program {
-        eval_statement(statement, &env)?;
+        eval_statement(&statement, &env)?;
     }
     Ok(())
 }
 
-pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
+pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
     match expression {
         Expression::Identifier(s) => {
             // Note: This clones the object
@@ -43,20 +43,20 @@ pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
                 None => runtime_err!("Identifier not found: {}", s),
             }
         }
-        Expression::IntLiteral(i) => Ok(Object::Integer(i)),
-        Expression::Boolean(b) => Ok(Object::Boolean(b)),
+        Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
+        Expression::Boolean(b) => Ok(Object::Boolean(*b)),
         Expression::PrefixExpression(tk, e) => {
-            let right_side = eval_expression(*e, env)?;
-            eval_prefix_expression(tk, right_side)
+            let right_side = eval_expression(e, env)?;
+            eval_prefix_expression(tk, &right_side)
         }
         Expression::InfixExpression(l, tk, r) => {
-            let left_side = eval_expression(*l, env)?;
-            let right_side = eval_expression(*r, env)?;
-            eval_infix_expression(tk, left_side, right_side)
+            let left_side = eval_expression(l, env)?;
+            let right_side = eval_expression(r, env)?;
+            eval_infix_expression(tk, &left_side, &right_side)
         }
         Expression::IfExpression { condition, consequence, alternative } => {
-            let value = eval_expression(*condition, env)?;
-            if is_truthy(value) {
+            let value = eval_expression(condition, env)?;
+            if is_truthy(&value) {
                 eval_block(consequence, env)
             } else {
                 eval_block(alternative, env)
@@ -66,14 +66,14 @@ pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
         Expression::FunctionLiteral { parameters, body } => {
             let fo = FunctionObject {
                 environment: Rc::clone(env),
-                parameters,
-                body,
+                parameters: parameters.clone(),
+                body: body.clone(),
             };
             Ok(Object::Function(fo))
         }
         Expression::CallExpression { function, arguments } => {
             // Evaluate the called object and make sure it's a function
-            let obj = eval_expression(*function, env)?;
+            let obj = eval_expression(function, env)?;
             if let Object::Function(fo) = obj {
                 // Evaluate all arguments sequentially
                 let mut evaluated_args = Vec::with_capacity(arguments.len());
@@ -81,7 +81,7 @@ pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
                     evaluated_args.push(eval_expression(exp, env)?);
                 }
                 // Call the function object
-                call_function_object(fo, evaluated_args, &env)
+                call_function_object(fo, evaluated_args)
             } else {
                 runtime_err!("{} is not a function object", obj.type_str())
             }
@@ -89,29 +89,29 @@ pub fn eval_expression(expression: Expression, env: &EnvHandle) -> EvalResult {
     }
 }
 
-pub fn eval_statement(statement: Statement, env: &EnvHandle) -> EvalResult {
+pub fn eval_statement(statement: &Statement, env: &EnvHandle) -> EvalResult {
     match statement {
-        Statement::ExpressionStatement(exp) => eval_expression(*exp, env),
+        Statement::ExpressionStatement(exp) => eval_expression(exp, env),
         Statement::BlockStatement(block) => eval_block(block, env),
         Statement::Return(exp) => {
             if !env.borrow().is_fn_context {
                 return runtime_err!("`return` outside function context");
             }
-            let value = eval_expression(*exp, env)?;
+            let value = eval_expression(exp, env)?;
             Ok(Object::ReturnValue(Box::new(value)))
         }
         Statement::Let(let_statement) => {
-            let (name, exp) = *let_statement;
-            let value = eval_expression(exp, env)?;
-            env.borrow_mut().insert(name, value);
+            let (name, exp) = &**let_statement;
+            let value = eval_expression(&exp, env)?;
+            env.borrow_mut().insert(name.clone(), value);
             Ok(Object::Nil)
         }
     }
 }
 
-fn eval_block(block: Vec<Statement>, env: &EnvHandle) -> EvalResult {
+fn eval_block(block: &[Statement], env: &EnvHandle) -> EvalResult {
     let mut last = Object::Nil;
-    let new_env = Rc::new(RefCell::new(Environment::from_outer(env)));
+    let new_env = Rc::new(RefCell::new(Environment::extend(env)));
     for s in block {
         last = eval_statement(s, &new_env)?;
         if let Object::ReturnValue(_) = &last {
@@ -121,10 +121,10 @@ fn eval_block(block: Vec<Statement>, env: &EnvHandle) -> EvalResult {
     Ok(last)
 }
 
-fn eval_prefix_expression(operator: Token, right: Object) -> EvalResult {
+fn eval_prefix_expression(operator: &Token, right: &Object) -> EvalResult {
     match (operator, right) {
         (Token::Minus, Object::Integer(i)) => Ok(Object::Integer(-i)),
-        (Token::Bang, obj) => Ok(Object::Boolean(!is_truthy(obj))),
+        (Token::Bang, obj) => Ok(Object::Boolean(!is_truthy(&obj))),
         (op, r) => runtime_err!(
             "Unsuported operand type for prefix operator {}: '{}'",
             op.type_str(),
@@ -133,14 +133,14 @@ fn eval_prefix_expression(operator: Token, right: Object) -> EvalResult {
     }
 }
 
-fn eval_infix_expression(operator: Token, left: Object, right: Object) -> EvalResult {
+fn eval_infix_expression(operator: &Token, left: &Object, right: &Object) -> EvalResult {
     match (left, operator, right) {
         // int `anything` int
-        (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, l, r),
+        (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
         // bool == bool
-        (Object::Boolean(l), Token::Equals, Object::Boolean(r)) => Ok(Object::Boolean(l == r)),
+        (Object::Boolean(l), Token::Equals, Object::Boolean(r)) => Ok(Object::Boolean(*l == *r)),
         // bool != bool
-        (Object::Boolean(l), Token::NotEquals, Object::Boolean(r)) => Ok(Object::Boolean(l != r)),
+        (Object::Boolean(l), Token::NotEquals, Object::Boolean(r)) => Ok(Object::Boolean(*l != *r)),
 
         (l, op, r) => runtime_err!(
             "Unsuported operand types for operator {}: '{}' and '{}'",
@@ -151,7 +151,7 @@ fn eval_infix_expression(operator: Token, left: Object, right: Object) -> EvalRe
     }
 }
 
-fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> EvalResult {
+fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> EvalResult {
     match operator {
         // Arithmetic operators
         Token::Plus => Ok(Object::Integer(left + right)),
@@ -174,12 +174,7 @@ fn eval_int_infix_expression(operator: Token, left: i64, right: i64) -> EvalResu
     }
 }
 
-fn call_function_object(
-    fo: FunctionObject,
-    args: Vec<Object>,
-    caller_env: &EnvHandle,
-) -> EvalResult {
-
+fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
     if fo.parameters.len() != args.len() {
         return runtime_err!(
             "Wrong number of arguments. Expected {} arguments, {} were given",
@@ -189,26 +184,36 @@ fn call_function_object(
     }
     let mut call_env = fo.environment.borrow().clone();
     call_env.is_fn_context = true;
-    call_env.set_outer(caller_env);
+
+    // @WIP: Should a closure be able to access variables from the caller environment? E.g.:
+    //     let foo = fn() { a }
+    //     {
+    //         let a = 3
+    //         foo()
+    //     }
+    // this causes problems if the caller environment is the same as the closure environment
+    //call_env.set_outer(caller_env);
+
     for (name, value) in fo.parameters.into_iter().zip(args) {
         call_env.insert(name, value);
     }
-
-    let result = eval_block(fo.body, &Rc::new(RefCell::new(call_env)))?;
+    let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)))?;
     Ok(unwrap_return_value(result))
 }
 
-fn is_truthy(obj: Object) -> bool {
+// @TODO: maybe make this a method of Object?
+fn is_truthy(obj: &Object) -> bool {
     match obj {
-        Object::Boolean(b) => b,
+        Object::Boolean(b) => *b,
         Object::Nil => false,
         // I am unsure if I want integer values to have a truth value or not. For now, I will stick
         // to the book, which specifies that they do
-        Object::Integer(i) => i != 0,
+        Object::Integer(i) => *i != 0,
         _ => panic!(), // @DEBUG
     }
 }
 
+// @TODO: maybe make this a method of Object?
 fn unwrap_return_value(obj: Object) -> Object {
     match obj {
         Object::ReturnValue(v) => unwrap_return_value(*v),
@@ -238,7 +243,7 @@ mod tests {
 
         // Eval program statements and compare with expected
         for (st, exp) in parsed.into_iter().zip(expected) {
-            let got = eval_statement(st, &env).expect("Runtime error during test");
+            let got = eval_statement(&st, &env).expect("Runtime error during test");
             assert_eq!(format!("{}", got), format!("{}", exp));
         }
     }
@@ -370,6 +375,29 @@ mod tests {
             { let a = 5; { let a = 0 } a }
         ";
         let expected = [Integer(5), Integer(25), Integer(5), Integer(15), Integer(5)];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_closures() {
+        let input = "
+            let makeadder = fn(x) {
+                let adder = fn(y) { x + y }
+                return adder;
+            }
+            let add3 = makeadder(3);
+            add3(5);
+
+            let foo = fn() {
+                let outer = 1;
+                {
+                    let inner = 2
+                    return fn() { outer + inner };
+                }
+            }
+            foo()()
+        ";
+        let expected = [Nil, Nil, Integer(8), Nil, Integer(3)];
         assert_eval(input, &expected);
     }
 }

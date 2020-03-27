@@ -26,7 +26,7 @@ pub fn start() -> Result<(), std::io::Error> {
         match program {
             Ok(statements) => statements
                 .into_iter()
-                .for_each(|s| match eval::eval_statement(s, &env) {
+                .for_each(|s| match eval::eval_statement(&s, &env) {
                     Ok(obj) => println!("{}", obj),
                     Err(e) => eprintln!("Runtime Error: {}", e),
                 }),
