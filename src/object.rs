@@ -1,5 +1,5 @@
-use crate::environment::*;
 use crate::ast::Statement;
+use crate::environment::*;
 
 use std::fmt;
 
@@ -25,14 +25,8 @@ impl fmt::Display for Object {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
             Object::Nil => write!(f, "nil"),
-            Object::ReturnValue(v) => write!(f, "return({})", v), // @DEBUG
-
-            // @DEBUG
-            Object::Function(fo) => {
-                writeln!(f, "fn")?;
-                writeln!(f, "{:?}", fo.parameters)?;
-                writeln!(f, "{:?}", fo.body)
-            }
+            Object::Function(_) => write!(f, "[function]"),
+            Object::ReturnValue(_) => panic!("trying to display ReturnValue object"),
         }
     }
 }
@@ -44,7 +38,21 @@ impl Object {
             Object::Boolean(_) => "bool",
             Object::Nil => "nil",
             Object::ReturnValue(_) => "ReturnValue object",
-            Object::Function(_) => "function"
+            Object::Function(_) => "function",
+        }
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Object::Boolean(false) | Object::Nil | Object::Integer(0) => false,
+            _ => true,
+        }
+    }
+
+    pub fn unwrap_return_value(self) -> Object {
+        match self {
+            Object::ReturnValue(v) => v.unwrap_return_value(),
+            other => other,
         }
     }
 }

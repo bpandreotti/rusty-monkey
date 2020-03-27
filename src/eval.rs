@@ -56,7 +56,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
         }
         Expression::IfExpression { condition, consequence, alternative } => {
             let value = eval_expression(condition, env)?;
-            if is_truthy(&value) {
+            if value.is_truthy() {
                 eval_block(consequence, env)
             } else {
                 eval_block(alternative, env)
@@ -124,7 +124,7 @@ fn eval_block(block: &[Statement], env: &EnvHandle) -> EvalResult {
 fn eval_prefix_expression(operator: &Token, right: &Object) -> EvalResult {
     match (operator, right) {
         (Token::Minus, Object::Integer(i)) => Ok(Object::Integer(-i)),
-        (Token::Bang, obj) => Ok(Object::Boolean(!is_truthy(&obj))),
+        (Token::Bang, obj) => Ok(Object::Boolean(!obj.is_truthy())),
         (op, r) => runtime_err!(
             "Unsuported operand type for prefix operator {}: '{}'",
             op.type_str(),
@@ -184,48 +184,16 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
     }
     let mut call_env = fo.environment.borrow().clone();
     call_env.is_fn_context = true;
-
-    // @WIP: Should a closure be able to access variables from the caller environment? E.g.:
-    //     let foo = fn() { a }
-    //     {
-    //         let a = 3
-    //         foo()
-    //     }
-    // this causes problems if the caller environment is the same as the closure environment
-    //call_env.set_outer(caller_env);
-
     for (name, value) in fo.parameters.into_iter().zip(args) {
         call_env.insert(name, value);
     }
     let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)))?;
-    Ok(unwrap_return_value(result))
-}
-
-// @TODO: maybe make this a method of Object?
-fn is_truthy(obj: &Object) -> bool {
-    match obj {
-        Object::Boolean(b) => *b,
-        Object::Nil => false,
-        // I am unsure if I want integer values to have a truth value or not. For now, I will stick
-        // to the book, which specifies that they do
-        Object::Integer(i) => *i != 0,
-        _ => panic!(), // @DEBUG
-    }
-}
-
-// @TODO: maybe make this a method of Object?
-fn unwrap_return_value(obj: Object) -> Object {
-    match obj {
-        Object::ReturnValue(v) => unwrap_return_value(*v),
-        other => other,
-    }
+    Ok(result.unwrap_return_value())
 }
 
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for error handling
-    // @TODO: Add tests for function declaration
-    // @TODO: Add tests for function calling (closures, recursion, etc.)
     use super::*;
     use Object::*;
 
@@ -355,13 +323,7 @@ mod tests {
             fn() { 8; return 6; return 0; 2 }()
             fn() { if true { if true { return 1; } return 2; } }()
         ";
-        let expected = [
-            Integer(5),
-            Integer(10),
-            Integer(9),
-            Integer(6),
-            Integer(1),
-        ];
+        let expected = [Integer(5), Integer(10), Integer(9), Integer(6), Integer(1)];
         assert_eval(input, &expected);
     }
 
@@ -375,6 +337,82 @@ mod tests {
             { let a = 5; { let a = 0 } a }
         ";
         let expected = [Integer(5), Integer(25), Integer(5), Integer(15), Integer(5)];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_functions() {
+        let input = "
+            let id = fn(x) { x }
+            id(5)
+
+            let neg = fn(x) { -x }
+            neg(10)
+
+            let sqr = fn(x) { x * x }
+            sqr(17)
+
+            let and = fn(p, q) {
+                if p {
+                    q
+                } else {
+                    false
+                }
+            }
+            and(false, true)
+            and(true, false)
+            and(true, true)
+
+            let or = fn(p, q) {
+                if p {
+                    true
+                } else {
+                    q
+                }
+            }
+            or(false, true)
+            or(true, false)
+            or(false, false)
+
+            fn(n) { n + 5 }(3)
+            fn(n, m) { n / m }(57, 19)
+
+            let compose = fn(f, g) {
+                fn(x) {
+                    f(g(x))
+                }
+            }
+            compose(neg, sqr)(17)
+
+            let flip = fn(f) {
+                fn(x, y) {
+                    f(y, x)
+                }
+            }
+            flip(compose)(neg, sqr)(17)
+        ";
+        let expected = [
+            Nil,
+            Integer(5),
+            Nil,
+            Integer(-10),
+            Nil,
+            Integer(289),
+            Nil,
+            Boolean(false),
+            Boolean(false),
+            Boolean(true),
+            Nil,
+            Boolean(true),
+            Boolean(true),
+            Boolean(false),
+            Integer(8),
+            Integer(3),
+            Nil,
+            Integer(-289),
+            Nil,
+            Integer(289)
+        ];
         assert_eval(input, &expected);
     }
 
@@ -398,6 +436,44 @@ mod tests {
             foo()()
         ";
         let expected = [Nil, Nil, Integer(8), Nil, Integer(3)];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_recursion() {
+        let input = "
+            let accumulate = fn(n) {
+                if n <= 0 {
+                    0
+                } else {
+                    1 + accumulate(n - 1)
+                }
+            }
+            accumulate(50)
+
+            let fib = fn(n) {
+                if n <= 1 {
+                    n
+                } else {
+                    fib(n - 1) + fib(n - 2)
+                }
+            }
+            fib(13)
+
+            let makefact = fn(multiplier) {
+                let foo = fn(x) {
+                    if x < 1 {
+                        multiplier
+                    } else {
+                        foo(x - 1) * x
+                    }
+                }
+                return foo
+            }
+            let fact = makefact(2)
+            fact(6)
+        ";
+        let expected = [Nil, Integer(50), Nil, Integer(233), Nil, Nil, Integer(1440)];
         assert_eval(input, &expected);
     }
 }
