@@ -5,6 +5,7 @@ pub enum Token {
 
     Identifier(String),
     Int(i64),
+    Str(String),
 
     // Operators
     Assign,
@@ -46,6 +47,7 @@ impl Token {
         match self {
             Identifier(_)   => "identifier",
             Int(_)          => "integer literal",
+            Str(_)          => "string literal",
             Assign          => "`=`",
             Bang            => "`!`",
             Plus            => "`+`",

@@ -1,5 +1,8 @@
+// @TODO: Document this module
+// @TODO: Add error handling
 use crate::token::*;
 
+// @TODO: Consider making lexer take a Read instance instead of a String
 pub struct Lexer {
     chars: Vec<char>,
     position: usize,
@@ -10,7 +13,7 @@ impl Lexer {
     pub fn new(input: String) -> Lexer {
         let chars: Vec<char> = input.chars().collect();
         // Using `copied` because the input might be empty, in which case we want to copy over the
-        // `None` returned from `get`.
+        // `None` returned from `get`
         let current_char = chars.get(0).copied();
 
         Lexer {
@@ -47,10 +50,12 @@ impl Lexer {
             Some('{') => Token::OpenBrace,
             Some('}') => Token::CloseBrace,
 
-            // Early exit, because we don't need to `read_char()` after the match block.
+            Some('\"') => self.read_string(),
+
+            // Early exit, because we don't need to `read_char()` after the match block
             Some(c) if c.is_ascii_digit() => return self.read_number(),
             // Identifiers can have any alphanumeric character, but they can't begin with an ascii
-            // digit, in which case it will be interpreted as a number.
+            // digit, in which case it will be interpreted as a number
             Some(c) if c.is_alphanumeric() => return self.read_identifier(),
 
             Some(c) => Token::Illegal(c),
@@ -80,7 +85,7 @@ impl Lexer {
             self.read_char();
         }
 
-        // Checks if the literal matches any keyword. If it doesn't, it's an identifier.
+        // Checks if the literal matches any keyword. If it doesn't, it's an identifier
         Lexer::match_keyword(&literal).unwrap_or(Token::Identifier(literal))
     }
 
@@ -95,6 +100,31 @@ impl Lexer {
         }
 
         Token::Int(literal.parse().unwrap())
+    }
+
+    fn read_string(&mut self) -> Token {
+        let mut result = String::new();
+        loop {
+            self.read_char();
+            match self.current_char {
+                Some('"') => break,
+                Some('\\') => {
+                    self.read_char();
+                    match self.current_char {
+                        Some('\\') => result.push('\\'),
+                        Some('n') => result.push('\n'),
+                        Some('t') => result.push('\t'),
+                        Some('r') => result.push('\r'),
+                        Some('"') => result.push('"'),
+                        Some(c) => panic!("Unknown escape sequence: \\{}", c),
+                        None => panic!(), // We should return an error instead of panicking
+                    }
+                }
+                Some(c) => result.push(c),
+                None => panic!(), // We should return an error instead of panicking
+            }
+        }
+        Token::Str(result)
     }
 
     fn consume_whitespace(&mut self) {
@@ -123,14 +153,16 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
+    // @TODO: Add tests for lexer errors
     use super::*;
     use crate::token::Token;
 
     #[test]
     fn test_next_token() {
+        // @TODO: Split up this test into several smaller tests
         use Token::*;
 
-        // Shortcut to create a `Token::Identifier` from a string literal.
+        // Shortcut to create a `Token::Identifier` from a string literal
         macro_rules! iden {
             ($x:expr) => { Token::Identifier($x.into()) }
         }
@@ -150,7 +182,11 @@ mod tests {
             }
 
             10 == 10;
-            != <= >= ?
+            != <= >=
+            "foobar"
+            "foo bar"
+            "foo\n\"\tbar"
+            ?
         "#
         .into();
 
@@ -162,7 +198,8 @@ mod tests {
             Semicolon,  If,         OpenParen,  Int(5),     LessThan,   Int(10),    CloseParen,
             OpenBrace,  Return,     True,       Semicolon,  CloseBrace, Else,       OpenBrace,
             Return,     False,      Semicolon,  CloseBrace, Int(10),    Equals,     Int(10),
-            Semicolon,  NotEquals,  LessEq,     GreaterEq,  Illegal('?'),           EOF,
+            Semicolon,  NotEquals,  LessEq,     GreaterEq,  Str("foobar".into()),
+            Str("foo bar".into()),  Str("foo\n\"\tbar".into()),  Illegal('?'),
         ];
 
         let mut lex = Lexer::new(input);
