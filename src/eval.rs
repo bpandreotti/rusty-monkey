@@ -9,6 +9,7 @@ use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
 
+// @TODO: Make `RuntimeError` an enum
 #[derive(Debug, PartialEq)]
 pub struct RuntimeError(String);
 
@@ -167,10 +168,7 @@ fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> EvalRes
         Token::GreaterThan => Ok(Object::Boolean(left > right)),
         Token::GreaterEq => Ok(Object::Boolean(left >= right)),
 
-        _ => runtime_err!(
-            "Unsuported operand types for operator {}: 'int' and 'int'",
-            operator.type_str()
-        ),
+        _ => panic!(), // This is currently unreacheable
     }
 }
 
@@ -193,7 +191,6 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
 
 #[cfg(test)]
 mod tests {
-    // @TODO: Add tests for error handling
     use super::*;
     use Object::*;
 
@@ -216,7 +213,7 @@ mod tests {
         }
     }
 
-    fn assert_runtime_error(input: &str, expected_error: &str) {
+    fn assert_runtime_error(input: &str, expected_errors: &[&str]) {
         use crate::lexer::Lexer;
         use crate::parser::Parser;
 
@@ -224,8 +221,11 @@ mod tests {
         let parsed = Parser::new(Lexer::new(input.into()))
             .parse_program()
             .expect("Parser error during test");
-
-        assert_eq!(run_program(parsed), runtime_err!("{}", expected_error))
+        let env = Rc::new(RefCell::new(Environment::empty()));
+        for (statement, &error) in parsed.iter().zip(expected_errors) {
+            let got = eval_statement(statement, &env).expect_err("No runtime error encountered");
+            assert_eq!(got, RuntimeError(error.into()));
+        }
     }
 
     #[test]
@@ -431,12 +431,12 @@ mod tests {
     #[test]
     fn test_closures() {
         let input = "
-            let makeadder = fn(x) {
+            let make_adder = fn(x) {
                 let adder = fn(y) { x + y }
                 return adder;
             }
-            let add3 = makeadder(3);
-            add3(5);
+            let add_3 = make_adder(3);
+            add_3(5);
 
             let foo = fn() {
                 let outer = 1;
@@ -491,12 +491,53 @@ mod tests {
 
     #[test]
     fn test_runtime_errors() {
-        assert_runtime_error("a + b", "Identifier not found: 'a'");
-        assert_runtime_error("let a = 3; a()", "'int' is not a function object");
-        assert_runtime_error("return 2", "`return` outside function context");
-        assert_runtime_error(
-            "let a = fn() { }; a(1, 2)",
-            "Wrong number of arguments. Expected 0 arguments, 2 were given"
-        );
+        // Basic errors
+        let input = "
+            a + b
+            nil()
+            { let foo = 3; foo() }
+            return 2
+            { let a = fn(){}; a(1, 2) }
+        ";
+        let expected = [
+            "Identifier not found: 'a'",
+            "'nil' is not a function object",
+            "'int' is not a function object",
+            "`return` outside function context",
+            "Wrong number of arguments. Expected 0 arguments, 2 were given",
+        ];
+        assert_runtime_error(input, &expected);
+
+        // Prefix expressions
+        let input = "
+            -true
+            -(fn(){})
+            -nil
+        ";
+        let expected = [
+            "Unsuported operand type for prefix operator `-`: 'bool'",
+            "Unsuported operand type for prefix operator `-`: 'function'",
+            "Unsuported operand type for prefix operator `-`: 'nil'",
+        ];
+        assert_runtime_error(input, &expected);
+
+        // Infix expressions
+        let input = "
+            true + false
+            false < false
+            true / nil
+            fn(){} >= false
+            true > nil
+            fn(){} * fn(){}
+        ";
+        let expected = [
+            "Unsuported operand types for operator `+`: 'bool' and 'bool'",
+            "Unsuported operand types for operator `<`: 'bool' and 'bool'",
+            "Unsuported operand types for operator `/`: 'bool' and 'nil'",
+            "Unsuported operand types for operator `>=`: 'function' and 'bool'",
+            "Unsuported operand types for operator `>`: 'bool' and 'nil'",
+            "Unsuported operand types for operator `*`: 'function' and 'function'",
+        ];
+        assert_runtime_error(input, &expected);
     }
 }
