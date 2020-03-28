@@ -14,6 +14,7 @@ pub struct FunctionObject {
 pub enum Object {
     Integer(i64),
     Boolean(bool),
+    Str(String),
     ReturnValue(Box<Object>),
     Function(FunctionObject),
     Nil,
@@ -24,6 +25,7 @@ impl fmt::Display for Object {
         match self {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
+            Object::Str(s) => write!(f, "\"{}\"", s.escape_debug()),
             Object::Nil => write!(f, "nil"),
             Object::Function(_) => write!(f, "[function]"),
             Object::ReturnValue(_) => panic!("trying to display ReturnValue object"),
@@ -36,6 +38,7 @@ impl Object {
         match self {
             Object::Integer(_) => "int",
             Object::Boolean(_) => "bool",
+            Object::Str(_) => "string",
             Object::Nil => "nil",
             Object::ReturnValue(_) => "ReturnValue object",
             Object::Function(_) => "function",

@@ -46,6 +46,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
         Expression::Boolean(b) => Ok(Object::Boolean(*b)),
+        Expression::StringLiteral(s) => Ok(Object::Str(s.clone())),
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
             eval_prefix_expression(tk, &right_side)
@@ -87,7 +88,6 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 runtime_err!("'{}' is not a function object", obj.type_str())
             }
         }
-        _ => panic!()
     }
 }
 
@@ -137,12 +137,13 @@ fn eval_prefix_expression(operator: &Token, right: &Object) -> EvalResult {
 
 fn eval_infix_expression(operator: &Token, left: &Object, right: &Object) -> EvalResult {
     match (left, operator, right) {
+        // Equality operators
+        (l, Token::Equals, r) => Ok(Object::Boolean(are_equal(l, r))),
+        (l, Token::NotEquals, r) => Ok(Object::Boolean(!are_equal(l, r))),
         // int `anything` int
         (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
-        // bool == bool
-        (Object::Boolean(l), Token::Equals, Object::Boolean(r)) => Ok(Object::Boolean(*l == *r)),
-        // bool != bool
-        (Object::Boolean(l), Token::NotEquals, Object::Boolean(r)) => Ok(Object::Boolean(*l != *r)),
+        // String concatenation
+        (Object::Str(l), Token::Plus, Object::Str(r)) => Ok(Object::Str(l.clone() + r)),
 
         (l, op, r) => runtime_err!(
             "Unsuported operand types for operator {}: '{}' and '{}'",
@@ -162,14 +163,25 @@ fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> EvalRes
         Token::Slash => Ok(Object::Integer(left / right)),
 
         // Comparison operators
-        Token::Equals => Ok(Object::Boolean(left == right)),
-        Token::NotEquals => Ok(Object::Boolean(left != right)),
         Token::LessThan => Ok(Object::Boolean(left < right)),
         Token::LessEq => Ok(Object::Boolean(left <= right)),
         Token::GreaterThan => Ok(Object::Boolean(left > right)),
         Token::GreaterEq => Ok(Object::Boolean(left >= right)),
 
         _ => panic!(), // This is currently unreacheable
+    }
+}
+
+fn are_equal(left: &Object, right: &Object) -> bool {
+    // Funciton object comparison are currently unsupported, and always return false
+    match (left, right) {
+        (Object::Integer(l), Object::Integer(r)) => l == r,
+        (Object::Boolean(l), Object::Boolean(r)) => l == r,
+        (Object::Str(l), Object::Str(r)) => l == r,
+        (Object::Nil, Object::Nil) => true,
+        (_, Object::ReturnValue(_)) => panic!(),
+        (Object::ReturnValue(_), _) => panic!(),
+        _ => false,
     }
 }
 
@@ -192,6 +204,7 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
 
 #[cfg(test)]
 mod tests {
+    // @TODO: Add tests for string operations
     use super::*;
     use Object::*;
 
