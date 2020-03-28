@@ -375,6 +375,14 @@ impl Parser {
         }
     }
 
+    /// Parses a string token into a string literal expression.
+    fn parse_string_literal(&mut self) -> ParserResult<Expression> {
+        match &self.current_token {
+            Token::Str(s) => Ok(Expression::StringLiteral(s.clone())),
+            _ => panic!(),
+        }
+    }
+
     /// Parses a boolean token into a boolean literal expression.
     fn parse_boolean(&mut self) -> ParserResult<Expression> {
         match &self.current_token {
@@ -398,6 +406,7 @@ impl Parser {
         match token {
             Token::Identifier(_)        => Some(Parser::parse_identifier),
             Token::Int(_)               => Some(Parser::parse_int_literal),
+            Token::Str(_)               => Some(Parser::parse_string_literal),
             Token::Bang | Token::Minus  => Some(Parser::parse_prefix_expression),
             Token::OpenParen            => Some(Parser::parse_grouped_expression),
             Token::True | Token::False  => Some(Parser::parse_boolean),
@@ -462,6 +471,29 @@ mod tests {
         let mut pars = Parser::new(lex);
         let output = pars.parse_program();
         assert!(output.is_err());
+    }
+
+    #[test]
+    fn test_literals() {
+        let input = r#"
+            0;
+            17;
+            true;
+            false;
+            nil;
+            "brown is dark orange"
+            "hello world"
+        "#;
+        let expected = [
+            "ExpressionStatement(IntLiteral(0))",
+            "ExpressionStatement(IntLiteral(17))",
+            "ExpressionStatement(Boolean(true))",
+            "ExpressionStatement(Boolean(false))",
+            "ExpressionStatement(Nil)",
+            "ExpressionStatement(StringLiteral(\"brown is dark orange\"))",
+            "ExpressionStatement(StringLiteral(\"hello world\"))",
+        ];
+        assert_parse(input, &expected);
     }
 
     #[test]

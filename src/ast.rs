@@ -20,6 +20,7 @@ pub type LetStatement = (String, Expression);
 pub enum Expression {
     Identifier(String),
     IntLiteral(i64),
+    StringLiteral(String),
     Boolean(bool),
     PrefixExpression(Token, Box<Expression>),
     InfixExpression(Box<Expression>, Token, Box<Expression>),
