@@ -1,4 +1,4 @@
-// @WIP: This whole module is a work in progress, expect function signatures to change
+// @TODO: Document this module
 use crate::ast::*;
 use crate::environment::*;
 use crate::object::*;
@@ -9,7 +9,7 @@ use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct RuntimeError(String);
 
 impl fmt::Display for RuntimeError {
@@ -40,7 +40,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
             // Note: This clones the object
             match env.borrow().get(&s) {
                 Some(value) => Ok(value),
-                None => runtime_err!("Identifier not found: {}", s),
+                None => runtime_err!("Identifier not found: '{}'", s),
             }
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
@@ -83,7 +83,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 // Call the function object
                 call_function_object(fo, evaluated_args)
             } else {
-                runtime_err!("{} is not a function object", obj.type_str())
+                runtime_err!("'{}' is not a function object", obj.type_str())
             }
         }
     }
@@ -214,6 +214,18 @@ mod tests {
             let got = eval_statement(&st, &env).expect("Runtime error during test");
             assert_eq!(format!("{}", got), format!("{}", exp));
         }
+    }
+
+    fn assert_runtime_error(input: &str, expected_error: &str) {
+        use crate::lexer::Lexer;
+        use crate::parser::Parser;
+
+        // Parse program into vector of statements
+        let parsed = Parser::new(Lexer::new(input.into()))
+            .parse_program()
+            .expect("Parser error during test");
+
+        assert_eq!(run_program(parsed), runtime_err!("{}", expected_error))
     }
 
     #[test]
@@ -475,5 +487,16 @@ mod tests {
         ";
         let expected = [Nil, Integer(50), Nil, Integer(233), Nil, Nil, Integer(1440)];
         assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_runtime_errors() {
+        assert_runtime_error("a + b", "Identifier not found: 'a'");
+        assert_runtime_error("let a = 3; a()", "'int' is not a function object");
+        assert_runtime_error("return 2", "`return` outside function context");
+        assert_runtime_error(
+            "let a = fn() { }; a(1, 2)",
+            "Wrong number of arguments. Expected 0 arguments, 2 were given"
+        );
     }
 }

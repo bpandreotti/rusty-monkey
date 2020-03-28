@@ -70,11 +70,12 @@ impl Lexer {
         self.chars.get(self.position + 1).copied()
     }
 
-    // @TODO: Accept "_" in identifiers
     fn read_identifier(&mut self) -> Token {
         let mut literal = String::new();
         while let Some(ch) = self.current_char {
-            if !ch.is_alphanumeric() { break; }
+            if !ch.is_alphanumeric() && ch != '_' {
+                break;
+            }
             literal.push(ch);
             self.read_char();
         }
@@ -86,7 +87,9 @@ impl Lexer {
     fn read_number(&mut self) -> Token {
         let mut literal = String::new();
         while let Some(ch) = self.current_char {
-            if !ch.is_ascii_digit() { break; }
+            if !ch.is_ascii_digit() {
+                break;
+            }
             literal.push(ch);
             self.read_char();
         }
@@ -96,7 +99,9 @@ impl Lexer {
 
     fn consume_whitespace(&mut self) {
         while let Some(ch) = self.current_char {
-            if !ch.is_whitespace() { break; }
+            if !ch.is_whitespace() {
+                break;
+            }
             self.read_char();
         }
     }

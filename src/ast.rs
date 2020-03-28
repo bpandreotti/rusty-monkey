@@ -1,5 +1,5 @@
-// @TODO: Implement block expressions. Block expressions are like block statements, but they can
-// can be used in contexts where an expression is expected. Example:
+// @TODO: Consider implementing block expressions. Block expressions are like block statements, but
+// they can can be used in contexts where an expression is expected. Example:
 //     let a = {
 //         let b = 20;
 //         b * (b - 1)
@@ -10,7 +10,7 @@
 //         b * (b - 1)
 //     };
 // Once block expressions are working, consider implementing block statements as expression
-// statements wrapping a block expresison.
+// statements wrapping a block expresison. This might conflict with parsing Hashes.
 
 use crate::token::*;
 
