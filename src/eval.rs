@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 // @TODO: Make `RuntimeError` an enum
 #[derive(Debug, PartialEq)]
-pub struct RuntimeError(String);
+pub struct RuntimeError(pub String);
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -21,6 +21,7 @@ impl fmt::Display for RuntimeError {
 
 impl Error for RuntimeError {}
 
+#[macro_export]
 macro_rules! runtime_err {
     ($($arg:expr),*) => { Err(RuntimeError(format!($($arg),*))) }
 }
