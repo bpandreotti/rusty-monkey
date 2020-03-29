@@ -35,6 +35,7 @@ enum Precedence {
     Product,
     Prefix,
     Call,
+    Index,
 }
 
 pub struct Parser {
@@ -276,12 +277,11 @@ impl Parser {
         Ok(Expression::FunctionLiteral { parameters, body })
     }
 
-    /// Parses a function call expression. The function name must be already parsed, and passed as
-    /// an identifier expression. Expects a valid list of call arguments. Doesn't check if
-    /// `self.current_token` is an "(" token. May return an error if parsing fails.
+    /// Parses a function call expression. The function must be already parsed, and passed as an
+    /// expression. Expects a valid list of call arguments. Doesn't check if `self.current_token`
+    /// is an "(" token. May return an error if parsing fails.
     fn parse_call_expression(&mut self, function: Box<Expression>) -> ParserResult<Expression> {
-        let arguments = self.parse_call_arguments()?;
-
+        let arguments = self.parse_expression_list(Token::CloseParen)?;
         Ok(Expression::CallExpression { function, arguments })
     }
 
@@ -320,11 +320,6 @@ impl Parser {
 
         self.expect_token(Token::CloseParen)?;
         Ok(params)
-    }
-
-    /// Parses a list of call arguments. Doesn't check if `self.current_token` is an "(" token.
-    fn parse_call_arguments(&mut self) -> ParserResult<Vec<Expression>> {
-        self.parse_expression_list(Token::CloseParen)
     }
 
     /// Parses a grouped expression, that is, an expression enclosed by parentheses. This only has
@@ -385,6 +380,16 @@ impl Parser {
         Ok(Expression::ArrayLiteral(elements))
     }
 
+    /// Parses a array indexing expression. The array must be already parsed, and passed as an
+    /// expression. Expects an expression as the index. Doesn't check if `self.current_token`
+    /// is an "[" token. May return an error if parsing fails.
+    fn parse_index_expression(&mut self, left: Box<Expression>) -> ParserResult<Expression> {
+        self.read_token(); // Read first token of index expression
+        let index = self.parse_expression(Precedence::Lowest)?;
+        self.expect_token(Token::CloseSquareBracket)?;
+        Ok(Expression::IndexExpression(left, Box::new(index)))
+    }
+
     /// Parses a list of expressions, separated by commas and ending on `closing_token`. There
     /// should be no trailing comma. May return an error if parsing of a list element fails, or if
     /// the parser encounters an unexpected token.
@@ -438,6 +443,7 @@ impl Parser {
             | Token::Slash
             | Token::Asterisk => Some(Parser::parse_infix_expression),
             Token::OpenParen => Some(Parser::parse_call_expression),
+            Token::OpenSquareBracket => Some(Parser::parse_index_expression),
             _ => None,
         }
     }
@@ -451,6 +457,7 @@ impl Parser {
             Plus | Minus                                => Precedence::Sum,
             Slash | Asterisk                            => Precedence::Product,
             OpenParen                                   => Precedence::Call,
+            OpenSquareBracket                           => Precedence::Index,
             _                                           => Precedence::Lowest,
         }
     }
@@ -489,9 +496,9 @@ mod tests {
             false;
             nil;
             "brown is dark orange"
-            "hello world"
-            []
-            [0, false, nil]
+            "hello world";
+            [];
+            [0, false, nil];
         "#;
         let expected = [
             "ExpressionStatement(IntLiteral(0))",
@@ -507,6 +514,23 @@ mod tests {
         assert_parse(input, &expected);
         assert_parse_fails("[a, b");
         assert_parse_fails("[nil,]");
+    }
+
+    #[test]
+    fn test_index_expression() {
+        let input = "
+            a[0];
+            [nil][0];
+        ";
+        let expected = [
+            "ExpressionStatement(IndexExpression(Identifier(\"a\"), IntLiteral(0)))",
+            "ExpressionStatement(IndexExpression(ArrayLiteral([Nil]), IntLiteral(0)))",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("array[]");
+        assert_parse_fails("array[i");
+        assert_parse_fails("array[only, one, index, man]");
     }
 
     #[test]

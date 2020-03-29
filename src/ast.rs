@@ -23,6 +23,7 @@ pub enum Expression {
     StringLiteral(String),
     Boolean(bool),
     ArrayLiteral(Vec<Expression>),
+    IndexExpression(Box<Expression>, Box<Expression>),
     PrefixExpression(Token, Box<Expression>),
     InfixExpression(Box<Expression>, Token, Box<Expression>),
     IfExpression {
