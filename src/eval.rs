@@ -48,6 +48,13 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
         Expression::Boolean(b) => Ok(Object::Boolean(*b)),
         Expression::StringLiteral(s) => Ok(Object::Str(s.clone())),
+        Expression::ArrayLiteral(v) => {
+            let mut elements = Vec::with_capacity(v.len());
+            for exp in v {
+                elements.push(eval_expression(exp, env)?);
+            }
+            Ok(Object::Array(elements))
+        }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
             eval_prefix_expression(tk, &right_side)
@@ -365,6 +372,30 @@ mod tests {
             { let a = 5; { let a = 0 } a }
         ";
         let expected = [Integer(5), Integer(25), Integer(5), Integer(15), Integer(5)];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_arrays() {
+        // @WIP: Some of these tests currently fail
+        let input = "
+            [];
+            [0, nil, false];
+            [0, [1]];
+            let arr = [0, 1, 1, 2, 3, 5, 8, 13];
+            arr[5];
+            let arr = [[0], [0, 1], [0, 1, 2]];
+            arr[2][2];
+        ";
+        let expected = [
+            Array(Vec::new()),
+            Array(vec![Integer(0), Nil, Boolean(false)]),
+            Array(vec![Integer(0), Array(vec![Integer(1)])]),
+            Nil,
+            Integer(5),
+            Nil,
+            Integer(2),
+        ];
         assert_eval(input, &expected);
     }
 

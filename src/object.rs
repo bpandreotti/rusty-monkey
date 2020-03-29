@@ -16,6 +16,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Str(String),
+    Array(Vec<Object>),
     ReturnValue(Box<Object>),
     Function(FunctionObject),
     Builtin(BuiltinFn),
@@ -28,9 +29,20 @@ impl fmt::Display for Object {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
             Object::Str(s) => write!(f, "\"{}\"", s.escape_debug()),
+            Object::Array(v) => {
+                if v.is_empty() {
+                    return write!(f, "[]");
+                }
+
+                write!(f, "[")?;
+                for element in &v[.. v.len() - 1] {
+                    write!(f, "{}, ", element)?;
+                }
+                write!(f, "{}]", v[v.len() - 1])
+            }
             Object::Nil => write!(f, "nil"),
-            Object::Function(_) => write!(f, "[function]"),
-            Object::Builtin(_) => write!(f, "[built-in function]"),
+            Object::Function(_) => write!(f, "<function>"),
+            Object::Builtin(_) => write!(f, "<built-in function>"),
             Object::ReturnValue(_) => panic!("trying to display ReturnValue object"),
         }
     }
@@ -42,6 +54,7 @@ impl Object {
             Object::Integer(_) => "int",
             Object::Boolean(_) => "bool",
             Object::Str(_) => "string",
+            Object::Array(_) => "array",
             Object::Nil => "nil",
             Object::ReturnValue(_) => "ReturnValue object",
             Object::Function(_) => "function",
