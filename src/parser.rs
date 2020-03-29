@@ -103,7 +103,7 @@ impl Parser {
                 let st = Box::new(self.parse_return_statement()?);
                 Ok(Statement::Return(st))
             }
-            Token::OpenBrace => {
+            Token::OpenCurlyBrace => {
                 let st = self.parse_block_statement()?;
                 Ok(Statement::BlockStatement(st))
             }
@@ -166,7 +166,7 @@ impl Parser {
     fn parse_block_statement(&mut self) -> ParserResult<Vec<Statement>> {
         self.read_token();
         let mut statements = Vec::new();
-        while self.current_token != Token::CloseBrace {
+        while self.current_token != Token::CloseCurlyBrace {
             statements.push(self.parse_statement()?);
             self.read_token();
         }
@@ -246,12 +246,12 @@ impl Parser {
         self.read_token(); // Read first token from the condition expression
         let condition = self.parse_expression(Precedence::Lowest)?;
 
-        self.expect_token(Token::OpenBrace)?;
+        self.expect_token(Token::OpenCurlyBrace)?;
         let consequence = self.parse_block_statement()?;
 
         let alternative = if self.peek_token == Token::Else {
             self.read_token(); // Consume "else" token
-            self.expect_token(Token::OpenBrace)?;
+            self.expect_token(Token::OpenCurlyBrace)?;
             self.parse_block_statement()?
         } else {
             Vec::new()
@@ -270,7 +270,7 @@ impl Parser {
     fn parse_function_literal(&mut self) -> ParserResult<Expression> {
         self.expect_token(Token::OpenParen)?;
         let parameters = self.parse_function_parameters()?;
-        self.expect_token(Token::OpenBrace)?;
+        self.expect_token(Token::OpenCurlyBrace)?;
         let body = self.parse_block_statement()?;
 
         Ok(Expression::FunctionLiteral { parameters, body })
@@ -322,31 +322,9 @@ impl Parser {
         Ok(params)
     }
 
-    /// Parses a list of call arguments. Expects a list of expressions, enclosed by parentheses and
-    /// separated by commas. There should be no trailing comma. May return an error if parsing of
-    /// an argument fails, or if the parser encounters an unexpected token. Doesn't check if
-    /// `self.current_token` is an "(" token.
+    /// Parses a list of call arguments. Doesn't check if `self.current_token` is an "(" token.
     fn parse_call_arguments(&mut self) -> ParserResult<Vec<Expression>> {
-        let mut args = Vec::new();
-
-        // In case of empty argument list
-        if self.peek_token == Token::CloseParen {
-            self.read_token();
-            return Ok(args);
-        }
-
-        self.read_token(); // Read first token of expression
-        args.push(self.parse_expression(Precedence::Lowest)?);
-
-        while self.peek_token == Token::Comma {
-            self.read_token(); // Consume comma token
-            self.read_token(); // Read first token of expression
-            args.push(self.parse_expression(Precedence::Lowest)?);
-        }
-
-        self.expect_token(Token::CloseParen)?;
-
-        Ok(args)
+        self.parse_expression_list(Token::CloseParen)
     }
 
     /// Parses a grouped expression, that is, an expression enclosed by parentheses. This only has
@@ -401,6 +379,34 @@ impl Parser {
         }
     }
 
+    /// Parses an array literal. Doesn't check if `self.current_token` is an "[" token.
+    fn parse_array_literal(&mut self) -> ParserResult<Expression> {
+        let elements = self.parse_expression_list(Token::CloseSquareBracket)?;
+        Ok(Expression::ArrayLiteral(elements))
+    }
+
+    /// Parses a list of expressions, separated by commas and ending on `closing_token`. There
+    /// should be no trailing comma. May return an error if parsing of a list element fails, or if
+    /// the parser encounters an unexpected token.
+    fn parse_expression_list(&mut self, closing_token: Token) -> ParserResult<Vec<Expression>> {
+        let mut list = Vec::new();
+        // In case of empty expression list
+        if self.peek_token == closing_token {
+            self.read_token();
+            return Ok(list);
+        }
+
+        self.read_token(); // Read first token of expression
+        list.push(self.parse_expression(Precedence::Lowest)?);
+        while self.peek_token == Token::Comma {
+            self.read_token(); // Consume comma token
+            self.read_token(); // Read first token of expression
+            list.push(self.parse_expression(Precedence::Lowest)?);
+        }
+        self.expect_token(closing_token)?;
+        Ok(list)
+    }
+
     /// Returns the prefix parse function associated with the given token.
     fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
         match token {
@@ -409,6 +415,7 @@ impl Parser {
             Token::Str(_)               => Some(Parser::parse_string_literal),
             Token::Bang | Token::Minus  => Some(Parser::parse_prefix_expression),
             Token::OpenParen            => Some(Parser::parse_grouped_expression),
+            Token::OpenSquareBracket    => Some(Parser::parse_array_literal),
             Token::True | Token::False  => Some(Parser::parse_boolean),
             Token::If                   => Some(Parser::parse_if_expression),
             Token::Function             => Some(Parser::parse_function_literal),
@@ -483,6 +490,8 @@ mod tests {
             nil;
             "brown is dark orange"
             "hello world"
+            []
+            [0, false, nil]
         "#;
         let expected = [
             "ExpressionStatement(IntLiteral(0))",
@@ -492,8 +501,12 @@ mod tests {
             "ExpressionStatement(Nil)",
             "ExpressionStatement(StringLiteral(\"brown is dark orange\"))",
             "ExpressionStatement(StringLiteral(\"hello world\"))",
+            "ExpressionStatement(ArrayLiteral([]))",
+            "ExpressionStatement(ArrayLiteral([IntLiteral(0), Boolean(false), Nil]))",
         ];
         assert_parse(input, &expected);
+        assert_parse_fails("[a, b");
+        assert_parse_fails("[nil,]");
     }
 
     #[test]

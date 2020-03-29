@@ -22,6 +22,7 @@ pub enum Expression {
     IntLiteral(i64),
     StringLiteral(String),
     Boolean(bool),
+    ArrayLiteral(Vec<Expression>),
     PrefixExpression(Token, Box<Expression>),
     InfixExpression(Box<Expression>, Token, Box<Expression>),
     IfExpression {

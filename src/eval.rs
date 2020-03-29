@@ -89,6 +89,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 other => runtime_err!("'{}' is not a function object", other.type_str()),
             }
         }
+        _ => panic!(),
     }
 }
 
