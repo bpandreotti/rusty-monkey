@@ -96,7 +96,25 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 other => runtime_err!("'{}' is not a function object", other.type_str()),
             }
         }
-        _ => panic!(),
+        Expression::IndexExpression(array, index) => {
+            let array = eval_expression(array, env)?;
+            let index = eval_expression(index, env)?;
+            match (array, index) {
+                (Object::Array(vector), Object::Integer(i)) => {
+                    if i < 0 || i >= vector.len() as i64 {
+                        runtime_err!("Array index out of bounds")
+                    } else {
+                        Ok(vector[i as usize].clone())
+                    }
+                }
+                (Object::Array(_), other) =>  {
+                    runtime_err!("Array index must be integer, not '{}'", other.type_str())
+                }
+                (other, _) => {
+                    runtime_err!("'{}' is not an array object", other.type_str())
+                }
+            }
+        }
     }
 }
 
@@ -377,7 +395,6 @@ mod tests {
 
     #[test]
     fn test_arrays() {
-        // @WIP: Some of these tests currently fail
         let input = "
             [];
             [0, nil, false];
