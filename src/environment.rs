@@ -1,8 +1,9 @@
+use crate::builtins::*;
 use crate::object::Object;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 pub type EnvHandle = Rc<RefCell<Environment>>;
 
@@ -26,7 +27,7 @@ impl Environment {
         Environment {
             map: HashMap::new(),
             outer: Some(Rc::clone(outer)),
-            is_fn_context: outer.borrow().is_fn_context
+            is_fn_context: outer.borrow().is_fn_context,
         }
     }
 
@@ -35,9 +36,12 @@ impl Environment {
     }
 
     pub fn get(&self, key: &str) -> Option<Object> {
-        self.map.get(key).cloned().or(match &self.outer {
-            Some(e) => e.borrow().get(key),
-            None => None,
-        })
+        self.map
+            .get(key) // Try to find the identifier in the environment
+            .cloned()
+            // if that fails, try the outer environment (if it exists)
+            .or_else(|| self.outer.as_ref().and_then(|e| e.borrow().get(key)))
+            // and finally, try the built-in functions
+            .or_else(|| get_builtin(key))
     }
 }

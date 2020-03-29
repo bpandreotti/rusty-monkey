@@ -1,13 +1,14 @@
 use crate::eval::*;
 use crate::object::*;
 
-type BuiltinFn = fn(Vec<Object>) -> EvalResult;
+pub type BuiltinFn = fn(Vec<Object>) -> EvalResult;
 
-pub fn builtins() -> Vec<(&'static str, BuiltinFn)> {
-    vec![
-        ("len", builtin_len),
-        ("puts", builtin_puts),
-    ]
+pub fn get_builtin(name: &str) -> Option<Object> {
+    match name {
+        "len" => Some(Object::Builtin(builtin_len)),
+        "puts" => Some(Object::Builtin(builtin_puts)),
+        _ => None,
+    }
 }
 
 fn builtin_len(args: Vec<Object>) -> EvalResult {
@@ -33,10 +34,10 @@ fn builtin_puts(args: Vec<Object>) -> EvalResult {
         );
     }
 
-    println!("{}", args[0]);
-    for arg in &args[1..] {
-        // Print remaining arguments preceded by space
-        println!(" {}", arg);
+    for arg in &args[..args.len() - 1] {
+        print!("{} ", arg);
     }
+    println!("{}", args[args.len() - 1]);
+    
     Ok(Object::Nil)
 }

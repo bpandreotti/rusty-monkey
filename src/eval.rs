@@ -77,16 +77,16 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
         Expression::CallExpression { function, arguments } => {
             // Evaluate the called object and make sure it's a function
             let obj = eval_expression(function, env)?;
-            if let Object::Function(fo) = obj {
-                // Evaluate all arguments sequentially
-                let mut evaluated_args = Vec::with_capacity(arguments.len());
-                for exp in arguments {
-                    evaluated_args.push(eval_expression(exp, env)?);
-                }
-                // Call the function object
-                call_function_object(fo, evaluated_args)
-            } else {
-                runtime_err!("'{}' is not a function object", obj.type_str())
+            // Evaluate all arguments sequentially
+            let mut evaluated_args = Vec::with_capacity(arguments.len());
+            for exp in arguments {
+                evaluated_args.push(eval_expression(exp, env)?);
+            }
+            
+            match obj {
+                Object::Function(fo) => call_function_object(fo, evaluated_args),
+                Object::Builtin(fp) => fp(evaluated_args),
+                other => runtime_err!("'{}' is not a function object", other.type_str()),
             }
         }
     }

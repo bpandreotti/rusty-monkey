@@ -1,4 +1,5 @@
 use crate::ast::Statement;
+use crate::builtins::*;
 use crate::environment::*;
 
 use std::fmt;
@@ -17,6 +18,7 @@ pub enum Object {
     Str(String),
     ReturnValue(Box<Object>),
     Function(FunctionObject),
+    Builtin(BuiltinFn),
     Nil,
 }
 
@@ -28,6 +30,7 @@ impl fmt::Display for Object {
             Object::Str(s) => write!(f, "\"{}\"", s.escape_debug()),
             Object::Nil => write!(f, "nil"),
             Object::Function(_) => write!(f, "[function]"),
+            Object::Builtin(_) => write!(f, "[built-in function]"),
             Object::ReturnValue(_) => panic!("trying to display ReturnValue object"),
         }
     }
@@ -42,6 +45,7 @@ impl Object {
             Object::Nil => "nil",
             Object::ReturnValue(_) => "ReturnValue object",
             Object::Function(_) => "function",
+            Object::Builtin(_) => "function",
         }
     }
 
