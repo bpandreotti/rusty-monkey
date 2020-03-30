@@ -115,6 +115,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 }
             }
         }
+        _ => panic!(),
     }
 }
 

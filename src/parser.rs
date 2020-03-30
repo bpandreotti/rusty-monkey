@@ -390,6 +390,39 @@ impl Parser {
         Ok(Expression::IndexExpression(left, Box::new(index)))
     }
 
+    // @WIP: Currently, hash literal parsing conflicts with block statements. If a hash literal is
+    // encountered in an expression context, it parses as a hash literal, as expected. However,
+    // when it is encountered in a statement context (e.g. an expression statement), the parses
+    // interprets the "{" token as the beginning of a block statement. There is no way to resolve
+    // this conflict outside of introducing new syntax
+    /// Parses a hash literal. Doesn't check if `self.current_token` is an "{" token.
+    fn parse_hash_literal(&mut self) -> ParserResult<Expression> {
+        let mut entries = Vec::new();
+        if self.peek_token == Token::CloseCurlyBrace {
+            self.read_token();
+            return Ok(Expression::HashLiteral(entries));
+        }
+
+        self.read_token();
+        entries.push(self.parse_hash_entry()?);
+        while self.peek_token == Token::Comma {
+            self.read_token();
+            self.read_token();
+            entries.push(self.parse_hash_entry()?);
+        }
+        self.expect_token(Token::CloseCurlyBrace)?;
+        Ok(Expression::HashLiteral(entries))
+    }
+
+    /// Parses a hash entry, that is, two expressions separated by a ":" token.
+    fn parse_hash_entry(&mut self) -> ParserResult<(Expression, Expression)> {
+        let key = self.parse_expression(Precedence::Lowest)?;
+        self.expect_token(Token::Colon)?;
+        self.read_token();
+        let value = self.parse_expression(Precedence::Lowest)?;
+        Ok((key, value))
+    }
+
     /// Parses a list of expressions, separated by commas and ending on `closing_token`. There
     /// should be no trailing comma. May return an error if parsing of a list element fails, or if
     /// the parser encounters an unexpected token.
@@ -420,6 +453,7 @@ impl Parser {
             Token::Str(_)               => Some(Parser::parse_string_literal),
             Token::Bang | Token::Minus  => Some(Parser::parse_prefix_expression),
             Token::OpenParen            => Some(Parser::parse_grouped_expression),
+            Token::OpenCurlyBrace       => Some(Parser::parse_hash_literal),
             Token::OpenSquareBracket    => Some(Parser::parse_array_literal),
             Token::True | Token::False  => Some(Parser::parse_boolean),
             Token::If                   => Some(Parser::parse_if_expression),
@@ -499,6 +533,11 @@ mod tests {
             "hello world";
             [];
             [0, false, nil];
+            let hash = {
+                first : "entry",
+                second : 1,
+                nil : []
+            }
         "#;
         let expected = [
             "ExpressionStatement(IntLiteral(0))",
@@ -510,6 +549,8 @@ mod tests {
             "ExpressionStatement(StringLiteral(\"hello world\"))",
             "ExpressionStatement(ArrayLiteral([]))",
             "ExpressionStatement(ArrayLiteral([IntLiteral(0), Boolean(false), Nil]))",
+            "Let((\"hash\", HashLiteral([(Identifier(\"first\"), StringLiteral(\"entry\")), \
+            (Identifier(\"second\"), IntLiteral(1)), (Nil, ArrayLiteral([]))])))"
         ];
         assert_parse(input, &expected);
         assert_parse_fails("[a, b");

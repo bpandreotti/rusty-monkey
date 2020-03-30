@@ -45,6 +45,7 @@ impl Lexer {
             // Delimiters
             Some(',') => Token::Comma,
             Some(';') => Token::Semicolon,
+            Some(':') => Token::Colon,
             Some('(') => Token::OpenParen,
             Some(')') => Token::CloseParen,
             Some('{') => Token::OpenCurlyBrace,
@@ -188,7 +189,7 @@ mod tests {
             "foobar"
             "foo bar"
             "foo\n\"\tbar"
-            ?
+            ? :
             [1, 2, 3]
         "#
         .into();
@@ -249,6 +250,7 @@ mod tests {
             Str("foo bar".into()),
             Str("foo\n\"\tbar".into()),
             Illegal('?'),
+            Colon,
             OpenSquareBracket,
             Int(1),
             Comma,

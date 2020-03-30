@@ -24,6 +24,7 @@ pub enum Token {
     // Delimiters
     Comma,
     Semicolon,
+    Colon,
     OpenParen,
     CloseParen,
     OpenCurlyBrace,
@@ -64,6 +65,7 @@ impl Token {
             GreaterEq => "`>=`",
             Comma => "`,`",
             Semicolon => "`;`",
+            Colon => "`:`",
             OpenParen => "`(`",
             CloseParen => "`)`",
             OpenCurlyBrace => "`{`",
