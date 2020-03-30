@@ -117,6 +117,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
             let index = eval_expression(index, env)?;
             eval_index_expression(obj, index)
         }
+        Expression::BlockExpression(block) => eval_block(block, env),
     }
 }
 
@@ -263,6 +264,8 @@ fn eval_index_expression(object: Object, index: Object) -> EvalResult {
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for string operations
+    // @TODO: Add tests for hashes
+    // @TODO: Add tests for block expressions
     use super::*;
     use Object::*;
 

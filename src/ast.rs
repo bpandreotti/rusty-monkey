@@ -1,17 +1,3 @@
-// @TODO: Consider implementing block expressions. Block expressions are like block statements, but
-// they can can be used in contexts where an expression is expected. Example:
-//     let a = {
-//         let b = 20;
-//         b * (b - 1)
-//     };
-// Currently, this behaviour can be achieved by using an if expression:
-//     let a = if true {
-//         let b = 20;
-//         b * (b - 1)
-//     };
-// Once block expressions are working, consider implementing block statements as expression
-// statements wrapping a block expresison. This might conflict with parsing Hashes.
-
 use crate::token::*;
 
 pub type LetStatement = (String, Expression);
@@ -27,6 +13,7 @@ pub enum Expression {
     IndexExpression(Box<Expression>, Box<Expression>),
     PrefixExpression(Token, Box<Expression>),
     InfixExpression(Box<Expression>, Token, Box<Expression>),
+    BlockExpression(Vec<Statement>),
     IfExpression {
         condition: Box<Expression>,
         consequence: Vec<Statement>,

@@ -31,6 +31,7 @@ pub enum Token {
     CloseCurlyBrace,
     OpenSquareBracket,
     CloseSquareBracket,
+    OpenHash,
 
     // Keywords
     Function,
@@ -72,6 +73,7 @@ impl Token {
             CloseCurlyBrace => "`}`",
             OpenSquareBracket => "`[`",
             CloseSquareBracket => "`[`",
+            OpenHash => "`#{`",
             Function => "`fn`",
             Let => "`let`",
             True | False => "boolean literal",

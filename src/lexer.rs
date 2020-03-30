@@ -52,6 +52,7 @@ impl Lexer {
             Some('}') => Token::CloseCurlyBrace,
             Some('[') => Token::OpenSquareBracket,
             Some(']') => Token::CloseSquareBracket,
+            Some('#') if self.peek_char() == Some('{') => { self.read_char(); Token::OpenHash },
 
             Some('\"') => self.read_string(),
 
@@ -191,6 +192,7 @@ mod tests {
             "foo\n\"\tbar"
             ? :
             [1, 2, 3]
+            #{
         "#
         .into();
 
@@ -258,6 +260,7 @@ mod tests {
             Comma,
             Int(3),
             CloseSquareBracket,
+            OpenHash,
             EOF,
         ];
 

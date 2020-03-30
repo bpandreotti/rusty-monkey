@@ -104,6 +104,7 @@ impl Parser {
                 let st = Box::new(self.parse_return_statement()?);
                 Ok(Statement::Return(st))
             }
+            // Should block statements be expression statements with block expressions?
             Token::OpenCurlyBrace => {
                 let st = self.parse_block_statement()?;
                 Ok(Statement::BlockStatement(st))
@@ -390,12 +391,7 @@ impl Parser {
         Ok(Expression::IndexExpression(left, Box::new(index)))
     }
 
-    // @WIP: Currently, hash literal parsing conflicts with block statements. If a hash literal is
-    // encountered in an expression context, it parses as a hash literal, as expected. However,
-    // when it is encountered in a statement context (e.g. an expression statement), the parses
-    // interprets the "{" token as the beginning of a block statement. There is no way to resolve
-    // this conflict outside of introducing new syntax
-    /// Parses a hash literal. Doesn't check if `self.current_token` is an "{" token.
+    /// Parses a hash literal. Doesn't check if `self.current_token` is an "#{" token.
     fn parse_hash_literal(&mut self) -> ParserResult<Expression> {
         let mut entries = Vec::new();
         if self.peek_token == Token::CloseCurlyBrace {
@@ -421,6 +417,11 @@ impl Parser {
         self.read_token();
         let value = self.parse_expression(Precedence::Lowest)?;
         Ok((key, value))
+    }
+
+    fn parse_block_expression(&mut self) -> ParserResult<Expression> {
+        let block = self.parse_block_statement()?;
+        Ok(Expression::BlockExpression(block))
     }
 
     /// Parses a list of expressions, separated by commas and ending on `closing_token`. There
@@ -453,8 +454,9 @@ impl Parser {
             Token::Str(_)               => Some(Parser::parse_string_literal),
             Token::Bang | Token::Minus  => Some(Parser::parse_prefix_expression),
             Token::OpenParen            => Some(Parser::parse_grouped_expression),
-            Token::OpenCurlyBrace       => Some(Parser::parse_hash_literal),
+            Token::OpenCurlyBrace       => Some(Parser::parse_block_expression),
             Token::OpenSquareBracket    => Some(Parser::parse_array_literal),
+            Token::OpenHash             => Some(Parser::parse_hash_literal),
             Token::True | Token::False  => Some(Parser::parse_boolean),
             Token::If                   => Some(Parser::parse_if_expression),
             Token::Function             => Some(Parser::parse_function_literal),
@@ -500,6 +502,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for `parse_function_literal` and `parse_call_expression`
+    // @TODO: Add tests for block expressions
     use super::*;
     use crate::lexer::Lexer;
 
@@ -533,7 +536,7 @@ mod tests {
             "hello world";
             [];
             [0, false, nil];
-            let hash = {
+            let hash = #{
                 first : "entry",
                 second : 1,
                 nil : []
