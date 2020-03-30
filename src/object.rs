@@ -2,6 +2,7 @@ use crate::ast::Statement;
 use crate::builtins::*;
 use crate::environment::*;
 
+use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,7 @@ pub enum Object {
     Boolean(bool),
     Str(String),
     Array(Vec<Object>),
+    Hash(HashMap<HashableObject, Object>),
     ReturnValue(Box<Object>),
     Function(FunctionObject),
     Builtin(BuiltinFn),
@@ -34,11 +36,24 @@ impl fmt::Display for Object {
                     return write!(f, "[]");
                 }
 
-                write!(f, "[")?;
-                for element in &v[.. v.len() - 1] {
-                    write!(f, "{}, ", element)?;
+                write!(f, "[{}", v[0])?;
+                for element in &v[1..] {
+                    write!(f, ", {}", element)?;
                 }
-                write!(f, "{}]", v[v.len() - 1])
+                write!(f, "]")
+            }
+            Object::Hash(h) => {
+                if h.is_empty() {
+                    return write!(f, "{{}}");
+                }
+
+                write!(f, "{{")?;
+                let entries: Vec<_> =  h.iter().collect();
+                write!(f, "{}: {}", entries[0].0, entries[0].1)?;
+                for (key, val) in &entries[1..] {
+                    write!(f, ", {}: {}", key, val)?;
+                }
+                write!(f, "}}")
             }
             Object::Nil => write!(f, "nil"),
             Object::Function(_) => write!(f, "<function>"),
@@ -55,6 +70,7 @@ impl Object {
             Object::Boolean(_) => "bool",
             Object::Str(_) => "string",
             Object::Array(_) => "array",
+            Object::Hash(_) => "hash",
             Object::Nil => "nil",
             Object::ReturnValue(_) => "ReturnValue object",
             Object::Function(_) => "function",
@@ -73,6 +89,34 @@ impl Object {
         match self {
             Object::ReturnValue(v) => v.unwrap_return_value(),
             other => other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HashableObject {
+    Str(String),
+    Integer(i64),
+    Boolean(bool),
+}
+
+impl fmt::Display for HashableObject {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            HashableObject::Integer(i) => write!(f, "{}", i),
+            HashableObject::Boolean(b) => write!(f, "{}", b),
+            HashableObject::Str(s) => write!(f, "\"{}\"", s.escape_debug()),
+        }
+    }
+}
+
+impl HashableObject {
+    pub fn from_object(obj: Object) -> Option<HashableObject> {
+        match obj {
+            Object::Str(s) => Some(HashableObject::Str(s)),
+            Object::Integer(i) => Some(HashableObject::Integer(i)),
+            Object::Boolean(b) => Some(HashableObject::Boolean(b)),
+            _ => None,
         }
     }
 }

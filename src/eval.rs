@@ -5,6 +5,7 @@ use crate::object::*;
 use crate::token::Token;
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
@@ -54,6 +55,21 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 elements.push(eval_expression(exp, env)?);
             }
             Ok(Object::Array(elements))
+        }
+        Expression::HashLiteral(v) => {
+            let mut map = HashMap::new();
+            for (key, val) in v {
+                let obj = eval_expression(key, env)?;
+                let obj_type = obj.type_str();
+                let key = match HashableObject::from_object(obj) {
+                    Some(v) => v,
+                    None => return runtime_err!("{} is not a valid hash key", obj_type),
+                };
+                
+                let val = eval_expression(val, env)?;
+                map.insert(key, val);
+            }
+            Ok(Object::Hash(map))
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
@@ -115,7 +131,6 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 }
             }
         }
-        _ => panic!(),
     }
 }
 
