@@ -112,24 +112,10 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 other => runtime_err!("'{}' is not a function object", other.type_str()),
             }
         }
-        Expression::IndexExpression(array, index) => {
-            let array = eval_expression(array, env)?;
+        Expression::IndexExpression(obj, index) => {
+            let obj = eval_expression(obj, env)?;
             let index = eval_expression(index, env)?;
-            match (array, index) {
-                (Object::Array(vector), Object::Integer(i)) => {
-                    if i < 0 || i >= vector.len() as i64 {
-                        runtime_err!("Array index out of bounds")
-                    } else {
-                        Ok(vector[i as usize].clone())
-                    }
-                }
-                (Object::Array(_), other) =>  {
-                    runtime_err!("Array index must be integer, not '{}'", other.type_str())
-                }
-                (other, _) => {
-                    runtime_err!("'{}' is not an array object", other.type_str())
-                }
-            }
+            eval_index_expression(obj, index)
         }
     }
 }
@@ -243,6 +229,35 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
     }
     let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)))?;
     Ok(result.unwrap_return_value())
+}
+
+fn eval_index_expression(object: Object, index: Object) -> EvalResult {
+    match (object, index) {
+        (Object::Array(vector), Object::Integer(i)) => {
+            if i < 0 || i >= vector.len() as i64 {
+                runtime_err!("Array index out of bounds")
+            } else {
+                Ok(vector[i as usize].clone())
+            }
+        }
+        (Object::Array(_), other) =>  {
+            runtime_err!("Array index must be integer, not '{}'", other.type_str())
+        }
+        (Object::Hash(map), key) => {
+            let key_type = key.type_str();
+            let key = HashableObject::from_object(key).ok_or_else(||
+                RuntimeError(format!("Hash key must be hashable type, not '{}'", key_type))
+            )?;
+            let value = map.get(&key).ok_or_else(|| {
+                RuntimeError(format!("Hash key error: entry for {} not found", key))
+            })?;
+            Ok(value.clone())
+        }
+        (other, _) => runtime_err!(
+            "'{}' is not an array or hash object",
+            other.type_str()
+        ),
+    }
 }
 
 #[cfg(test)]
