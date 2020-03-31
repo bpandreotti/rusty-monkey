@@ -6,38 +6,38 @@ I'm mostly doing this for fun, but also to learn more about the inner workings o
 ## Quick Overview of Monkey
 ### Variables and data types
 Integers and integer expressions:
-```rs
+```rust
 let favourite_prime = 2;
 let number = 3 * 7 + (17 - 13) / 2;
 ```
 
 Boolean values:
-```rs
+```rust
 let likes_banana = true;
 let something = !false;
 ```
 
 Strings and string concatenation:
-```rs
+```rust
 let species = "Golden " + "Lion " + "Tamarin";
 let escape = "escape sequences: \"\n\t";
 ```
 
 Nil value:
-```rs
+```rust
 let nothing = nil;
 (!nil) == true // nil is falsy
 ```
 
 Arrays:
-```rs
+```rust
 let empty = [];
 let array = [3, "monkey", false];
 puts(array[0]);
 ```
 
 Associative arrays, known as "Hashes":
-```rs
+```rust
 let hash = #{
     "kingdom": "Animalia",
     "phylum": "Chordata",
@@ -47,7 +47,7 @@ puts(hash["kingdom"]);
 ```
 
 ### Control flow:
-```rs
+```rust
 if bananas >= 3 {
     is_monkey_happy = true;
 } else { // Optional else clause
@@ -56,7 +56,7 @@ if bananas >= 3 {
 ```
 
 ### Higher order functions and closures:
-```rs
+```rust
 let neg = fn(x) {
     return -x;
 };
@@ -83,7 +83,7 @@ During the development of the interpreter, I felt like improving the language a 
 - **Optional parentheses around `if` condition**. Originally, they were required.
 
 - **New Hash syntax**. This was necessary to avoid ambiguity in the parser, but I also think it looks good!
-    ```rs
+    ```rust
     let hash = #{
         "entry": "something",
         "banana": true
@@ -93,7 +93,7 @@ During the development of the interpreter, I felt like improving the language a 
     ```
 
 - **Block expressions**. These work like block statements, but are allowed in expression contexts:
-    ```rs
+    ```rust
     let a = {
         let b = 30;
         let c = b * (b - 1) * (b - 2);
