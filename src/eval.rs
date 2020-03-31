@@ -108,7 +108,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
             
             match obj {
                 Object::Function(fo) => call_function_object(fo, evaluated_args),
-                Object::Builtin(fp) => fp(evaluated_args),
+                Object::Builtin(b) => b.0(evaluated_args, env),
                 other => runtime_err!("'{}' is not a function object", other.type_str()),
             }
         }

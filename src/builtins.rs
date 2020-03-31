@@ -1,18 +1,35 @@
+use crate::environment::*;
 use crate::eval::*;
 use crate::object::*;
 
-pub type BuiltinFn = fn(Vec<Object>) -> EvalResult;
+use std::fmt;
+
+#[derive(Clone)]
+pub struct BuiltinFn(pub fn(Vec<Object>, env: &EnvHandle) -> EvalResult);
+
+impl fmt::Debug for BuiltinFn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "BuiltinFn")
+    }
+}
+
+macro_rules! make_builtin {
+    ($x:expr) => {
+        Some(Object::Builtin(BuiltinFn($x)))
+    };
+}
 
 pub fn get_builtin(name: &str) -> Option<Object> {
     match name {
-        "type" => Some(Object::Builtin(builtin_type)),
-        "puts" => Some(Object::Builtin(builtin_puts)),
-        "len" => Some(Object::Builtin(builtin_len)),
-        "get" => Some(Object::Builtin(builtin_get)),
-        "push" => Some(Object::Builtin(builtin_push)),
-        "cons" => Some(Object::Builtin(builtin_cons)),
-        "hd" => Some(Object::Builtin(builtin_hd)),
-        "tl" => Some(Object::Builtin(builtin_tl)),
+        "type" => make_builtin!(builtin_type),
+        "puts" => make_builtin!(builtin_puts),
+        "len" => make_builtin!(builtin_len),
+        "get" => make_builtin!(builtin_get),
+        "push" => make_builtin!(builtin_push),
+        "cons" => make_builtin!(builtin_cons),
+        "hd" => make_builtin!(builtin_hd),
+        "tl" => make_builtin!(builtin_tl),
+        "import" => make_builtin!(builtin_import),
         _ => None,
     }
 }
@@ -29,12 +46,12 @@ fn assert_num_arguments(args: &[Object], expected: usize) -> Result<(), RuntimeE
     }
 }
 
-fn builtin_type(args: Vec<Object>) -> EvalResult {
+fn builtin_type(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     assert_num_arguments(&args, 1)?;
     Ok(Object::Str(args[0].type_str().into()))
 }
 
-fn builtin_puts(args: Vec<Object>) -> EvalResult {
+fn builtin_puts(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     if args.is_empty() {
         return crate::runtime_err!(
             "Wrong number of arguments. Expected 1 or more arguments, 0 were given"
@@ -49,7 +66,7 @@ fn builtin_puts(args: Vec<Object>) -> EvalResult {
     Ok(Object::Nil)
 }
 
-fn builtin_len(args: Vec<Object>) -> EvalResult {
+fn builtin_len(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     assert_num_arguments(&args, 1)?;
 
     let length = match &args[0] {
@@ -61,7 +78,7 @@ fn builtin_len(args: Vec<Object>) -> EvalResult {
     Ok(Object::Integer(length as i64))
 }
 
-fn builtin_get(args: Vec<Object>) -> EvalResult {
+fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     // @TODO: maybe call `eval::eval_index_expression` and handle the errors instead?
     assert_num_arguments(&args, 2)?;
 
@@ -97,7 +114,7 @@ fn builtin_get(args: Vec<Object>) -> EvalResult {
     Ok(object.cloned().or(Some(Object::Nil)).unwrap())
 }
 
-fn builtin_push(args: Vec<Object>) -> EvalResult {
+fn builtin_push(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     assert_num_arguments(&args, 2)?;
 
     match &args[0] {
@@ -113,7 +130,7 @@ fn builtin_push(args: Vec<Object>) -> EvalResult {
     }
 }
 
-fn builtin_cons(args: Vec<Object>) -> EvalResult {
+fn builtin_cons(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     assert_num_arguments(&args, 2)?;
 
     match &args[1] {
@@ -129,7 +146,7 @@ fn builtin_cons(args: Vec<Object>) -> EvalResult {
     }
 }
 
-fn builtin_hd(args: Vec<Object>) -> EvalResult {
+fn builtin_hd(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     assert_num_arguments(&args, 1)?;
 
     match &args[0] {
@@ -144,7 +161,7 @@ fn builtin_hd(args: Vec<Object>) -> EvalResult {
     }
 }
 
-fn builtin_tl(args: Vec<Object>) -> EvalResult {
+fn builtin_tl(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     assert_num_arguments(&args, 1)?;
 
     match &args[0] {
@@ -153,5 +170,31 @@ fn builtin_tl(args: Vec<Object>) -> EvalResult {
             None => Ok(Object::Nil),
         },
         other => crate::runtime_err!("Argument to `tl` must be array, got '{}'", other.type_str()),
+    }
+}
+
+fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> EvalResult {
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use std::fs;
+
+    assert_num_arguments(&args, 1)?;
+
+    if let Object::Str(file_name) = &args[0] {
+        let contents = fs::read_to_string(file_name)
+            .map_err(|e| RuntimeError(format!("File error: {}", e)))?;
+        let lexer = Lexer::new(contents);
+        let parsed_program = Parser::new(lexer)
+            .parse_program()
+            .map_err(|e| RuntimeError(format!("Parser error: {}", e)))?;
+        for statement in parsed_program {
+            eval_statement(&statement, &env)?;
+        }
+        Ok(Object::Nil)
+    } else {
+        crate::runtime_err!(
+            "Argument to `import` must be string, got '{}'",
+            args[0].type_str()
+        )
     }
 }

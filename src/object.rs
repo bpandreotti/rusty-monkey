@@ -44,10 +44,10 @@ impl fmt::Display for Object {
             }
             Object::Hash(h) => {
                 if h.is_empty() {
-                    return write!(f, "{{}}");
+                    return write!(f, "#{{}}");
                 }
 
-                write!(f, "{{")?;
+                write!(f, "#{{")?;
                 let entries: Vec<_> =  h.iter().collect();
                 write!(f, "{}: {}", entries[0].0, entries[0].1)?;
                 for (key, val) in &entries[1..] {

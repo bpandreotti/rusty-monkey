@@ -101,4 +101,4 @@ During the development of the interpreter, I felt like improving the language a 
     };
     ```
 
-- **New built-ins**, like `type`.
+- **New built-ins**, like `type`, and `import`.
