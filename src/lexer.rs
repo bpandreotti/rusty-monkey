@@ -78,6 +78,13 @@ impl Lexer {
         self.consume_whitespace();
         let peek_ch = self.peek_char().cloned();
         let tok = match self.current_char {
+            // Comments
+            Some('/') if peek_ch == Some('/') => {
+                self.read_line();
+                self.read_char();
+                return self.next_token();
+            }
+
             // Operators
             // Two character operators (==, !=, <=, >=)
             Some('=') if peek_ch == Some('=') => { self.read_char(); Token::Equals }
@@ -215,12 +222,19 @@ mod tests {
         }
 
         let input = r#"
-            let five = 5;
+            let five = 5; // testing comments
             let add = fn(x, y) {
                 x + y;
             };
-
+            // more comments
             !-/*5;
+
+            //
+            // a
+            // bunch
+            // of
+            // comments
+            //
 
             if (5 < 10) {
                 return true;
@@ -228,9 +242,11 @@ mod tests {
                 return false;
             }
 
+            // yay
+
             10 == 10;
             != <= >=
-            "foobar"
+            "foobar" ///
             "foo bar"
             "foo\n\"\tbar"
             ? :
