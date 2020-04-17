@@ -183,7 +183,7 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> EvalResult {
     if let Object::Str(file_name) = &args[0] {
         let contents = fs::read_to_string(file_name)
             .map_err(|e| RuntimeError(format!("File error: {}", e)))?;
-        let lexer = Lexer::new(contents);
+        let lexer = Lexer::from_string(contents);
         let parsed_program = Parser::new(lexer)
             .parse_program()
             .map_err(|e| RuntimeError(format!("Parser error: {}", e)))?;

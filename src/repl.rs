@@ -21,7 +21,7 @@ pub fn start() -> Result<(), std::io::Error> {
             break;
         }
 
-        let program = Parser::new(Lexer::new(line)).parse_program();
+        let program = Parser::new(Lexer::from_string(line)).parse_program();
         
         match program {
             Ok(statements) => statements

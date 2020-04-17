@@ -274,7 +274,7 @@ mod tests {
         use crate::parser::Parser;
 
         // Parse program into vector of statements
-        let parsed = Parser::new(Lexer::new(input.into()))
+        let parsed = Parser::new(Lexer::from_string(input.into()))
             .parse_program()
             .expect("Parser error during test");
 
@@ -293,7 +293,7 @@ mod tests {
         use crate::parser::Parser;
 
         // Parse program into vector of statements
-        let parsed = Parser::new(Lexer::new(input.into()))
+        let parsed = Parser::new(Lexer::from_string(input.into()))
             .parse_program()
             .expect("Parser error during test");
         let env = Rc::new(RefCell::new(Environment::empty()));

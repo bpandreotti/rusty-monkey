@@ -507,7 +507,7 @@ mod tests {
     use crate::lexer::Lexer;
 
     fn assert_parse(input: &str, expected: &[&str]) {
-        let lex = Lexer::new(input.into());
+        let lex = Lexer::from_string(input.into());
         let mut pars = Parser::new(lex);
         let output = pars.parse_program().expect("Parser error during test");
         assert_eq!(output.len(), expected.len());
@@ -518,7 +518,7 @@ mod tests {
     }
 
     fn assert_parse_fails(input: &str) {
-        let lex = Lexer::new(input.into());
+        let lex = Lexer::from_string(input.into());
         let mut pars = Parser::new(lex);
         let output = pars.parse_program();
         assert!(output.is_err());

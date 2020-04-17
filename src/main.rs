@@ -22,8 +22,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_program_file(path: String) -> Result<(), Box<dyn Error>> {
+    // @TODO: Read file using BufRead
     let contents = fs::read_to_string(path)?;
-    let lexer = lexer::Lexer::new(contents);
+    let lexer = lexer::Lexer::from_string(contents);
     let parsed_program = parser::Parser::new(lexer).parse_program()?;
     eval::run_program(parsed_program)?;
     Ok(())

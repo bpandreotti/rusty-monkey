@@ -1,37 +1,89 @@
 // @TODO: Document this module
 // @TODO: Add error handling
 use crate::token::*;
+use std::io::{ BufRead, BufReader, Cursor };
+use std::iter::Peekable;
 
-// @TODO: Consider making lexer take a Read instance instead of a String
+type LexerLine = Peekable<std::vec::IntoIter<char>>;
+type LexerLines = Box<dyn Iterator<Item = LexerLine>>;
+
 pub struct Lexer {
-    chars: Vec<char>,
-    position: usize,
+    lines: Peekable<LexerLines>,
+    position: (usize, usize),
     current_char: Option<char>,
+    current_line: Option<LexerLine>,
 }
 
 impl Lexer {
-    pub fn new(input: String) -> Lexer {
-        let chars: Vec<char> = input.chars().collect();
-        // Using `copied` because the input might be empty, in which case we want to copy over the
-        // `None` returned from `get`
-        let current_char = chars.get(0).copied();
+    pub fn new(input: Box<dyn BufRead>) -> Lexer {
+        let lines = input
+            .lines()
+            .map(|l| {
+                // @TODO: change this `unwrap` to proper error handling
+                l.unwrap() // Panic on IO error
+                    .chars()
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .peekable()
+            });
+        let lines = (Box::new(lines) as LexerLines).peekable();
 
-        Lexer {
-            chars,
-            position: 0,
-            current_char,
-        }
+        let mut lex = Lexer {
+            lines,
+            position: (0, 0),
+            current_line: None,
+            current_char: None,
+        };
+        lex.read_line();
+        lex.read_char();
+        lex
+    }
+
+    pub fn from_string(input: String) -> Lexer {
+        let cursor = Cursor::new(input.into_bytes());
+        Lexer::new(Box::new(BufReader::new(cursor)))
+    }
+
+    fn read_line(&mut self) {
+        self.position.0 += 1;
+        self.current_line = self.lines.next();
+    }
+
+    fn read_char(&mut self) {
+        match &mut self.current_line {
+            Some(line) => match line.next() {
+                Some(c) => {
+                    self.position.1 += 1;
+                    self.current_char = Some(c)
+                }
+                None => {
+                    self.read_line();
+                    self.read_char();
+                }
+            }
+            None => self.current_char = None,
+        };
+    }
+
+    fn peek_char(&mut self) -> Option<&char> {
+        // Because `Peekable::peek` returns an immutable referece but takes a mutable one, I can't
+        // use `peek` to get the next line, and then use `peek` again on it to get its first
+        // character. Because of that, if we are on a line boundary -- that is, if
+        // `current_char` is the last character in the current line -- `peek_char` will return
+        // `None`.
+        self.current_line.as_mut().and_then(|l| l.peek())
     }
 
     pub fn next_token(&mut self) -> Token {
         self.consume_whitespace();
+        let peek_ch = self.peek_char().cloned();
         let tok = match self.current_char {
             // Operators
             // Two character operators (==, !=, <=, >=)
-            Some('=') if self.peek_char() == Some('=') => { self.read_char(); Token::Equals },
-            Some('!') if self.peek_char() == Some('=') => { self.read_char(); Token::NotEquals },
-            Some('<') if self.peek_char() == Some('=') => { self.read_char(); Token::LessEq },
-            Some('>') if self.peek_char() == Some('=') => { self.read_char(); Token::GreaterEq },
+            Some('=') if peek_ch == Some('=') => { self.read_char(); Token::Equals }
+            Some('!') if peek_ch == Some('=') => { self.read_char(); Token::NotEquals }
+            Some('<') if peek_ch == Some('=') => { self.read_char(); Token::LessEq }
+            Some('>') if peek_ch == Some('=') => { self.read_char(); Token::GreaterEq }
             // Single character operators
             Some('=') => Token::Assign,
             Some('!') => Token::Bang,
@@ -52,7 +104,7 @@ impl Lexer {
             Some('}') => Token::CloseCurlyBrace,
             Some('[') => Token::OpenSquareBracket,
             Some(']') => Token::CloseSquareBracket,
-            Some('#') if self.peek_char() == Some('{') => { self.read_char(); Token::OpenHash },
+            Some('#') if peek_ch == Some('{') => { self.read_char(); Token::OpenHash }
 
             Some('\"') => self.read_string(),
 
@@ -68,15 +120,6 @@ impl Lexer {
         self.read_char();
 
         tok
-    }
-
-    fn read_char(&mut self) {
-        self.position += 1;
-        self.current_char = self.chars.get(self.position).copied();
-    }
-
-    fn peek_char(&self) -> Option<char> {
-        self.chars.get(self.position + 1).copied()
     }
 
     fn read_identifier(&mut self) -> Token {
@@ -171,7 +214,7 @@ mod tests {
             ($x:expr) => { Token::Identifier($x.into()) }
         }
 
-        let input: String = r#"
+        let input = r#"
             let five = 5;
             let add = fn(x, y) {
                 x + y;
@@ -194,7 +237,7 @@ mod tests {
             [1, 2, 3]
             #{
         "#
-        .into();
+        .to_string();
 
         let expected = [
             Let,
@@ -264,7 +307,7 @@ mod tests {
             EOF,
         ];
 
-        let mut lex = Lexer::new(input);
+        let mut lex = Lexer::from_string(input);
         let mut got = lex.next_token();
         for expected_token in expected.iter() {
             assert_eq!(&got, expected_token);
