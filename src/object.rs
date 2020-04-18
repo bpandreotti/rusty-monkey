@@ -1,4 +1,4 @@
-use crate::ast::Statement;
+use crate::ast::NodeStatement;
 use crate::builtins::*;
 use crate::environment::*;
 
@@ -9,7 +9,7 @@ use std::fmt;
 pub struct FunctionObject {
     pub environment: EnvHandle,
     pub parameters: Vec<String>,
-    pub body: Vec<Statement>,
+    pub body: Vec<NodeStatement>,
 }
 
 #[derive(Debug, Clone)]

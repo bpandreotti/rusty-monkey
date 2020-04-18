@@ -1,6 +1,18 @@
 use crate::token::*;
 
-pub type LetStatement = (String, Expression);
+use std::fmt;
+
+#[derive(Clone)]
+pub struct NodeExpression {
+    pub position: (usize, usize),
+    pub expression: Expression,
+}
+
+impl fmt::Debug for NodeExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.expression)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -8,32 +20,45 @@ pub enum Expression {
     IntLiteral(i64),
     StringLiteral(String),
     Boolean(bool),
-    ArrayLiteral(Vec<Expression>),
-    HashLiteral(Vec<(Expression, Expression)>),
-    IndexExpression(Box<Expression>, Box<Expression>),
-    PrefixExpression(Token, Box<Expression>),
-    InfixExpression(Box<Expression>, Token, Box<Expression>),
-    BlockExpression(Vec<Statement>),
+    ArrayLiteral(Vec<NodeExpression>),
+    HashLiteral(Vec<(NodeExpression, NodeExpression)>),
+    IndexExpression(Box<NodeExpression>, Box<NodeExpression>),
+    PrefixExpression(Token, Box<NodeExpression>),
+    InfixExpression(Box<NodeExpression>, Token, Box<NodeExpression>),
+    BlockExpression(Vec<NodeStatement>),
     IfExpression {
-        condition: Box<Expression>,
-        consequence: Vec<Statement>,
-        alternative: Vec<Statement>,
+        condition: Box<NodeExpression>,
+        consequence: Vec<NodeStatement>,
+        alternative: Vec<NodeStatement>,
     },
     FunctionLiteral {
         parameters: Vec<String>,
-        body: Vec<Statement>,
+        body: Vec<NodeStatement>,
     },
     CallExpression {
-        function: Box<Expression>,
-        arguments: Vec<Expression>,
+        function: Box<NodeExpression>,
+        arguments: Vec<NodeExpression>,
     },
     Nil,
 }
 
+#[derive(Clone)]
+pub struct NodeStatement {
+    pub position: (usize, usize),
+    pub statement: Statement,
+}
+
+impl fmt::Debug for NodeStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.statement)
+    }
+}
+pub type LetStatement = (String, NodeExpression);
+
 #[derive(Debug, Clone)]
 pub enum Statement {
     Let(Box<LetStatement>),
-    Return(Box<Expression>),
-    ExpressionStatement(Box<Expression>),
-    BlockStatement(Vec<Statement>),
+    Return(Box<NodeExpression>),
+    ExpressionStatement(Box<NodeExpression>),
+    BlockStatement(Vec<NodeStatement>),
 }

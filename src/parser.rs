@@ -23,8 +23,8 @@ macro_rules! pars_err {
 
 pub type ParserResult<T> = Result<T, ParserError>;
 
-type PrefixParseFn = fn(&mut Parser) -> ParserResult<Expression>;
-type InfixParseFn = fn(&mut Parser, Box<Expression>) -> ParserResult<Expression>;
+type PrefixParseFn = fn(&mut Parser) -> ParserResult<NodeExpression>;
+type InfixParseFn = fn(&mut Parser, Box<NodeExpression>) -> ParserResult<NodeExpression>;
 
 #[derive(PartialEq, PartialOrd)]
 enum Precedence {
@@ -42,19 +42,21 @@ pub struct Parser {
     lexer: Lexer,
     current_token: Token,
     peek_token: Token,
+    position: (usize, usize),
 }
 
 impl Parser {
     pub fn new(mut lexer: Lexer) -> Parser {
         let current_token = lexer.next_token();
+        let position = lexer.token_position;
         let peek_token = lexer.next_token();
-        Parser { lexer, current_token, peek_token }
+        Parser { lexer, current_token, peek_token, position }
     }
 
     /// Parses the program passed to the lexer. Reads tokens from the lexer until reaching EOF, and
     /// outputs the parsed statements into a `Vec`.
-    pub fn parse_program(&mut self) -> ParserResult<Vec<Statement>> {
-        let mut program: Vec<Statement> = Vec::new();
+    pub fn parse_program(&mut self) -> ParserResult<Vec<NodeStatement>> {
+        let mut program: Vec<NodeStatement> = Vec::new();
 
         while self.current_token != Token::EOF {
             let statement = self.parse_statement()?;
@@ -67,6 +69,11 @@ impl Parser {
 
     /// Reads a token from the lexer and updates `self.current_token` and `self.peek_token`.
     fn read_token(&mut self) {
+        // Because we eagerly call `self.lexer.next_token` to get the peek token, the lexer
+        // position is always one token ahead of the parser -- that is, `self.lexer.token_position`
+        // is the position of `self.peek_token`. Therefore, we have to update the parser
+        // position before calling `self.lexer.next_token`
+        self.position = self.lexer.token_position;
         // Little trick to move the borrowed value without having to clone anything. I'm
         // effectively doing this:
         //   self.current_token = self.peek_token;
@@ -94,24 +101,37 @@ impl Parser {
     /// Parses a statement from the program. A statement can be a "let" statement, a "return"
     /// statement, an expression statement, or a block of statements. May return an error if
     /// parsing fails.
-    fn parse_statement(&mut self) -> ParserResult<Statement> {
+    fn parse_statement(&mut self) -> ParserResult<NodeStatement> {
+        let position = self.position;
         match self.current_token {
             Token::Let => {
-                let st = Box::new(self.parse_let_statement()?);
-                Ok(Statement::Let(st))
+                let let_st = Box::new(self.parse_let_statement()?);
+                Ok(NodeStatement {
+                    position,
+                    statement: Statement::Let(let_st)
+                })
             }
             Token::Return => {
-                let st = Box::new(self.parse_return_statement()?);
-                Ok(Statement::Return(st))
+                let exp = Box::new(self.parse_return_statement()?);
+                Ok(NodeStatement {
+                    position,
+                    statement: Statement::Return(exp)
+                })
             }
-            // Should block statements be expression statements with block expressions?
+            // @TODO: Should block statements be expression statements with block expressions?
             Token::OpenCurlyBrace => {
-                let st = self.parse_block_statement()?;
-                Ok(Statement::BlockStatement(st))
+                let block = self.parse_block_statement()?;
+                Ok(NodeStatement {
+                    position,
+                    statement: Statement::BlockStatement(block)
+                })
             }
             _ => {
-                let st = Box::new(self.parse_expression_statement()?);
-                Ok(Statement::ExpressionStatement(st))
+                let exp = Box::new(self.parse_expression_statement()?);
+                Ok(NodeStatement {
+                    position,
+                    statement: Statement::ExpressionStatement(exp)
+                })
             }
         }
     }
@@ -143,7 +163,7 @@ impl Parser {
 
     /// Parses a "return" statement. Expects a valid expression, and returns an error if its
     /// parsing fails. Doesn't check if `self.current_token` is a "return" token.
-    fn parse_return_statement(&mut self) -> ParserResult<Expression> {
+    fn parse_return_statement(&mut self) -> ParserResult<NodeExpression> {
         self.read_token(); // Read first token from the expression
         let return_value = self.parse_expression(Precedence::Lowest)?;
 
@@ -154,7 +174,7 @@ impl Parser {
     }
 
     /// Parses an expression statement, returns an error if parsing fails.
-    fn parse_expression_statement(&mut self) -> ParserResult<Expression> {
+    fn parse_expression_statement(&mut self) -> ParserResult<NodeExpression> {
         let exp = self.parse_expression(Precedence::Lowest)?;
         if self.peek_token == Token::Semicolon {
             self.read_token(); // Consume optional semicolon
@@ -165,7 +185,7 @@ impl Parser {
     /// Parses a block of statements. A block of statements must be enclosed by curly braces.
     /// Returns an error if the parsing of any statement inside fails. Doesn't check if
     /// `self.current_token` is "{".
-    fn parse_block_statement(&mut self) -> ParserResult<Vec<Statement>> {
+    fn parse_block_statement(&mut self) -> ParserResult<Vec<NodeStatement>> {
         self.read_token();
         let mut statements = Vec::new();
         while self.current_token != Token::CloseCurlyBrace {
@@ -177,11 +197,11 @@ impl Parser {
     }
 
     /// Parses an expression. First, parses an expression using a prefix parse function. This step
-    /// parses all expressions except for infix operator expressions and function call expresisons.
+    /// parses all expressions except for infix operator expressions and function call expressions.
     /// After that, attempts to use the parsed expression as the left side of another expression,
     /// now using an infix parse function. This step deals with the aforementioned remaining cases.
     /// Returns an error if no prefix parse function is encountered, or the parsing fails.
-    fn parse_expression(&mut self, precedence: Precedence) -> ParserResult<Expression> {
+    fn parse_expression(&mut self, precedence: Precedence) -> ParserResult<NodeExpression> {
         let prefix_parse_fn = match Parser::get_prefix_parse_function(&self.current_token) {
             Some(f) => f,
             None => return pars_err!(
@@ -209,20 +229,24 @@ impl Parser {
                 // precedence, so that is impossible
             }
         }
-
+        
         Ok(left_expression)
     }
 
     /// Parses a prefix expression. These are composed of a prefix operator (like "-" or "!") and
     /// an expression for the right side. May return an error if the parsing of the right side
     /// fails. Panics if `self.current_token` is not a valid prefix operator.
-    fn parse_prefix_expression(&mut self) -> ParserResult<Expression> {
+    fn parse_prefix_expression(&mut self) -> ParserResult<NodeExpression> {
+        let position = self.position;
         match &self.current_token {
             Token::Bang | Token::Minus => {
                 let operator = self.current_token.clone();
                 self.read_token();
                 let right_side = Box::new(self.parse_expression(Precedence::Prefix)?);
-                Ok(Expression::PrefixExpression(operator, right_side))
+                Ok(NodeExpression {
+                    position,
+                    expression: Expression::PrefixExpression(operator, right_side),
+                })
             }
             _ => panic!(),
         }
@@ -232,19 +256,24 @@ impl Parser {
     /// (like "+" or ">") and a right side expression. Takes an already parsed left side and parses
     /// the right side using the operator's precedence. `self.current_token` must be a valid
     /// operator token. Returns an error if the right side parsing fails.
-    fn parse_infix_expression(&mut self, left_side: Box<Expression>) -> ParserResult<Expression> {
+    fn parse_infix_expression(&mut self, left_side: Box<NodeExpression>) -> ParserResult<NodeExpression> {
+        let position = self.position;
         let operator = self.current_token.clone();
         let precedence = Parser::get_precedence(&operator);
         self.read_token();
         let right_side = Box::new(self.parse_expression(precedence)?);
-        Ok(Expression::InfixExpression(left_side, operator, right_side))
+        Ok(NodeExpression {
+            position,
+            expression: Expression::InfixExpression(left_side, operator, right_side)
+        })
     }
 
     /// Parses an "if" expression. These are composed of the "if" keyword, a condition expression,
     /// and a block of statements as a consequence. Optionally, there can be an "else" branch,
     /// composed of the "else" keyword and another block of statements. May return an error if
     /// parsing fails at any point. Doesn't check if `self.current_token` is an "if" token.
-    fn parse_if_expression(&mut self) -> ParserResult<Expression> {
+    fn parse_if_expression(&mut self) -> ParserResult<NodeExpression> {
+        let position = self.position;
         self.read_token(); // Read first token from the condition expression
         let condition = self.parse_expression(Precedence::Lowest)?;
 
@@ -258,32 +287,43 @@ impl Parser {
         } else {
             Vec::new()
         };
-
-        Ok(Expression::IfExpression {
-            condition: Box::new(condition),
-            consequence,
-            alternative,
+        
+        Ok(NodeExpression {
+            position,
+            expression: Expression::IfExpression {
+                condition: Box::new(condition),
+                consequence,
+                alternative,
+            }
         })
     }
 
     /// Parses a function literal. Expects a valid function parameter list enclosed by parentheses,
     /// followed by a block of statements. May return an error if parsing fails. Doesn't check if
     /// `self.current_token` is an "fn" token.
-    fn parse_function_literal(&mut self) -> ParserResult<Expression> {
+    fn parse_function_literal(&mut self) -> ParserResult<NodeExpression> {
+        let position = self.position;
         self.expect_token(Token::OpenParen)?;
         let parameters = self.parse_function_parameters()?;
         self.expect_token(Token::OpenCurlyBrace)?;
         let body = self.parse_block_statement()?;
 
-        Ok(Expression::FunctionLiteral { parameters, body })
+        Ok(NodeExpression {
+            position,
+            expression: Expression::FunctionLiteral { parameters, body }
+        })
     }
 
     /// Parses a function call expression. The function must be already parsed, and passed as an
     /// expression. Expects a valid list of call arguments. Doesn't check if `self.current_token`
     /// is an "(" token. May return an error if parsing fails.
-    fn parse_call_expression(&mut self, function: Box<Expression>) -> ParserResult<Expression> {
+    fn parse_call_expression(&mut self, function: Box<NodeExpression>) -> ParserResult<NodeExpression> {
+        let position = self.position;
         let arguments = self.parse_expression_list(Token::CloseParen)?;
-        Ok(Expression::CallExpression { function, arguments })
+        Ok(NodeExpression {
+            position,
+            expression: Expression::CallExpression { function, arguments }
+        })
     }
 
     /// Parses a function parameter list. These are a list of identifiers, enclosed by parentheses
@@ -326,7 +366,7 @@ impl Parser {
     /// Parses a grouped expression, that is, an expression enclosed by parentheses. This only has
     /// the effect of parsing the inner expression with a lower precedence. Returns an error if the
     /// parsing of the inner expression fails, or if the parser doesn't encounter the ")" token.
-    fn parse_grouped_expression(&mut self) -> ParserResult<Expression> {
+    fn parse_grouped_expression(&mut self) -> ParserResult<NodeExpression> {
         self.read_token();
         let exp = self.parse_expression(Precedence::Lowest)?;
         self.expect_token(Token::CloseParen)?;
@@ -334,69 +374,95 @@ impl Parser {
     }
 
     /// Parses an identifier token into an identifier expression.
-    fn parse_identifier(&mut self) -> ParserResult<Expression> {
+    fn parse_identifier(&mut self) -> ParserResult<NodeExpression> {
         match &self.current_token {
-            Token::Identifier(s) => Ok(Expression::Identifier(s.clone())),
+            Token::Identifier(s) => Ok(NodeExpression {
+                position: self.position,
+                expression: Expression::Identifier(s.clone()),
+            }),
             _ => panic!(),
         }
     }
 
     /// Parses an integer token into an integer literal expression.
-    fn parse_int_literal(&mut self) -> ParserResult<Expression> {
+    fn parse_int_literal(&mut self) -> ParserResult<NodeExpression> {
         match &self.current_token {
-            Token::Int(x) => Ok(Expression::IntLiteral(*x)),
+            Token::Int(x) => Ok(NodeExpression {
+                position: self.position,
+                expression: Expression::IntLiteral(*x),
+            }),
             _ => panic!(),
         }
     }
 
     /// Parses a string token into a string literal expression.
-    fn parse_string_literal(&mut self) -> ParserResult<Expression> {
+    fn parse_string_literal(&mut self) -> ParserResult<NodeExpression> {
         match &self.current_token {
-            Token::Str(s) => Ok(Expression::StringLiteral(s.clone())),
+            Token::Str(s) => Ok(NodeExpression {
+                position: self.position,
+                expression: Expression::StringLiteral(s.clone()),
+            }),
             _ => panic!(),
         }
     }
 
     /// Parses a boolean token into a boolean literal expression.
-    fn parse_boolean(&mut self) -> ParserResult<Expression> {
-        match &self.current_token {
-            Token::True => Ok(Expression::Boolean(true)),
-            Token::False => Ok(Expression::Boolean(false)),
-            _ => panic!(),
-        }
+    fn parse_boolean(&mut self) -> ParserResult<NodeExpression> {
+        let value = match &self.current_token {
+            Token::True => true,
+            Token::False => false,
+            _ => panic!()
+        };
+        Ok(NodeExpression {
+            position: self.position,
+            expression: Expression::Boolean(value),
+        })
     }
 
     /// Parses the "nil" keyword into the null value.
-    fn parse_nil(&mut self) -> ParserResult<Expression> {
+    fn parse_nil(&mut self) -> ParserResult<NodeExpression> {
         if self.current_token == Token::Nil {
-            Ok(Expression::Nil)
+            Ok(NodeExpression {
+                position: self.position,
+                expression: Expression::Nil
+            })
         } else {
             panic!()
         }
     }
 
     /// Parses an array literal. Doesn't check if `self.current_token` is an "[" token.
-    fn parse_array_literal(&mut self) -> ParserResult<Expression> {
+    fn parse_array_literal(&mut self) -> ParserResult<NodeExpression> {
         let elements = self.parse_expression_list(Token::CloseSquareBracket)?;
-        Ok(Expression::ArrayLiteral(elements))
+        Ok(NodeExpression {
+            position: self.position,
+            expression: Expression::ArrayLiteral(elements)
+        })
     }
 
     /// Parses a array indexing expression. The array must be already parsed, and passed as an
     /// expression. Expects an expression as the index. Doesn't check if `self.current_token`
     /// is an "[" token. May return an error if parsing fails.
-    fn parse_index_expression(&mut self, left: Box<Expression>) -> ParserResult<Expression> {
+    fn parse_index_expression(&mut self, left: Box<NodeExpression>) -> ParserResult<NodeExpression> {
         self.read_token(); // Read first token of index expression
         let index = self.parse_expression(Precedence::Lowest)?;
         self.expect_token(Token::CloseSquareBracket)?;
-        Ok(Expression::IndexExpression(left, Box::new(index)))
+        Ok(NodeExpression {
+            position: self.position,
+            expression: Expression::IndexExpression(left, Box::new(index))
+        })
     }
 
     /// Parses a hash literal. Doesn't check if `self.current_token` is an "#{" token.
-    fn parse_hash_literal(&mut self) -> ParserResult<Expression> {
+    fn parse_hash_literal(&mut self) -> ParserResult<NodeExpression> {
+        let position = self.position;
         let mut entries = Vec::new();
         if self.peek_token == Token::CloseCurlyBrace {
             self.read_token();
-            return Ok(Expression::HashLiteral(entries));
+            return Ok(NodeExpression {
+                position,
+                expression: Expression::HashLiteral(entries)
+            });
         }
 
         self.read_token();
@@ -407,11 +473,14 @@ impl Parser {
             entries.push(self.parse_hash_entry()?);
         }
         self.expect_token(Token::CloseCurlyBrace)?;
-        Ok(Expression::HashLiteral(entries))
+        Ok(NodeExpression {
+            position,
+            expression: Expression::HashLiteral(entries)
+        })
     }
 
     /// Parses a hash entry, that is, two expressions separated by a ":" token.
-    fn parse_hash_entry(&mut self) -> ParserResult<(Expression, Expression)> {
+    fn parse_hash_entry(&mut self) -> ParserResult<(NodeExpression, NodeExpression)> {
         let key = self.parse_expression(Precedence::Lowest)?;
         self.expect_token(Token::Colon)?;
         self.read_token();
@@ -419,15 +488,19 @@ impl Parser {
         Ok((key, value))
     }
 
-    fn parse_block_expression(&mut self) -> ParserResult<Expression> {
+    fn parse_block_expression(&mut self) -> ParserResult<NodeExpression> {
+        let position = self.position;
         let block = self.parse_block_statement()?;
-        Ok(Expression::BlockExpression(block))
+        Ok(NodeExpression {
+            position,
+            expression: Expression::BlockExpression(block)
+        })
     }
 
     /// Parses a list of expressions, separated by commas and ending on `closing_token`. There
     /// should be no trailing comma. May return an error if parsing of a list element fails, or if
     /// the parser encounters an unexpected token.
-    fn parse_expression_list(&mut self, closing_token: Token) -> ParserResult<Vec<Expression>> {
+    fn parse_expression_list(&mut self, closing_token: Token) -> ParserResult<Vec<NodeExpression>> {
         let mut list = Vec::new();
         // In case of empty expression list
         if self.peek_token == closing_token {
@@ -503,6 +576,7 @@ impl Parser {
 mod tests {
     // @TODO: Add tests for `parse_function_literal` and `parse_call_expression`
     // @TODO: Add tests for block expressions
+    // @TODO: Add tests for parser position
     use super::*;
     use crate::lexer::Lexer;
 

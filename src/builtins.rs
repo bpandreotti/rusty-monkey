@@ -4,8 +4,9 @@ use crate::object::*;
 
 use std::fmt;
 
+// @TODO: Track position in Evalutaor struct instead of passing it around everywhere
 #[derive(Clone)]
-pub struct BuiltinFn(pub fn(Vec<Object>, env: &EnvHandle) -> EvalResult);
+pub struct BuiltinFn(pub fn(Vec<Object>, env: &EnvHandle, pos: (usize, usize)) -> EvalResult);
 
 impl fmt::Debug for BuiltinFn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -27,16 +28,17 @@ pub fn get_builtin(name: &str) -> Option<Object> {
         "get" => make_builtin!(builtin_get),
         "push" => make_builtin!(builtin_push),
         "cons" => make_builtin!(builtin_cons),
-        "hd" => make_builtin!(builtin_hd),
-        "tl" => make_builtin!(builtin_tl),
+        "head" => make_builtin!(builtin_head),
+        "tail" => make_builtin!(builtin_tail),
         "import" => make_builtin!(builtin_import),
         _ => None,
     }
 }
 
-fn assert_num_arguments(args: &[Object], expected: usize) -> Result<(), RuntimeError> {
+fn assert_num_arguments(args: &[Object], expected: usize, pos: (usize, usize)) -> Result<(), RuntimeError> {
     if args.len() != expected {
         crate::runtime_err!(
+            pos,
             "Wrong number of arguments. Expected {} arguments, {} were given",
             expected,
             args.len()
@@ -46,14 +48,15 @@ fn assert_num_arguments(args: &[Object], expected: usize) -> Result<(), RuntimeE
     }
 }
 
-fn builtin_type(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
-    assert_num_arguments(&args, 1)?;
+fn builtin_type(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
+    assert_num_arguments(&args, 1, pos)?;
     Ok(Object::Str(args[0].type_str().into()))
 }
 
-fn builtin_puts(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
+fn builtin_puts(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
     if args.is_empty() {
         return crate::runtime_err!(
+            pos,
             "Wrong number of arguments. Expected 1 or more arguments, 0 were given"
         );
     }
@@ -66,21 +69,21 @@ fn builtin_puts(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
     Ok(Object::Nil)
 }
 
-fn builtin_len(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
-    assert_num_arguments(&args, 1)?;
+fn builtin_len(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
+    assert_num_arguments(&args, 1, pos)?;
 
     let length = match &args[0] {
         Object::Str(s) => s.chars().count(),
         Object::Array(a) => a.len(),
-        o => return crate::runtime_err!("'{}' object has no `len`", o.type_str()),
+        o => return crate::runtime_err!(pos, "'{}' object has no `len`", o.type_str()),
     };
 
     Ok(Object::Integer(length as i64))
 }
 
-fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
+fn builtin_get(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
     // @TODO: maybe call `eval::eval_index_expression` and handle the errors instead?
-    assert_num_arguments(&args, 2)?;
+    assert_num_arguments(&args, 2, pos)?;
 
     let object = match &args[0] {
         Object::Array(a) => {
@@ -92,6 +95,7 @@ fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
                 }
             } else {
                 return crate::runtime_err!(
+                    pos,
                     "Array index must be integer, not '{}'",
                     args[1].type_str()
                 );
@@ -103,19 +107,20 @@ fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
                 Some(k) => h.get(&k),
                 None => {
                     return crate::runtime_err!(
+                        pos,
                         "Hash key must be hashable type, not '{}'",
                         key_type
                     )
                 }
             }
         }
-        o => return crate::runtime_err!("'{}' is not an array or hash object", o.type_str()),
+        o => return crate::runtime_err!(pos, "'{}' is not an array or hash object", o.type_str()),
     };
     Ok(object.cloned().or(Some(Object::Nil)).unwrap())
 }
 
-fn builtin_push(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
-    assert_num_arguments(&args, 2)?;
+fn builtin_push(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
+    assert_num_arguments(&args, 2, pos)?;
 
     match &args[0] {
         Object::Array(a) => {
@@ -124,14 +129,15 @@ fn builtin_push(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
             Ok(Object::Array(new))
         }
         other => crate::runtime_err!(
+            pos,
             "First argument to `push` must be array, got '{}'",
             other.type_str()
         ),
     }
 }
 
-fn builtin_cons(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
-    assert_num_arguments(&args, 2)?;
+fn builtin_cons(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
+    assert_num_arguments(&args, 2, pos)?;
 
     match &args[1] {
         Object::Array(a) => {
@@ -140,14 +146,15 @@ fn builtin_cons(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
             Ok(Object::Array(new))
         }
         other => crate::runtime_err!(
+            pos,
             "Second argument to `cons` must be array, got '{}'",
             other.type_str()
         ),
     }
 }
 
-fn builtin_hd(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
-    assert_num_arguments(&args, 1)?;
+fn builtin_head(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
+    assert_num_arguments(&args, 1, pos)?;
 
     match &args[0] {
         Object::Array(a) => {
@@ -157,28 +164,28 @@ fn builtin_hd(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
                 Ok(Object::Nil)
             }
         }
-        other => crate::runtime_err!("Argument to `hd` must be array, got '{}'", other.type_str()),
+        other => crate::runtime_err!(pos, "Argument to `hd` must be array, got '{}'", other.type_str()),
     }
 }
 
-fn builtin_tl(args: Vec<Object>, _: &EnvHandle) -> EvalResult {
-    assert_num_arguments(&args, 1)?;
+fn builtin_tail(args: Vec<Object>, _: &EnvHandle, pos: (usize, usize)) -> EvalResult {
+    assert_num_arguments(&args, 1, pos)?;
 
     match &args[0] {
         Object::Array(a) => match a.get(1..) {
             Some(tail) => Ok(Object::Array(tail.to_vec())),
             None => Ok(Object::Nil),
         },
-        other => crate::runtime_err!("Argument to `tl` must be array, got '{}'", other.type_str()),
+        other => crate::runtime_err!(pos, "Argument to `tl` must be array, got '{}'", other.type_str()),
     }
 }
 
-fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> EvalResult {
+fn builtin_import(args: Vec<Object>, env: &EnvHandle, pos: (usize, usize)) -> EvalResult {
     use crate::lexer::Lexer;
     use crate::parser::Parser;
     use std::fs;
 
-    assert_num_arguments(&args, 1)?;
+    assert_num_arguments(&args, 1, pos)?;
 
     if let Object::Str(file_name) = &args[0] {
         let contents = fs::read_to_string(file_name)
@@ -193,6 +200,7 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> EvalResult {
         Ok(Object::Nil)
     } else {
         crate::runtime_err!(
+            pos,
             "Argument to `import` must be string, got '{}'",
             args[0].type_str()
         )

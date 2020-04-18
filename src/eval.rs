@@ -1,3 +1,4 @@
+// @TODO: Add Evaluator struct to keep track of position, environment and deal with errors
 // @TODO: Document this module
 use crate::ast::*;
 use crate::environment::*;
@@ -22,14 +23,21 @@ impl fmt::Display for RuntimeError {
 
 impl Error for RuntimeError {}
 
+// @TODO: Add proper error formatting
 #[macro_export]
 macro_rules! runtime_err {
-    ($($arg:expr),*) => { Err(RuntimeError(format!($($arg),*))) }
+    ($pos:expr, $($args:expr),*) => {
+        Err(RuntimeError(format!(
+            "@({}, {}): {}",
+            $pos.0, $pos.1,
+            format!($($args),*)
+        )))
+    }
 }
 
 pub type EvalResult = Result<Object, RuntimeError>;
 
-pub fn run_program(program: Vec<Statement>) -> Result<(), RuntimeError> {
+pub fn run_program(program: Vec<NodeStatement>) -> Result<(), RuntimeError> {
     let env = Rc::new(RefCell::new(Environment::empty()));
     for statement in program {
         eval_statement(&statement, &env)?;
@@ -37,13 +45,13 @@ pub fn run_program(program: Vec<Statement>) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
-    match expression {
+pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> EvalResult {
+    match &expression.expression {
         Expression::Identifier(s) => {
             // Note: This clones the object
             match env.borrow().get(&s) {
                 Some(value) => Ok(value),
-                None => runtime_err!("Identifier not found: '{}'", s),
+                None => runtime_err!(expression.position, "Identifier not found: '{}'", s),
             }
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
@@ -63,7 +71,7 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
                 let obj_type = obj.type_str();
                 let key = match HashableObject::from_object(obj) {
                     Some(v) => v,
-                    None => return runtime_err!("{} is not a valid hash key", obj_type),
+                    None => return runtime_err!(expression.position, "{} is not a valid hash key", obj_type),
                 };
                 
                 let val = eval_expression(val, env)?;
@@ -73,12 +81,29 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
-            eval_prefix_expression(tk, &right_side)
+            match eval_prefix_expression(tk, &right_side) {
+                Some(o) => Ok(o),
+                None => runtime_err!(
+                    expression.position,
+                    "Unsuported operand type for prefix operator {}: '{}'",
+                    tk.type_str(),
+                    right_side.type_str()
+                )
+            }
         }
         Expression::InfixExpression(l, tk, r) => {
             let left_side = eval_expression(l, env)?;
             let right_side = eval_expression(r, env)?;
-            eval_infix_expression(tk, &left_side, &right_side)
+            match eval_infix_expression(tk, &left_side, &right_side) {
+                Some(o) => Ok(o),
+                None => runtime_err!(
+                    expression.position,
+                    "Unsuported operand types for operator {}: '{}' and '{}'",
+                    tk.type_str(),
+                    left_side.type_str(),
+                    right_side.type_str()
+                ),
+            }
         }
         Expression::IfExpression { condition, consequence, alternative } => {
             let value = eval_expression(condition, env)?;
@@ -107,27 +132,27 @@ pub fn eval_expression(expression: &Expression, env: &EnvHandle) -> EvalResult {
             }
             
             match obj {
-                Object::Function(fo) => call_function_object(fo, evaluated_args),
-                Object::Builtin(b) => b.0(evaluated_args, env),
-                other => runtime_err!("'{}' is not a function object", other.type_str()),
+                Object::Function(fo) => call_function_object(fo, evaluated_args, expression.position),
+                Object::Builtin(b) => b.0(evaluated_args, env, expression.position),
+                other => runtime_err!(expression.position, "'{}' is not a function object", other.type_str()),
             }
         }
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
             let index = eval_expression(index, env)?;
-            eval_index_expression(obj, index)
+            eval_index_expression(obj, index, expression.position)
         }
         Expression::BlockExpression(block) => eval_block(block, env),
     }
 }
 
-pub fn eval_statement(statement: &Statement, env: &EnvHandle) -> EvalResult {
-    match statement {
+pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> EvalResult {
+    match &statement.statement {
         Statement::ExpressionStatement(exp) => eval_expression(exp, env),
         Statement::BlockStatement(block) => eval_block(block, env),
         Statement::Return(exp) => {
             if !env.borrow().is_fn_context {
-                return runtime_err!("`return` outside function context");
+                return runtime_err!(statement.position, "`return` outside function context");
             }
             let value = eval_expression(exp, env)?;
             Ok(Object::ReturnValue(Box::new(value)))
@@ -141,7 +166,7 @@ pub fn eval_statement(statement: &Statement, env: &EnvHandle) -> EvalResult {
     }
 }
 
-fn eval_block(block: &[Statement], env: &EnvHandle) -> EvalResult {
+fn eval_block(block: &[NodeStatement], env: &EnvHandle) -> EvalResult {
     let mut last = Object::Nil;
     let new_env = Rc::new(RefCell::new(Environment::extend(env)));
     for s in block {
@@ -153,52 +178,43 @@ fn eval_block(block: &[Statement], env: &EnvHandle) -> EvalResult {
     Ok(last)
 }
 
-fn eval_prefix_expression(operator: &Token, right: &Object) -> EvalResult {
+fn eval_prefix_expression(operator: &Token, right: &Object) -> Option<Object> {
     match (operator, right) {
-        (Token::Minus, Object::Integer(i)) => Ok(Object::Integer(-i)),
-        (Token::Bang, obj) => Ok(Object::Boolean(!obj.is_truthy())),
-        (op, r) => runtime_err!(
-            "Unsuported operand type for prefix operator {}: '{}'",
-            op.type_str(),
-            r.type_str()
-        ),
+        (Token::Minus, Object::Integer(i)) => Some(Object::Integer(-i)),
+        (Token::Bang, obj) => Some(Object::Boolean(!obj.is_truthy())),
+        _ => None,
     }
 }
 
-fn eval_infix_expression(operator: &Token, left: &Object, right: &Object) -> EvalResult {
+fn eval_infix_expression(operator: &Token, left: &Object, right: &Object) -> Option<Object> {
     match (left, operator, right) {
         // Equality operators
-        (l, Token::Equals, r) => Ok(Object::Boolean(are_equal(l, r))),
-        (l, Token::NotEquals, r) => Ok(Object::Boolean(!are_equal(l, r))),
+        (l, Token::Equals, r) => Some(Object::Boolean(are_equal(l, r))),
+        (l, Token::NotEquals, r) => Some(Object::Boolean(!are_equal(l, r))),
         // int `anything` int
         (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
         // String concatenation
-        (Object::Str(l), Token::Plus, Object::Str(r)) => Ok(Object::Str(l.clone() + r)),
+        (Object::Str(l), Token::Plus, Object::Str(r)) => Some(Object::Str(l.clone() + r)),
 
-        (l, op, r) => runtime_err!(
-            "Unsuported operand types for operator {}: '{}' and '{}'",
-            op.type_str(),
-            l.type_str(),
-            r.type_str()
-        ),
+        _ => None,
     }
 }
 
-fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> EvalResult {
+fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Option<Object> {
     match operator {
         // Arithmetic operators
-        Token::Plus => Ok(Object::Integer(left + right)),
-        Token::Minus => Ok(Object::Integer(left - right)),
-        Token::Asterisk => Ok(Object::Integer(left * right)),
-        Token::Slash => Ok(Object::Integer(left / right)),
+        Token::Plus => Some(Object::Integer(left + right)),
+        Token::Minus => Some(Object::Integer(left - right)),
+        Token::Asterisk => Some(Object::Integer(left * right)),
+        Token::Slash => Some(Object::Integer(left / right)),
 
         // Comparison operators
-        Token::LessThan => Ok(Object::Boolean(left < right)),
-        Token::LessEq => Ok(Object::Boolean(left <= right)),
-        Token::GreaterThan => Ok(Object::Boolean(left > right)),
-        Token::GreaterEq => Ok(Object::Boolean(left >= right)),
+        Token::LessThan => Some(Object::Boolean(left < right)),
+        Token::LessEq => Some(Object::Boolean(left <= right)),
+        Token::GreaterThan => Some(Object::Boolean(left > right)),
+        Token::GreaterEq => Some(Object::Boolean(left >= right)),
 
-        _ => panic!(), // This is currently unreacheable
+        _ => unreachable!(),
     }
 }
 
@@ -215,9 +231,10 @@ fn are_equal(left: &Object, right: &Object) -> bool {
     }
 }
 
-fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
+fn call_function_object(fo: FunctionObject, args: Vec<Object>, pos: (usize, usize)) -> EvalResult {
     if fo.parameters.len() != args.len() {
         return runtime_err!(
+            pos,
             "Wrong number of arguments. Expected {} arguments, {} were given",
             fo.parameters.len(),
             args.len()
@@ -232,17 +249,17 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>) -> EvalResult {
     Ok(result.unwrap_return_value())
 }
 
-fn eval_index_expression(object: Object, index: Object) -> EvalResult {
+fn eval_index_expression(object: Object, index: Object, pos: (usize, usize)) -> EvalResult {
     match (object, index) {
         (Object::Array(vector), Object::Integer(i)) => {
             if i < 0 || i >= vector.len() as i64 {
-                runtime_err!("Array index out of bounds")
+                runtime_err!(pos, "Array index out of bounds")
             } else {
                 Ok(vector[i as usize].clone())
             }
         }
         (Object::Array(_), other) =>  {
-            runtime_err!("Array index must be integer, not '{}'", other.type_str())
+            runtime_err!(pos, "Array index must be integer, not '{}'", other.type_str())
         }
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
@@ -255,6 +272,7 @@ fn eval_index_expression(object: Object, index: Object) -> EvalResult {
             Ok(value.clone())
         }
         (other, _) => runtime_err!(
+            pos,
             "'{}' is not an array or hash object",
             other.type_str()
         ),

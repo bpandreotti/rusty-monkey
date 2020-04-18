@@ -9,7 +9,10 @@ type LexerLines = Box<dyn Iterator<Item = LexerLine>>;
 
 pub struct Lexer {
     lines: Peekable<LexerLines>,
-    position: (usize, usize),
+    // `token_position` is the position of the first character of the last token returned by
+    // `Lexer::next_token`, and `current_position` is the position of `current_char`.
+    pub token_position: (usize, usize),
+    current_position: (usize, usize),
     current_char: Option<char>,
     current_line: Option<LexerLine>,
 }
@@ -30,7 +33,8 @@ impl Lexer {
 
         let mut lex = Lexer {
             lines,
-            position: (0, 0),
+            token_position: (0, 0),
+            current_position: (0, 0),
             current_line: None,
             current_char: None,
         };
@@ -45,7 +49,8 @@ impl Lexer {
     }
 
     fn read_line(&mut self) {
-        self.position.0 += 1;
+        self.current_position.0 += 1;
+        self.current_position.1 = 0;
         self.current_line = self.lines.next();
     }
 
@@ -53,12 +58,19 @@ impl Lexer {
         match &mut self.current_line {
             Some(line) => match line.next() {
                 Some(c) => {
-                    self.position.1 += 1;
+                    self.current_position.1 += 1;
                     self.current_char = Some(c)
                 }
                 None => {
                     self.read_line();
-                    self.read_char();
+                    // This artificial '\n' is necessary to indicate that there is whitespace in
+                    // the end of the line, and without it some problems arise. For instance,
+                    // every identifier that ends on a line break would continue on in the next
+                    // line. So this:
+                    //     a + foo
+                    //     let b = 3
+                    // would result in the following tokens: "a", "+", "foolet", "b", "=", "3"
+                    self.current_char = Some('\n');
                 }
             }
             None => self.current_char = None,
@@ -76,6 +88,7 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Token {
         self.consume_whitespace();
+        self.token_position = self.current_position;
         let peek_ch = self.peek_char().cloned();
         let tok = match self.current_char {
             // Comments
@@ -125,7 +138,6 @@ impl Lexer {
             None => Token::EOF,
         };
         self.read_char();
-
         tok
     }
 
@@ -208,6 +220,7 @@ impl Lexer {
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for lexer errors
+    // @TODO: Add tests for lexer position
     use super::*;
     use crate::token::Token;
 
