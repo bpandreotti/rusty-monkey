@@ -219,7 +219,7 @@ fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Option<
 }
 
 fn are_equal(left: &Object, right: &Object) -> bool {
-    // Funciton object comparison are currently unsupported, and always return false
+    // Function object, array, and hash comparisons are unsupported, and always return false
     match (left, right) {
         (Object::Integer(l), Object::Integer(r)) => l == r,
         (Object::Boolean(l), Object::Boolean(r)) => l == r,

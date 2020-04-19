@@ -4,7 +4,7 @@ use crate::object::*;
 
 use std::fmt;
 
-// @TODO: Track position in Evalutaor struct instead of passing it around everywhere
+// @TODO: Track position in Evaluator struct instead of passing it around everywhere
 #[derive(Clone)]
 pub struct BuiltinFn(pub fn(Vec<Object>, env: &EnvHandle, pos: (usize, usize)) -> EvalResult);
 

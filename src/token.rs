@@ -45,6 +45,7 @@ pub enum Token {
 }
 
 impl Token {
+    // @TODO: Implement Display for Token instead of using this method
     /// Returns a string representing the token type, i.e., the enum variant.
     pub fn type_str(&self) -> &'static str {
         use Token::*; // So the big-ass table doesn't need to have "Token::" everywhere.
