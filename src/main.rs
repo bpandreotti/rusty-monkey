@@ -7,9 +7,11 @@ mod object;
 mod parser;
 mod repl;
 mod token;
+mod error;
 
 use std::error::Error;
 use std::fs;
+
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args();
