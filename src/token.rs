@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Illegal(char),
@@ -44,10 +46,15 @@ pub enum Token {
     Nil,
 }
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.type_str())
+    }
+}
+
 impl Token {
-    // @TODO: Implement Display for Token instead of using this method
     /// Returns a string representing the token type, i.e., the enum variant.
-    pub fn type_str(&self) -> &'static str {
+    fn type_str(&self) -> &'static str {
         use Token::*; // So the big-ass table doesn't need to have "Token::" everywhere.
         match self {
             Identifier(_) => "identifier",

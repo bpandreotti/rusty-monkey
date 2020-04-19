@@ -108,7 +108,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
             let index = eval_expression(index, env)?;
-            eval_index_expression(obj, index).map_err(|e|
+            eval_index_expression(&obj, &index).map_err(|e|
                 runtime_err(expression.position, e)
             )
         }
@@ -162,7 +162,7 @@ fn eval_infix_expression(left: &Object, operator: &Token, right: &Object) -> Res
         (l, Token::Equals, r) => Ok(Object::Boolean(are_equal(l, r))),
         (l, Token::NotEquals, r) => Ok(Object::Boolean(!are_equal(l, r))),
         // int `anything` int
-        (Object::Integer(l), op, Object::Integer(r)) => Ok(eval_int_infix_expression(op, *l, *r)),
+        (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
         // String concatenation
         (Object::Str(l), Token::Plus, Object::Str(r)) => Ok(Object::Str(l.clone() + r)),
 
@@ -170,20 +170,20 @@ fn eval_infix_expression(left: &Object, operator: &Token, right: &Object) -> Res
     }
 }
 
-fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Object {
+fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Result<Object, RuntimeError> {
     match operator {
         // Arithmetic operators
-        Token::Plus => Object::Integer(left + right),
-        Token::Minus => Object::Integer(left - right),
-        Token::Asterisk => Object::Integer(left * right),
-        // @TODO: Add error handling for division by 0
-        Token::Slash => Object::Integer(left / right),
+        Token::Plus => Ok(Object::Integer(left + right)),
+        Token::Minus => Ok(Object::Integer(left - right)),
+        Token::Asterisk => Ok(Object::Integer(left * right)),
+        Token::Slash if right == 0 => Err(DivisionByZero),
+        Token::Slash => Ok(Object::Integer(left / right)),
 
         // Comparison operators
-        Token::LessThan => Object::Boolean(left < right),
-        Token::LessEq => Object::Boolean(left <= right),
-        Token::GreaterThan => Object::Boolean(left > right),
-        Token::GreaterEq => Object::Boolean(left >= right),
+        Token::LessThan => Ok(Object::Boolean(left < right)),
+        Token::LessEq => Ok(Object::Boolean(left <= right)),
+        Token::GreaterThan => Ok(Object::Boolean(left > right)),
+        Token::GreaterEq => Ok(Object::Boolean(left >= right)),
 
         _ => unreachable!(),
     }
@@ -215,13 +215,14 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>, call_pos: (usize,
     Ok(result.unwrap_return_value())
 }
 
-fn eval_index_expression(object: Object, index: Object) -> Result<Object, RuntimeError> {
+pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, RuntimeError> {
+    // This function is pub because the "get" built-in needs to call it
     match (object, index) {
         (Object::Array(vector), Object::Integer(i)) => {
-            if i < 0 || i >= vector.len() as i64 {
-                Err(IndexOutOfBounds(i))
+            if *i < 0 || *i >= vector.len() as i64 {
+                Err(IndexOutOfBounds(*i))
             } else {
-                Ok(vector[i as usize].clone())
+                Ok(vector[*i as usize].clone())
             }
         }
         (Object::Array(_), other) =>  {
@@ -229,7 +230,7 @@ fn eval_index_expression(object: Object, index: Object) -> Result<Object, Runtim
         }
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
-            let key = HashableObject::from_object(key).ok_or_else(||
+            let key = HashableObject::from_object(key.clone()).ok_or_else(||
                 HashKeyTypeError(key_type)
             )?;
             let value = map.get(&key).ok_or_else(|| {

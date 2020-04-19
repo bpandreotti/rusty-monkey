@@ -1,6 +1,6 @@
 use crate::environment::*;
 use crate::error::*;
-use crate::eval::*;
+use crate::eval;
 use crate::object::*;
 
 use std::fmt;
@@ -76,33 +76,15 @@ fn builtin_len(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError>
 }
 
 fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
-    // @TODO: maybe call `eval::eval_index_expression` and handle the errors instead?
     assert_num_arguments(&args, 2)?;
 
-    let object = match &args[0] {
-        Object::Array(a) => {
-            if let Object::Integer(i) = args[1] {
-                if i < 0 {
-                    None
-                } else {
-                    a.get(i as usize)
-                }
-            } else {
-                return Err(RuntimeError::ArrayIndexTypeError(args[1].type_str()))
-            }
-        }
-        Object::Hash(h) => {
-            let key_type = args[1].type_str();
-            match HashableObject::from_object(args[1].clone()) {
-                Some(k) => h.get(&k),
-                None => {
-                    return Err(RuntimeError::HashKeyTypeError(key_type));
-                }
-            }
-        }
-        o => return Err(RuntimeError::IndexingWrongType(o.type_str())),
-    };
-    Ok(object.cloned().or(Some(Object::Nil)).unwrap())
+    // Evaluate an index expression using the arguments passed and deal with any error encountered
+    eval::eval_index_expression(&args[0], &args[1]).or_else(|error| match error {
+        // If the error is IndexOutOfBounds or KeyError, we return 'nil'
+        RuntimeError::IndexOutOfBounds(_) | RuntimeError::KeyError(_) =>  Ok(Object::Nil),
+        // Otherwise, we forward the error
+        _ => Err(error),
+    })
 }
 
 fn builtin_push(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
@@ -181,7 +163,7 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
             .parse_program()
             .map_err(|e| RuntimeError::Custom(format!("Parser error: {}", e)))?;
         for statement in parsed_program {
-            eval_statement(&statement, &env).map_err(|e| {
+            eval::eval_statement(&statement, &env).map_err(|e| {
                 RuntimeError::Custom(format!("Error while evaluating imported file: {}", e))
             })?;
         }

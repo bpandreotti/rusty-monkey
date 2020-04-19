@@ -87,11 +87,7 @@ impl Parser {
     /// does nothing and returns an error.
     fn expect_token(&mut self, expected: Token) -> ParserResult<()> {
         if mem::discriminant(&self.peek_token) != mem::discriminant(&expected) {
-            pars_err!(
-                "Expected {} token, got {}.",
-                expected.type_str(),
-                self.peek_token.type_str()
-            )
+            pars_err!("Expected {} token, got {}.", expected, self.peek_token)
         } else {
             self.read_token();
             Ok(())
@@ -157,7 +153,7 @@ impl Parser {
 
             Ok((identifier, value))
         } else {
-            pars_err!("Expected literal token, got {}.", self.current_token.type_str())
+            pars_err!("Expected literal token, got {}.", self.current_token)
         }
     }
 
@@ -206,7 +202,7 @@ impl Parser {
             Some(f) => f,
             None => return pars_err!(
                 "No prefix parse function found for current token ({}).",
-                self.current_token.type_str()
+                self.current_token
             ),
         };
 
@@ -222,11 +218,11 @@ impl Parser {
                     self.read_token();
                     left_expression = f(self, Box::new(left_expression))?;
                 }
-                None => break, // @TODO: Maybe we should panic here? Or return an error?
-                // This is only reached if `self.peek_token` has a higher precedence than the
-                // current one, and if it doesn't have an infix parse function associated with it.
+                // This is only reached if the peek token has a higher precedence than the current
+                // token, and if it doesn't have an infix parse function associated with it.
                 // Currently, all tokens that don't have infix parse functions have the lowest
                 // precedence, so that is impossible
+                None => unreachable!(),
             }
         }
         
@@ -354,7 +350,7 @@ impl Parser {
                     self.expect_token(Token::Identifier("".into()))?;
                 }
                 invalid => {
-                    return pars_err!("Expected `,` or `)` token, got {}.", invalid.type_str())
+                    return pars_err!("Expected `,` or `)` token, got {}.", invalid)
                 }
             }
         }

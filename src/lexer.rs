@@ -22,7 +22,7 @@ impl Lexer {
         let lines = input
             .lines()
             .map(|l| {
-                // @TODO: change this `unwrap` to proper error handling
+                // @TODO: Change this `unwrap` to proper error handling
                 l.unwrap() // Panic on IO error
                     .chars()
                     .collect::<Vec<_>>()

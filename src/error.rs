@@ -62,6 +62,8 @@ pub enum RuntimeError {
     InfixTypeError(&'static str, Token, &'static str),
     // Trying to call non-callable object
     NotCallable(&'static str),
+    // Division by zero
+    DivisionByZero,
     // Custom error
     Custom(String),
 }
@@ -95,12 +97,12 @@ impl RuntimeError {
             ),
             RuntimeError::PrefixTypeError(tk, obj_type) => format!(
                 "unsuported operand type for prefix operator {}: '{}'",
-                tk.type_str(),
+                tk,
                 obj_type
             ),
             RuntimeError::InfixTypeError(l_type, tk, r_type) => format!(
                 "unsuported operand types for infix operator {}: '{}' and '{}'",
-                tk.type_str(),
+                tk,
                 l_type,
                 r_type,
             ),
@@ -108,6 +110,7 @@ impl RuntimeError {
                 "'{}' is not a function object",
                 obj_type
             ),
+            RuntimeError::DivisionByZero => "division by zero".to_string(),
             RuntimeError::Custom(msg) => msg.clone(),
         }
     }
