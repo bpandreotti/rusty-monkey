@@ -1,43 +1,24 @@
-// @TODO: Add Evaluator struct to keep track of position, environment and deal with errors
 // @TODO: Document this module
 use crate::ast::*;
 use crate::environment::*;
+use crate::error::*;
 use crate::object::*;
 use crate::token::Token;
 
+use RuntimeError::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
 use std::rc::Rc;
 
-// @TODO: Make `RuntimeError` an enum
-#[derive(Debug, PartialEq)]
-pub struct RuntimeError(pub String);
 
-impl fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+const fn runtime_err(pos: (usize, usize), error: RuntimeError) -> MonkeyError {
+    MonkeyError {
+        position: pos,
+        error: ErrorType::Runtime(error)
     }
 }
 
-impl Error for RuntimeError {}
-
-// @TODO: Add proper error formatting
-#[macro_export]
-macro_rules! runtime_err {
-    ($pos:expr, $($args:expr),*) => {
-        Err(RuntimeError(format!(
-            "@({}, {}): {}",
-            $pos.0, $pos.1,
-            format!($($args),*)
-        )))
-    }
-}
-
-pub type EvalResult = Result<Object, RuntimeError>;
-
-pub fn run_program(program: Vec<NodeStatement>) -> Result<(), RuntimeError> {
+pub fn run_program(program: Vec<NodeStatement>) -> MonkeyResult<()> {
     let env = Rc::new(RefCell::new(Environment::empty()));
     for statement in program {
         eval_statement(&statement, &env)?;
@@ -45,13 +26,13 @@ pub fn run_program(program: Vec<NodeStatement>) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> EvalResult {
+pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyResult<Object> {
     match &expression.expression {
         Expression::Identifier(s) => {
             // Note: This clones the object
             match env.borrow().get(&s) {
                 Some(value) => Ok(value),
-                None => runtime_err!(expression.position, "Identifier not found: '{}'", s),
+                None => Err(runtime_err(expression.position, IdenNotFound(s.clone())))
             }
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
@@ -71,7 +52,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> EvalResu
                 let obj_type = obj.type_str();
                 let key = match HashableObject::from_object(obj) {
                     Some(v) => v,
-                    None => return runtime_err!(expression.position, "{} is not a valid hash key", obj_type),
+                    None => return Err(runtime_err(expression.position, HashKeyTypeError(obj_type))),
                 };
                 
                 let val = eval_expression(val, env)?;
@@ -81,29 +62,16 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> EvalResu
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
-            match eval_prefix_expression(tk, &right_side) {
-                Some(o) => Ok(o),
-                None => runtime_err!(
-                    expression.position,
-                    "Unsuported operand type for prefix operator {}: '{}'",
-                    tk.type_str(),
-                    right_side.type_str()
-                )
-            }
+            eval_prefix_expression(tk, &right_side).map_err(|e|
+                runtime_err(expression.position, e)
+            )
         }
         Expression::InfixExpression(l, tk, r) => {
             let left_side = eval_expression(l, env)?;
             let right_side = eval_expression(r, env)?;
-            match eval_infix_expression(tk, &left_side, &right_side) {
-                Some(o) => Ok(o),
-                None => runtime_err!(
-                    expression.position,
-                    "Unsuported operand types for operator {}: '{}' and '{}'",
-                    tk.type_str(),
-                    left_side.type_str(),
-                    right_side.type_str()
-                ),
-            }
+            eval_infix_expression(&left_side, tk, &right_side).map_err(|e|
+                runtime_err(expression.position, e)
+            )
         }
         Expression::IfExpression { condition, consequence, alternative } => {
             let value = eval_expression(condition, env)?;
@@ -133,26 +101,28 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> EvalResu
             
             match obj {
                 Object::Function(fo) => call_function_object(fo, evaluated_args, expression.position),
-                Object::Builtin(b) => b.0(evaluated_args, env, expression.position),
-                other => runtime_err!(expression.position, "'{}' is not a function object", other.type_str()),
+                Object::Builtin(b) => b.0(evaluated_args, env).map_err(|e| runtime_err(expression.position, e)),
+                other => Err(runtime_err(expression.position, NotCallable(other.type_str()))),
             }
         }
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
             let index = eval_expression(index, env)?;
-            eval_index_expression(obj, index, expression.position)
+            eval_index_expression(obj, index).map_err(|e|
+                runtime_err(expression.position, e)
+            )
         }
         Expression::BlockExpression(block) => eval_block(block, env),
     }
 }
 
-pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> EvalResult {
+pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> MonkeyResult<Object> {
     match &statement.statement {
         Statement::ExpressionStatement(exp) => eval_expression(exp, env),
         Statement::BlockStatement(block) => eval_block(block, env),
         Statement::Return(exp) => {
             if !env.borrow().is_fn_context {
-                return runtime_err!(statement.position, "`return` outside function context");
+                return Err(runtime_err(statement.position, InvalidReturn));
             }
             let value = eval_expression(exp, env)?;
             Ok(Object::ReturnValue(Box::new(value)))
@@ -166,7 +136,7 @@ pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> EvalResult 
     }
 }
 
-fn eval_block(block: &[NodeStatement], env: &EnvHandle) -> EvalResult {
+fn eval_block(block: &[NodeStatement], env: &EnvHandle) -> MonkeyResult<Object> {
     let mut last = Object::Nil;
     let new_env = Rc::new(RefCell::new(Environment::extend(env)));
     for s in block {
@@ -178,41 +148,42 @@ fn eval_block(block: &[NodeStatement], env: &EnvHandle) -> EvalResult {
     Ok(last)
 }
 
-fn eval_prefix_expression(operator: &Token, right: &Object) -> Option<Object> {
+fn eval_prefix_expression(operator: &Token, right: &Object) -> Result<Object, RuntimeError> {
     match (operator, right) {
-        (Token::Minus, Object::Integer(i)) => Some(Object::Integer(-i)),
-        (Token::Bang, obj) => Some(Object::Boolean(!obj.is_truthy())),
-        _ => None,
+        (Token::Minus, Object::Integer(i)) => Ok(Object::Integer(-i)),
+        (Token::Bang, obj) => Ok(Object::Boolean(!obj.is_truthy())),
+        _ => Err(PrefixTypeError(operator.clone(), right.type_str())),
     }
 }
 
-fn eval_infix_expression(operator: &Token, left: &Object, right: &Object) -> Option<Object> {
+fn eval_infix_expression(left: &Object, operator: &Token, right: &Object) -> Result<Object, RuntimeError> {
     match (left, operator, right) {
         // Equality operators
-        (l, Token::Equals, r) => Some(Object::Boolean(are_equal(l, r))),
-        (l, Token::NotEquals, r) => Some(Object::Boolean(!are_equal(l, r))),
+        (l, Token::Equals, r) => Ok(Object::Boolean(are_equal(l, r))),
+        (l, Token::NotEquals, r) => Ok(Object::Boolean(!are_equal(l, r))),
         // int `anything` int
-        (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
+        (Object::Integer(l), op, Object::Integer(r)) => Ok(eval_int_infix_expression(op, *l, *r)),
         // String concatenation
-        (Object::Str(l), Token::Plus, Object::Str(r)) => Some(Object::Str(l.clone() + r)),
+        (Object::Str(l), Token::Plus, Object::Str(r)) => Ok(Object::Str(l.clone() + r)),
 
-        _ => None,
+        _ => Err(InfixTypeError(left.type_str(), operator.clone(), right.type_str())),
     }
 }
 
-fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Option<Object> {
+fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Object {
     match operator {
         // Arithmetic operators
-        Token::Plus => Some(Object::Integer(left + right)),
-        Token::Minus => Some(Object::Integer(left - right)),
-        Token::Asterisk => Some(Object::Integer(left * right)),
-        Token::Slash => Some(Object::Integer(left / right)),
+        Token::Plus => Object::Integer(left + right),
+        Token::Minus => Object::Integer(left - right),
+        Token::Asterisk => Object::Integer(left * right),
+        // @TODO: Add error handling for division by 0
+        Token::Slash => Object::Integer(left / right),
 
         // Comparison operators
-        Token::LessThan => Some(Object::Boolean(left < right)),
-        Token::LessEq => Some(Object::Boolean(left <= right)),
-        Token::GreaterThan => Some(Object::Boolean(left > right)),
-        Token::GreaterEq => Some(Object::Boolean(left >= right)),
+        Token::LessThan => Object::Boolean(left < right),
+        Token::LessEq => Object::Boolean(left <= right),
+        Token::GreaterThan => Object::Boolean(left > right),
+        Token::GreaterEq => Object::Boolean(left >= right),
 
         _ => unreachable!(),
     }
@@ -231,14 +202,9 @@ fn are_equal(left: &Object, right: &Object) -> bool {
     }
 }
 
-fn call_function_object(fo: FunctionObject, args: Vec<Object>, pos: (usize, usize)) -> EvalResult {
+fn call_function_object(fo: FunctionObject, args: Vec<Object>, call_pos: (usize, usize)) -> MonkeyResult<Object> {
     if fo.parameters.len() != args.len() {
-        return runtime_err!(
-            pos,
-            "Wrong number of arguments. Expected {} arguments, {} were given",
-            fo.parameters.len(),
-            args.len()
-        );
+        return Err(runtime_err(call_pos, WrongNumberOfArgs(fo.parameters.len(), args.len())));
     }
     let mut call_env = fo.environment.borrow().clone();
     call_env.is_fn_context = true;
@@ -249,33 +215,29 @@ fn call_function_object(fo: FunctionObject, args: Vec<Object>, pos: (usize, usiz
     Ok(result.unwrap_return_value())
 }
 
-fn eval_index_expression(object: Object, index: Object, pos: (usize, usize)) -> EvalResult {
+fn eval_index_expression(object: Object, index: Object) -> Result<Object, RuntimeError> {
     match (object, index) {
         (Object::Array(vector), Object::Integer(i)) => {
             if i < 0 || i >= vector.len() as i64 {
-                runtime_err!(pos, "Array index out of bounds")
+                Err(IndexOutOfBounds(i))
             } else {
                 Ok(vector[i as usize].clone())
             }
         }
         (Object::Array(_), other) =>  {
-            runtime_err!(pos, "Array index must be integer, not '{}'", other.type_str())
+            Err(ArrayIndexTypeError(other.type_str()))
         }
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
             let key = HashableObject::from_object(key).ok_or_else(||
-                RuntimeError(format!("Hash key must be hashable type, not '{}'", key_type))
+                HashKeyTypeError(key_type)
             )?;
             let value = map.get(&key).ok_or_else(|| {
-                RuntimeError(format!("Hash key error: entry for {} not found", key))
+                KeyError(key)
             })?;
             Ok(value.clone())
         }
-        (other, _) => runtime_err!(
-            pos,
-            "'{}' is not an array or hash object",
-            other.type_str()
-        ),
+        (other, _) => Err(IndexingWrongType(other.type_str())),
     }
 }
 
@@ -317,7 +279,11 @@ mod tests {
         let env = Rc::new(RefCell::new(Environment::empty()));
         for (statement, &error) in parsed.iter().zip(expected_errors) {
             let got = eval_statement(statement, &env).expect_err("No runtime error encountered");
-            assert_eq!(got, RuntimeError(error.into()));
+            match got.error {
+                ErrorType::Runtime(e) => assert_eq!(e.message(), error),
+                _ => panic!("Wrong error type")
+            }
+            
         }
     }
 
@@ -616,11 +582,11 @@ mod tests {
             { let a = fn(){}; a(1, 2) }
         ";
         let expected = [
-            "Identifier not found: 'a'",
+            "identifier not found: 'a'",
             "'nil' is not a function object",
             "'int' is not a function object",
-            "`return` outside function context",
-            "Wrong number of arguments. Expected 0 arguments, 2 were given",
+            "`return` outside of function context",
+            "wrong number of arguments: expected 0 arguments but 2 were given",
         ];
         assert_runtime_error(input, &expected);
 
@@ -631,9 +597,9 @@ mod tests {
             -nil
         ";
         let expected = [
-            "Unsuported operand type for prefix operator `-`: 'bool'",
-            "Unsuported operand type for prefix operator `-`: 'function'",
-            "Unsuported operand type for prefix operator `-`: 'nil'",
+            "unsuported operand type for prefix operator `-`: 'bool'",
+            "unsuported operand type for prefix operator `-`: 'function'",
+            "unsuported operand type for prefix operator `-`: 'nil'",
         ];
         assert_runtime_error(input, &expected);
 
@@ -647,12 +613,12 @@ mod tests {
             fn(){} * fn(){}
         ";
         let expected = [
-            "Unsuported operand types for operator `+`: 'bool' and 'bool'",
-            "Unsuported operand types for operator `<`: 'bool' and 'bool'",
-            "Unsuported operand types for operator `/`: 'bool' and 'nil'",
-            "Unsuported operand types for operator `>=`: 'function' and 'bool'",
-            "Unsuported operand types for operator `>`: 'bool' and 'nil'",
-            "Unsuported operand types for operator `*`: 'function' and 'function'",
+            "unsuported operand types for infix operator `+`: 'bool' and 'bool'",
+            "unsuported operand types for infix operator `<`: 'bool' and 'bool'",
+            "unsuported operand types for infix operator `/`: 'bool' and 'nil'",
+            "unsuported operand types for infix operator `>=`: 'function' and 'bool'",
+            "unsuported operand types for infix operator `>`: 'bool' and 'nil'",
+            "unsuported operand types for infix operator `*`: 'function' and 'function'",
         ];
         assert_runtime_error(input, &expected);
     }

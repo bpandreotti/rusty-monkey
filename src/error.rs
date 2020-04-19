@@ -1,13 +1,18 @@
 // @WIP
-use crate::object::Object;
+use crate::object::*;
 use crate::token::Token;
 
 use std::fmt;
 
+pub type MonkeyResult<T> = Result<T, MonkeyError>;
+
+#[derive(Debug)]
 pub struct MonkeyError {
     pub position: (usize, usize),
     pub error: ErrorType,
 }
+
+impl std::error::Error for MonkeyError {}
 
 impl fmt::Display for MonkeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -20,22 +25,21 @@ impl fmt::Display for MonkeyError {
     }
 }
 
+#[derive(Debug)]
 pub enum ErrorType {
     Lexer(LexerError),
     Parser(ParserError),
     Runtime(RuntimeError),
 }
 
-pub enum LexerError {
+#[derive(Debug)]
+pub enum LexerError {}
 
-}
+#[derive(Debug)]
+pub enum ParserError {}
 
-pub enum ParserError {
-    
-}
-
+#[derive(Debug)]
 pub enum RuntimeError {
-    // @TODO: Maybe instead of storing `Object`s, we should just store their `type_str`s
     // Identifier not found in the current environment
     IdenNotFound(String),
     // Return outside of function context
@@ -43,65 +47,68 @@ pub enum RuntimeError {
     // Trying to call a function with the wrong number of arguments
     WrongNumberOfArgs(usize, usize), // @TODO: Maybe change this to allow for variadic functions
     // Trying to index array using non-integer index
-    ArrayIndexTypeError(Object),
+    ArrayIndexTypeError(&'static str),
     // Array index out of bounds
     IndexOutOfBounds(i64),
     // Trying to index hash using non-hashable key type
-    HashKeyTypeError(Object),
+    HashKeyTypeError(&'static str),
     // Value not found in hash
-    KeyError(Object),
+    KeyError(HashableObject),
     // Trying to index an object which is not an array or a hash
-    IndexingWrongType(Object),
+    IndexingWrongType(&'static str),
     // Invalid type in prefix expression
-    PrefixTypeError(Token, Object),
+    PrefixTypeError(Token, &'static str),
     // Invalid type in infix expression
-    InfixTypeError(Object, Token, Object),
+    InfixTypeError(&'static str, Token, &'static str),
     // Trying to call non-callable object
-    NotCallable(Object),
+    NotCallable(&'static str),
+    // Custom error
+    Custom(String),
 }
 
 impl RuntimeError {
     pub fn message(&self) -> String {
         match self {
-            RuntimeError::IdenNotFound(s) => format!("identifier not found: {}", s),
+            RuntimeError::IdenNotFound(s) => format!("identifier not found: '{}'", s),
             RuntimeError::InvalidReturn => "`return` outside of function context".to_string(),
             RuntimeError::WrongNumberOfArgs(expected, got) => format!(
                 "wrong number of arguments: expected {} arguments but {} were given",
                 expected,
                 got
             ),
-            RuntimeError::ArrayIndexTypeError(o) => format!(
+            RuntimeError::ArrayIndexTypeError(obj_type) => format!(
                 "array index must be integer, not '{}'",
-                o.type_str()
+                obj_type
             ),
             RuntimeError::IndexOutOfBounds(i) => format!("array index out of bounds: {}", i),
-            RuntimeError::HashKeyTypeError(o) => format!(
+            RuntimeError::HashKeyTypeError(obj_type) => format!(
                 "hash key must be hashable type, not '{}'",
-                o.type_str()
+                obj_type
             ),
             RuntimeError::KeyError(o) => format!(
                 "hash key error: entry for {} not found",
                 o
             ),
-            RuntimeError::IndexingWrongType(o) => format!(
+            RuntimeError::IndexingWrongType(obj_type) => format!(
                 "'{}' is not an array or hash object",
-                o.type_str()
+                obj_type
             ),
-            RuntimeError::PrefixTypeError(tk, o) => format!(
+            RuntimeError::PrefixTypeError(tk, obj_type) => format!(
                 "unsuported operand type for prefix operator {}: '{}'",
                 tk.type_str(),
-                o.type_str()
+                obj_type
             ),
-            RuntimeError::InfixTypeError(l, tk, r) => format!(
+            RuntimeError::InfixTypeError(l_type, tk, r_type) => format!(
                 "unsuported operand types for infix operator {}: '{}' and '{}'",
                 tk.type_str(),
-                l.type_str(),
-                r.type_str()
+                l_type,
+                r_type,
             ),
-            RuntimeError::NotCallable(o) => format!(
+            RuntimeError::NotCallable(obj_type) => format!(
                 "'{}' is not a function object",
-                o.type_str()
+                obj_type
             ),
+            RuntimeError::Custom(msg) => msg.clone(),
         }
     }
 }
