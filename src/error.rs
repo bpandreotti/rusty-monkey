@@ -144,6 +144,8 @@ pub enum RuntimeError {
     NotCallable(&'static str),
     // Division by zero
     DivisionByZero,
+    // General purpose TypeError, useful for type assertions
+    TypeError(&'static str, &'static str),
     // Custom error
     Custom(String),
 }
@@ -177,6 +179,11 @@ impl RuntimeError {
             ),
             NotCallable(obj) => format!("'{}' is not a function object", obj),
             DivisionByZero => "division by zero".to_string(),
+            TypeError(expected, got) => format!(
+                "type error: expected '{}', got '{}'",
+                expected,
+                got,
+            ),
             Custom(msg) => msg.clone(),
         }
     }
