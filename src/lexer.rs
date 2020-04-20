@@ -7,8 +7,8 @@ use std::io::{BufRead, BufReader, Cursor, self};
 use std::iter::Peekable;
 
 
-type LexerLine = Peekable<std::vec::IntoIter<char>>;
-type LexerLines = Box<dyn Iterator<Item = Result<LexerLine, io::Error>>>;
+type LexerLine = Peekable<std::vec::IntoIter<(usize, char)>>;
+type LexerLines = Box<dyn Iterator<Item = (usize, Result<LexerLine, io::Error>)>>;
 
 pub struct Lexer {
     lines: Peekable<LexerLines>,
@@ -22,12 +22,19 @@ pub struct Lexer {
 
 impl Lexer {
     pub fn new(input: Box<dyn BufRead>) -> Result<Lexer, io::Error> {
-        // @TODO: Use Iterator::enumerate to keep track of line and column numbers
         let lines = input
             .lines()
-            .map(|l| {
-                l.map(|line| line.chars().collect::<Vec<_>>().into_iter().peekable())
-            });
+            .map(|line_result| {
+                line_result.map(|line| {
+                    line.chars()
+                        .chain(std::iter::once('\n'))
+                        .enumerate()
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .peekable()
+                })
+            })
+            .enumerate();
         let lines = (Box::new(lines) as LexerLines).peekable();
 
         let mut lex = Lexer {
@@ -48,29 +55,26 @@ impl Lexer {
     }
 
     fn read_line(&mut self) -> Result<(), io::Error> {
-        self.current_position.0 += 1;
-        self.current_position.1 = 0;
-        self.current_line = self.lines.next().transpose()?;
+        match self.lines.next() {
+            Some((number, line_result)) => {
+                self.current_position.0 = number + 1;
+                self.current_line = Some(line_result?);
+            }
+            None => self.current_line = None,
+        }
         Ok(())
     }
 
     fn read_char(&mut self) -> Result<(), io::Error> {
         match &mut self.current_line {
             Some(line) => match line.next() {
-                Some(c) => {
-                    self.current_position.1 += 1;
-                    self.current_char = Some(c)
+                Some((number, character)) => {
+                    self.current_position.1 = number + 1;
+                    self.current_char = Some(character);
                 }
                 None => {
                     self.read_line()?;
-                    // This artificial '\n' is necessary to indicate that there is whitespace in
-                    // the end of the line, and without it some problems arise. For instance,
-                    // every identifier that ends on a line break would continue on in the next
-                    // line. So this:
-                    //     a + foo
-                    //     let b = 3
-                    // would result in the following tokens: "a", "+", "foolet", "b", "=", "3"
-                    self.current_char = Some('\n');
+                    return self.read_char();
                 }
             },
             None => self.current_char = None,
@@ -78,19 +82,19 @@ impl Lexer {
         Ok(())
     }
 
-    fn peek_char(&mut self) -> Option<&char> {
+    fn peek_char(&mut self) -> Option<char> {
         // Because `Peekable::peek` returns an immutable referece but takes a mutable one, I can't
         // use `peek` to get the next line, and then use `peek` again on it to get its first
         // character. Because of that, if we are on a line boundary -- that is, if
         // `current_char` is the last character in the current line -- `peek_char` will return
         // `None`.
-        self.current_line.as_mut().and_then(|l| l.peek())
+        self.current_line.as_mut().and_then(|l| l.peek().map(|c| c.1))
     }
 
     pub fn next_token(&mut self) -> Result<Token, MonkeyError> {
         self.consume_whitespace()?;
         self.token_position = self.current_position;
-        let peek_ch = self.peek_char().cloned();
+        let peek_ch = self.peek_char();
         let tok = match self.current_char {
             // Comments
             Some('/') if peek_ch == Some('/') => {
