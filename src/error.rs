@@ -25,6 +25,16 @@ impl fmt::Display for MonkeyError {
     }
 }
 
+impl std::convert::From<std::io::Error> for MonkeyError {
+    fn from(error: std::io::Error) -> MonkeyError {
+        MonkeyError {
+            position: (0, 0), // If it's an IO error, the position doesn't really matter
+            error: ErrorType::Lexer(LexerError::IoError(error)),
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub enum ErrorType {
     Lexer(LexerError),
@@ -33,7 +43,12 @@ pub enum ErrorType {
 }
 
 #[derive(Debug)]
-pub enum LexerError {}
+pub enum LexerError {
+    IoError(std::io::Error),
+    UnexpectedEOF,
+    UnknownEscapeSequence(char),
+    IllegalChar(char),
+}
 
 #[derive(Debug)]
 pub enum ParserError {}

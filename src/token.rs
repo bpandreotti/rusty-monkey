@@ -2,7 +2,6 @@ use std::fmt;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Token {
-    Illegal(char),
     EOF,
 
     Identifier(String),
@@ -88,7 +87,6 @@ impl Token {
             If => "`if`",
             Else => "`else`",
             Return => "`return`",
-            Illegal(_) => "illegal",
             EOF => "EOF",
             Nil => "`nil`",
         }

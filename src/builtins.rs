@@ -156,9 +156,11 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
     assert_num_arguments(&args, 1)?;
 
     if let Object::Str(file_name) = &args[0] {
+        // @TODO: Read file using BufRead instead of reading to string
         let contents = fs::read_to_string(file_name)
             .map_err(|e| RuntimeError::Custom(format!("File error: {}", e)))?;
-        let lexer = Lexer::from_string(contents);
+        let lexer = Lexer::from_string(contents)
+            .map_err(|e| RuntimeError::Custom(format!("Error constructing lexer: {}", e)))?;
         let parsed_program = Parser::new(lexer)
             .parse_program()
             .map_err(|e| RuntimeError::Custom(format!("Parser error: {}", e)))?;

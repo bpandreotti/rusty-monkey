@@ -47,9 +47,11 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(mut lexer: Lexer) -> Parser {
-        let current_token = lexer.next_token();
+        // @TODO: Change this `unwrap` to proper error handling
+        let current_token = lexer.next_token().unwrap();
         let position = lexer.token_position;
-        let peek_token = lexer.next_token();
+        // @TODO: Change this `unwrap` to proper error handling
+        let peek_token = lexer.next_token().unwrap();
         Parser { lexer, current_token, peek_token, position }
     }
 
@@ -79,7 +81,8 @@ impl Parser {
         //   self.current_token = self.peek_token;
         //   self.peek_token = self.lexer.next_token();
         // but this way the borrow checker is pleased.
-        self.current_token = mem::replace(&mut self.peek_token, self.lexer.next_token());
+        // @TODO: Change this `unwrap` to proper error handling
+        self.current_token = mem::replace(&mut self.peek_token, self.lexer.next_token().unwrap());
     }
 
     /// Checks if `self.peek_token` has the same discriminant as the token passed. If so, reads
@@ -577,7 +580,7 @@ mod tests {
     use crate::lexer::Lexer;
 
     fn assert_parse(input: &str, expected: &[&str]) {
-        let lex = Lexer::from_string(input.into());
+        let lex = Lexer::from_string(input.into()).unwrap();
         let mut pars = Parser::new(lex);
         let output = pars.parse_program().expect("Parser error during test");
         assert_eq!(output.len(), expected.len());
@@ -588,7 +591,7 @@ mod tests {
     }
 
     fn assert_parse_fails(input: &str) {
-        let lex = Lexer::from_string(input.into());
+        let lex = Lexer::from_string(input.into()).unwrap();
         let mut pars = Parser::new(lex);
         let output = pars.parse_program();
         assert!(output.is_err());

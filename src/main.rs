@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn run_program_file(path: String) -> Result<(), Box<dyn Error>> {
     let reader = BufReader::new(File::open(path)?);
-    let lexer = lexer::Lexer::new(Box::new(reader));
+    let lexer = lexer::Lexer::new(Box::new(reader))?;
     let parsed_program = parser::Parser::new(lexer).parse_program()?;
     eval::run_program(parsed_program)?;
     Ok(())
