@@ -162,6 +162,7 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
         let lexer = Lexer::from_string(contents)
             .map_err(|e| RuntimeError::Custom(format!("Error constructing lexer: {}", e)))?;
         let parsed_program = Parser::new(lexer)
+            .map_err(|e| RuntimeError::Custom(format!("Error constructing parser: {}", e)))?
             .parse_program()
             .map_err(|e| RuntimeError::Custom(format!("Parser error: {}", e)))?;
         for statement in parsed_program {

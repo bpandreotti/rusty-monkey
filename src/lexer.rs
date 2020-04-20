@@ -1,11 +1,9 @@
 // @TODO: Document this module
-// @TODO: Add error handling
 use crate::error::*;
 use crate::token::*;
 
 use std::io::{BufRead, BufReader, Cursor, self};
 use std::iter::Peekable;
-
 
 type LexerLine = Peekable<std::vec::IntoIter<(usize, char)>>;
 type LexerLines = Box<dyn Iterator<Item = (usize, Result<LexerLine, io::Error>)>>;
@@ -139,10 +137,7 @@ impl Lexer {
             // digit, in which case it will be interpreted as a number
             Some(c) if c.is_alphanumeric() => return self.read_identifier(),
 
-            Some(c) => return Err(MonkeyError {
-                position: self.current_position,
-                error: ErrorType::Lexer(LexerError::IllegalChar(c)),
-            }),
+            Some(c) => return Err(lexer_err(self.current_position, LexerError::IllegalChar(c))),
             None => Token::EOF,
         };
         self.read_char()?;
@@ -190,21 +185,21 @@ impl Lexer {
                         Some('t') => result.push('\t'),
                         Some('r') => result.push('\r'),
                         Some('"') => result.push('"'),
-                        Some(c) => return Err(MonkeyError {
-                            position: self.current_position,
-                            error: ErrorType::Lexer(LexerError::UnknownEscapeSequence(c))
-                        }),
-                        None => return Err(MonkeyError {
-                            position: self.current_position,
-                            error: ErrorType::Lexer(LexerError::UnexpectedEOF)
-                        }),
+                        Some(c) => return Err(lexer_err(
+                            self.current_position,
+                            LexerError::UnknownEscapeSequence(c)
+                        )),
+                        None => return Err(lexer_err(
+                            self.current_position,
+                            LexerError::UnexpectedEOF
+                        )),
                     }
                 }
                 Some(c) => result.push(c),
-                None => return Err(MonkeyError {
-                    position: self.current_position,
-                    error: ErrorType::Lexer(LexerError::UnexpectedEOF)
-                }),
+                None => return Err(lexer_err(
+                    self.current_position,
+                    LexerError::UnexpectedEOF
+                )),
             }
         }
         Ok(Token::Str(result))

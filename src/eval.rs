@@ -10,14 +10,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-
-const fn runtime_err(pos: (usize, usize), error: RuntimeError) -> MonkeyError {
-    MonkeyError {
-        position: pos,
-        error: ErrorType::Runtime(error)
-    }
-}
-
 pub fn run_program(program: Vec<NodeStatement>) -> MonkeyResult<()> {
     let env = Rc::new(RefCell::new(Environment::empty()));
     for statement in program {
@@ -256,6 +248,7 @@ mod tests {
 
         // Parse program into vector of statements
         let parsed = Parser::new(Lexer::from_string(input.into()).unwrap())
+            .unwrap()
             .parse_program()
             .expect("Parser error during test");
 
@@ -275,6 +268,7 @@ mod tests {
 
         // Parse program into vector of statements
         let parsed = Parser::new(Lexer::from_string(input.into()).unwrap())
+            .unwrap()
             .parse_program()
             .expect("Parser error during test");
         let env = Rc::new(RefCell::new(Environment::empty()));

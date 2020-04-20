@@ -1,6 +1,8 @@
-use crate::environment::Environment;
+use crate::environment::*;
+use crate::error;
 use crate::eval;
 use crate::lexer::Lexer;
+use crate::object;
 use crate::parser::Parser;
 
 use std::io::BufRead;
@@ -21,20 +23,25 @@ pub fn start() -> Result<(), std::io::Error> {
             break;
         }
 
-        let program = Parser::new(Lexer::from_string(line).unwrap()).parse_program();
-        
-        match program {
-            Ok(statements) => statements
-                .into_iter()
-                .for_each(|s| match eval::eval_statement(&s, &env) {
-                    Ok(obj) => println!("{}", obj),
-                    Err(e) => eprintln!("{}", e),
-                }),
-            Err(e) => eprintln!("Parser Error: {}", e),
+        match run_line(line, &env) {
+            Ok(values) => for v in values {
+                println!("{}", v);
+            }
+            Err(e) => eprintln!("{}", e),
         }
         eprint!("{}", PROMPT);
     }
 
     eprintln!("Goodbye!");
     Ok(())
+}
+
+fn run_line(line: String, env: &EnvHandle) -> Result<Vec<object::Object>, error::MonkeyError> {
+    let lexer = Lexer::from_string(line)?;
+    let mut parser = Parser::new(lexer)?;
+    let mut results = Vec::new();
+    for statement in parser.parse_program()? {
+        results.push(eval::eval_statement(&statement, env)?);
+    }
+    Ok(results)
 }

@@ -1,8 +1,8 @@
-// @WIP
 use crate::object::*;
 use crate::token::Token;
 
 use std::fmt;
+use std::io;
 
 pub type MonkeyResult<T> = Result<T, MonkeyError>;
 
@@ -19,39 +19,104 @@ impl fmt::Display for MonkeyError {
         writeln!(f, "At line {}, column {}:", self.position.0, self.position.1)?;
         write!(f, "    ")?; // Indentation
         match &self.error {
+            ErrorType::Io(e) => write!(f, "IO error: {}", e),
+            ErrorType::Lexer(e) => write!(f, "Lexer error: {}", e.message()),
+            ErrorType::Parser(e) => write!(f, "Parser error: {}", e.message()),
             ErrorType::Runtime(e) => write!(f, "Runtime error: {}", e.message()),
-            _ => todo!(), // @TODO: Implement Lexer and Parser errors
         }
     }
 }
 
-impl std::convert::From<std::io::Error> for MonkeyError {
-    fn from(error: std::io::Error) -> MonkeyError {
+impl std::convert::From<io::Error> for MonkeyError {
+    fn from(error: io::Error) -> MonkeyError {
         MonkeyError {
             position: (0, 0), // If it's an IO error, the position doesn't really matter
-            error: ErrorType::Lexer(LexerError::IoError(error)),
+            error: ErrorType::Io(error),
         }
     }
 }
 
+// Helper function to build a MonkeyError with a LexerError inside
+pub fn lexer_err(pos: (usize, usize), error: LexerError) -> MonkeyError {
+    MonkeyError {
+        position: pos,
+        error: ErrorType::Lexer(error)
+    }
+}
+
+// Helper function to build a MonkeyError with a ParserError inside
+pub fn parser_err(pos: (usize, usize), error: ParserError) -> MonkeyError {
+    MonkeyError {
+        position: pos,
+        error: ErrorType::Parser(error)
+    }
+}
+
+// Helper function to build a MonkeyError with a RuntimeError inside
+pub fn runtime_err(pos: (usize, usize), error: RuntimeError) -> MonkeyError {
+    MonkeyError {
+        position: pos,
+        error: ErrorType::Runtime(error)
+    }
+}
 
 #[derive(Debug)]
 pub enum ErrorType {
+    Io(io::Error),
     Lexer(LexerError),
     Parser(ParserError),
     Runtime(RuntimeError),
 }
 
+// @TODO: Maybe merge LexerError and Parser Error?
 #[derive(Debug)]
 pub enum LexerError {
-    IoError(std::io::Error),
     UnexpectedEOF,
     UnknownEscapeSequence(char),
     IllegalChar(char),
 }
 
+impl LexerError {
+    pub fn message(&self) -> String {
+        use LexerError::*;
+        match self {
+            UnexpectedEOF => "Unexpected EOF".into(),
+            UnknownEscapeSequence(ch) => format!("Unknown escape sequence: \\{}", ch),
+            IllegalChar(ch) => format!("Illegal character: \\{}", ch),
+        }
+    }
+}
+
 #[derive(Debug)]
-pub enum ParserError {}
+pub enum ParserError {
+    UnexpectedToken(Token, Token),
+    UnexpectedTokenMultiple {
+        possibilities: &'static [Token],
+        got: Token
+    },
+    NoPrefixParseFn(Token),    
+}
+
+impl ParserError {
+    pub fn message(&self) -> String {
+        use ParserError::*;
+        match self {
+            UnexpectedToken(expected, got) => format!("expected {} token, got {}", expected, got),
+            UnexpectedTokenMultiple { possibilities, got } => {
+                let mut list = String::new();
+                let len = possibilities.len();
+                // If there is only one possibility, you really shouldn't be using this variant
+                assert!(len > 1);
+                for tk in 0..len - 2 {
+                    list += &format!("{}, ", tk);
+                }
+                list += &format!("{} or {}", possibilities[len - 2], possibilities[len - 1]);
+                format!("expected {} token, got {}", list, got)
+            }
+            NoPrefixParseFn(tk) => format!("no prefix parse function found for token: {}", tk),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum RuntimeError {
@@ -85,48 +150,34 @@ pub enum RuntimeError {
 
 impl RuntimeError {
     pub fn message(&self) -> String {
+        use RuntimeError::*;
         match self {
-            RuntimeError::IdenNotFound(s) => format!("identifier not found: '{}'", s),
-            RuntimeError::InvalidReturn => "`return` outside of function context".to_string(),
-            RuntimeError::WrongNumberOfArgs(expected, got) => format!(
+            IdenNotFound(s) => format!("identifier not found: '{}'", s),
+            InvalidReturn => "`return` outside of function context".to_string(),
+            WrongNumberOfArgs(expected, got) => format!(
                 "wrong number of arguments: expected {} arguments but {} were given",
                 expected,
                 got
             ),
-            RuntimeError::ArrayIndexTypeError(obj_type) => format!(
-                "array index must be integer, not '{}'",
-                obj_type
-            ),
-            RuntimeError::IndexOutOfBounds(i) => format!("array index out of bounds: {}", i),
-            RuntimeError::HashKeyTypeError(obj_type) => format!(
-                "hash key must be hashable type, not '{}'",
-                obj_type
-            ),
-            RuntimeError::KeyError(o) => format!(
-                "hash key error: entry for {} not found",
-                o
-            ),
-            RuntimeError::IndexingWrongType(obj_type) => format!(
-                "'{}' is not an array or hash object",
-                obj_type
-            ),
-            RuntimeError::PrefixTypeError(tk, obj_type) => format!(
+            ArrayIndexTypeError(obj) => format!("array index must be integer, not '{}'", obj),
+            IndexOutOfBounds(i) => format!("array index out of bounds: {}", i),
+            HashKeyTypeError(obj) => format!("hash key must be hashable type, not '{}'", obj),
+            KeyError(obj) => format!("hash key error: entry for {} not found", obj),
+            IndexingWrongType(obj) => format!("'{}' is not an array or hash object", obj),
+            PrefixTypeError(tk, obj) => format!(
                 "unsuported operand type for prefix operator {}: '{}'",
                 tk,
-                obj_type
+                obj
             ),
-            RuntimeError::InfixTypeError(l_type, tk, r_type) => format!(
+            InfixTypeError(left, tk, right) => format!(
                 "unsuported operand types for infix operator {}: '{}' and '{}'",
                 tk,
-                l_type,
-                r_type,
+                left,
+                right,
             ),
-            RuntimeError::NotCallable(obj_type) => format!(
-                "'{}' is not a function object",
-                obj_type
-            ),
-            RuntimeError::DivisionByZero => "division by zero".to_string(),
-            RuntimeError::Custom(msg) => msg.clone(),
+            NotCallable(obj) => format!("'{}' is not a function object", obj),
+            DivisionByZero => "division by zero".to_string(),
+            Custom(msg) => msg.clone(),
         }
     }
 }
