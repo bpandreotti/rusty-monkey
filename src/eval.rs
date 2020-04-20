@@ -194,7 +194,7 @@ fn are_equal(left: &Object, right: &Object) -> bool {
     }
 }
 
-fn call_function_object(fo: FunctionObject, args: Vec<Object>, call_pos: (usize, usize)) -> MonkeyResult<Object> {
+pub fn call_function_object(fo: FunctionObject, args: Vec<Object>, call_pos: (usize, usize)) -> MonkeyResult<Object> {
     if fo.parameters.len() != args.len() {
         return Err(runtime_err(call_pos, WrongNumberOfArgs(fo.parameters.len(), args.len())));
     }

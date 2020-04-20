@@ -1,3 +1,4 @@
+// @TODO: Add TypeError instead of using Custom errors for built-ins
 use crate::environment::*;
 use crate::error::*;
 use crate::eval;
@@ -31,6 +32,9 @@ pub fn get_builtin(name: &str) -> Option<Object> {
         "head" => make_builtin!(builtin_head),
         "tail" => make_builtin!(builtin_tail),
         "import" => make_builtin!(builtin_import),
+        "map" => make_builtin!(builtin_map),
+        "range" => make_builtin!(builtin_range),
+        "assert" => make_builtin!(builtin_assert),
         _ => None,
     }
 }
@@ -175,5 +179,91 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
         Err(RuntimeError::Custom(
             format!("Argument to `import` must be string, got '{}'", args[0].type_str())
         ))
+    }
+}
+
+fn builtin_map(mut args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+    assert_num_arguments(&args, 2)?;
+    let second = args.pop().unwrap();
+    let first = args.pop().unwrap();
+    if let Object::Function(fo) = first {
+        if let Object::Array(v) = second {
+            let mut new_vector = Vec::new();
+            for element in v {
+                let call_result = eval::call_function_object(fo.clone(), vec![element], (0, 0));
+                match call_result {
+                    Ok(v) => new_vector.push(v),
+                    Err(monkey_err) => match monkey_err.error {
+                        ErrorType::Runtime(e) => return Err(e),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            Ok(Object::Array(new_vector))
+        } else {
+            Err(RuntimeError::Custom(format!(
+                "Second argument to `map` must be array, got '{}'",
+                second.type_str())
+            ))
+        }
+    } else {
+        Err(RuntimeError::Custom(format!(
+            "First argument to `map` must be function object, got '{}'",
+            second.type_str())
+        ))
+    }
+}
+
+fn builtin_range(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::WrongNumberOfArgs(1, 0));
+    } else if args.len() > 3 {
+        return Err(RuntimeError::WrongNumberOfArgs(3, args.len()));
+    }
+
+    let mut end = match &args[0] {
+        Object::Integer(n) => *n,
+        other => return Err(RuntimeError::Custom(
+            format!("First argument to `range` must be integer, got '{}'", other.type_str())
+        ))
+    };
+
+    let mut start = 0;
+    if args.len() >= 2 {
+        start = end;
+        end = match &args[1] {
+            Object::Integer(n) => *n,
+            other => return Err(RuntimeError::Custom(
+                format!("Second argument to `range` must be integer, got '{}'", other.type_str())
+            ))
+        };
+    }
+
+    let step = if args.len() >= 3 {
+        match &args[2] {
+            Object::Integer(n) => *n,
+            other => return Err(RuntimeError::Custom(
+                format!("Third argument to `range` must be integer, got '{}'", other.type_str())
+            ))
+        }
+    } else {
+        1
+    };
+
+    if step <= 0 {
+        return Err(RuntimeError::Custom("Third argument to `range` must be positive".into()))
+    }
+
+    Ok(Object::Array(
+        (start..end).step_by(step as usize).map(|i| { Object::Integer(i) }).collect()
+    ))
+}
+
+fn builtin_assert(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+    assert_num_arguments(&args, 1)?;
+    if args[0].is_truthy() {
+        Ok(Object::Nil)
+    } else {
+        Err(RuntimeError::Custom(format!("Assertion failed on value {}", args[0])))
     }
 }
