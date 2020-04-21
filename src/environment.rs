@@ -9,7 +9,6 @@ pub type EnvHandle = Rc<RefCell<Environment>>;
 
 #[derive(Clone, Debug)]
 pub struct Environment {
-    pub is_fn_context: bool,
     map: HashMap<String, Object>,
     outer: Option<EnvHandle>,
 }
@@ -19,7 +18,6 @@ impl Environment {
         Environment {
             map: HashMap::new(),
             outer: None,
-            is_fn_context: false,
         }
     }
 
@@ -27,7 +25,6 @@ impl Environment {
         Environment {
             map: HashMap::new(),
             outer: Some(Rc::clone(outer)),
-            is_fn_context: outer.borrow().is_fn_context,
         }
     }
 

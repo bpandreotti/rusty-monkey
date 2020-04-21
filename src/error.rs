@@ -122,8 +122,6 @@ impl ParserError {
 pub enum RuntimeError {
     // Identifier not found in the current environment
     IdenNotFound(String),
-    // Return outside of function context
-    InvalidReturn,
     // Trying to call a function with the wrong number of arguments
     WrongNumberOfArgs(usize, usize), // @TODO: Maybe change this to allow for variadic functions
     // Trying to index array using non-integer index
@@ -159,7 +157,6 @@ impl RuntimeError {
         use RuntimeError::*;
         match self {
             IdenNotFound(s) => format!("identifier not found: '{}'", s),
-            InvalidReturn => "`return` outside of function context".to_string(),
             WrongNumberOfArgs(expected, got) => format!(
                 "wrong number of arguments: expected {} arguments but {} were given",
                 expected,

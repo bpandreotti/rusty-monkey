@@ -118,11 +118,8 @@ pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> MonkeyResul
         Statement::ExpressionStatement(exp) => eval_expression(exp, env),
         Statement::BlockStatement(block) => eval_block(block, env),
         Statement::Return(exp) => {
-            if !env.borrow().is_fn_context {
-                return Err(runtime_err(statement.position, InvalidReturn));
-            }
             let value = eval_expression(exp, env)?;
-            Err(runtime_err((0, 0), RuntimeError::ReturnValue(Box::new(value))))
+            Err(runtime_err(statement.position, RuntimeError::ReturnValue(Box::new(value))))
         }
         Statement::Let(let_statement) => {
             let (name, exp) = &**let_statement;
@@ -222,7 +219,6 @@ pub fn call_function_object(
         ));
     }
     let mut call_env = fo.environment.borrow().clone();
-    call_env.is_fn_context = true;
     for (name, value) in fo.parameters.into_iter().zip(args) {
         call_env.insert(name, value);
     }
