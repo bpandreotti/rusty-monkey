@@ -149,7 +149,17 @@ pub enum RuntimeError {
     // Custom error
     Custom(String),
 
-    ReturnValue(Box<Object>), // @TODO: Document this item
+    // This error is created whenever the interpreter encounters a return statement. We model
+    // returning values this way to take advantage of the error forwarding already present in the
+    // evaluator. When the interpreter encounters a runtime error, be it this one or any other,
+    // every evaluation function forwards it along. However, in the case of `ReturnValue`s, the
+    // `call_function_object` function handles the error, unwraps the value returned, and doesn't
+    // forward it further. If there is a return statement outside of a function context, there will
+    // be no `call_function_object` call in the call stack, and the error will be forwarded along
+    // all the way to the root call. Now, whether this was in the REPL or the code was being
+    // executed form a file, the error will be interpreted as an invalid return -- a return
+    // statement ouside of a function context -- and will be handled like any other runtime error.
+    ReturnValue(Box<Object>),
 }
 
 impl RuntimeError {
@@ -187,7 +197,8 @@ impl RuntimeError {
                 got,
             ),
             Custom(msg) => msg.clone(),
-
+            // A `ReturnValue` that was not handled by `call_function_object` means that it was
+            // located outside a function context.
             ReturnValue(_) => "`return` outside of function context".to_string(),
         }
     }
