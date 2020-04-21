@@ -352,10 +352,9 @@ impl Parser {
         while let Token::Identifier(iden) = &self.current_token {
             params.push(iden.clone());
             self.expect_token_multiple(&[Token::Comma, Token::CloseParen])?;
-            match &self.peek_token {
-                Token::CloseParen => break,
+            match &self.current_token {
+                Token::CloseParen => return Ok(params),
                 Token::Comma => {
-                    self.read_token()?;
                     self.expect_token(Token::Identifier("".into()))?;
                 }
                 _ => unreachable!(),
