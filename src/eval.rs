@@ -234,7 +234,6 @@ pub fn call_function_object(
 
 pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, RuntimeError> {
     // This function is pub because the "get" built-in needs to call it
-    // @TODO: Implement string indexing
     match (object, index) {
         (Object::Array(vector), Object::Integer(i)) => {
             if *i < 0 || *i >= vector.len() as i64 {
@@ -243,7 +242,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
                 Ok(vector[*i as usize].clone())
             }
         }
-        (Object::Array(_), other) => Err(ArrayIndexTypeError(other.type_str())),
+        (Object::Array(_), other) => Err(IndexTypeError(other.type_str())),
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
             let key = HashableObject::from_object(key.clone())
@@ -251,14 +250,21 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
             let value = map.get(&key).ok_or_else(|| KeyError(key))?;
             Ok(value.clone())
         }
+        (Object::Str(s), Object::Integer(i)) => {
+            let chars = s.chars().collect::<Vec<_>>();
+            if *i < 0 || *i >= chars.len() as i64 {
+                Err(IndexOutOfBounds(*i))
+            } else {
+                Ok(Object::Str(chars[*i as usize].to_string()))
+            }
+        }
+        (Object::Str(_), other) =>  Err(IndexTypeError(other.type_str())),
         (other, _) => Err(IndexingWrongType(other.type_str())),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // @TODO: Add tests for string operations
-    // @TODO: Add tests for block expressions
     use super::*;
     use Object::*;
 
@@ -387,11 +393,15 @@ mod tests {
             "abc" + "";
             "" + "abc";
             "abc" + "def";
+            "foo"[0];
+            "foobar"[5];
         "#;
         let expected = [
             Object::Str("abc".into()),
             Object::Str("abc".into()),
             Object::Str("abcdef".into()),
+            Object::Str("f".into()),
+            Object::Str("r".into()),
         ];
         assert_eval(input, &expected);
     }

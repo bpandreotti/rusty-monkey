@@ -124,9 +124,9 @@ pub enum RuntimeError {
     IdenNotFound(String),
     // Trying to call a function with the wrong number of arguments
     WrongNumberOfArgs(usize, usize), // @TODO: Maybe change this to allow for variadic functions
-    // Trying to index array using non-integer index
-    ArrayIndexTypeError(&'static str),
-    // Array index out of bounds
+    // Trying to index array or string using non-integer index
+    IndexTypeError(&'static str),
+    // Array or string index out of bounds
     IndexOutOfBounds(i64),
     // Trying to index hash using non-hashable key type
     HashKeyTypeError(&'static str),
@@ -172,8 +172,8 @@ impl RuntimeError {
                 expected,
                 got
             ),
-            ArrayIndexTypeError(obj) => format!("array index must be integer, not '{}'", obj),
-            IndexOutOfBounds(i) => format!("array index out of bounds: {}", i),
+            IndexTypeError(obj) => format!("index must be integer, not '{}'", obj),
+            IndexOutOfBounds(i) => format!("index out of bounds: {}", i),
             HashKeyTypeError(obj) => format!("hash key must be hashable type, not '{}'", obj),
             KeyError(obj) => format!("hash key error: entry for {} not found", obj),
             IndexingWrongType(obj) => format!("'{}' is not an array or hash object", obj),
