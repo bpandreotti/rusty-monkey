@@ -150,6 +150,8 @@ pub enum RuntimeError {
     TypeError(&'static str, &'static str),
     // Custom error
     Custom(String),
+
+    ReturnValue(Box<Object>), // @TODO: Document this item
 }
 
 impl RuntimeError {
@@ -188,6 +190,8 @@ impl RuntimeError {
                 got,
             ),
             Custom(msg) => msg.clone(),
+
+            ReturnValue(_) => "`return` outside of function context".to_string(),
         }
     }
 }

@@ -19,7 +19,6 @@ pub enum Object {
     Str(String),
     Array(Vec<Object>),
     Hash(HashMap<HashableObject, Object>),
-    ReturnValue(Box<Object>),
     Function(FunctionObject),
     Builtin(BuiltinFn),
     Nil,
@@ -59,7 +58,6 @@ impl fmt::Display for Object {
             Object::Nil => write!(f, "nil"),
             Object::Function(_) => write!(f, "<function>"),
             Object::Builtin(_) => write!(f, "<built-in function>"),
-            Object::ReturnValue(_) => panic!("trying to display ReturnValue object"),
         }
     }
 }
@@ -73,7 +71,6 @@ impl Object {
             Object::Array(_) => "array",
             Object::Hash(_) => "hash",
             Object::Nil => "nil",
-            Object::ReturnValue(_) => "ReturnValue object",
             Object::Function(_) => "function",
             Object::Builtin(_) => "function",
         }
@@ -83,13 +80,6 @@ impl Object {
         match self {
             Object::Boolean(false) | Object::Nil | Object::Integer(0) => false,
             _ => true,
-        }
-    }
-
-    pub fn unwrap_return_value(self) -> Object {
-        match self {
-            Object::ReturnValue(v) => v.unwrap_return_value(),
-            other => other,
         }
     }
 }

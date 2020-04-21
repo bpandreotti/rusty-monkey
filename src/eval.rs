@@ -5,10 +5,10 @@ use crate::error::*;
 use crate::object::*;
 use crate::token::Token;
 
-use RuntimeError::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use RuntimeError::*;
 
 pub fn run_program(program: Vec<NodeStatement>) -> MonkeyResult<()> {
     let env = Rc::new(RefCell::new(Environment::empty()));
@@ -24,7 +24,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             // Note: This clones the object
             match env.borrow().get(&s) {
                 Some(value) => Ok(value),
-                None => Err(runtime_err(expression.position, IdenNotFound(s.clone())))
+                None => Err(runtime_err(expression.position, IdenNotFound(s.clone()))),
             }
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
@@ -44,7 +44,9 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
                 let obj_type = obj.type_str();
                 let key = match HashableObject::from_object(obj) {
                     Some(v) => v,
-                    None => return Err(runtime_err(expression.position, HashKeyTypeError(obj_type))),
+                    None => {
+                        return Err(runtime_err(expression.position, HashKeyTypeError(obj_type)))
+                    }
                 };
 
                 let val = eval_expression(val, env)?;
@@ -54,16 +56,14 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
-            eval_prefix_expression(tk, &right_side).map_err(|e|
-                runtime_err(expression.position, e)
-            )
+            eval_prefix_expression(tk, &right_side)
+                .map_err(|e| runtime_err(expression.position, e))
         }
         Expression::InfixExpression(l, tk, r) => {
             let left_side = eval_expression(l, env)?;
             let right_side = eval_expression(r, env)?;
-            eval_infix_expression(&left_side, tk, &right_side).map_err(|e|
-                runtime_err(expression.position, e)
-            )
+            eval_infix_expression(&left_side, tk, &right_side)
+                .map_err(|e| runtime_err(expression.position, e))
         }
         Expression::IfExpression { condition, consequence, alternative } => {
             let value = eval_expression(condition, env)?;
@@ -92,17 +92,22 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             }
 
             match obj {
-                Object::Function(fo) => call_function_object(fo, evaluated_args, expression.position),
-                Object::Builtin(b) => b.0(evaluated_args, env).map_err(|e| runtime_err(expression.position, e)),
-                other => Err(runtime_err(expression.position, NotCallable(other.type_str()))),
+                Object::Function(fo) => {
+                    call_function_object(fo, evaluated_args, expression.position)
+                }
+                Object::Builtin(b) => {
+                    b.0(evaluated_args, env).map_err(|e| runtime_err(expression.position, e))
+                }
+                other => Err(runtime_err(
+                    expression.position,
+                    NotCallable(other.type_str()),
+                )),
             }
         }
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
             let index = eval_expression(index, env)?;
-            eval_index_expression(&obj, &index).map_err(|e|
-                runtime_err(expression.position, e)
-            )
+            eval_index_expression(&obj, &index).map_err(|e| runtime_err(expression.position, e))
         }
         Expression::BlockExpression(block) => eval_block(block, env),
     }
@@ -117,7 +122,7 @@ pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> MonkeyResul
                 return Err(runtime_err(statement.position, InvalidReturn));
             }
             let value = eval_expression(exp, env)?;
-            Ok(Object::ReturnValue(Box::new(value)))
+            Err(runtime_err((0, 0), RuntimeError::ReturnValue(Box::new(value))))
         }
         Statement::Let(let_statement) => {
             let (name, exp) = &**let_statement;
@@ -133,9 +138,6 @@ fn eval_block(block: &[NodeStatement], env: &EnvHandle) -> MonkeyResult<Object> 
     let new_env = Rc::new(RefCell::new(Environment::extend(env)));
     for s in block {
         last = eval_statement(s, &new_env)?;
-        if let Object::ReturnValue(_) = &last {
-            return Ok(last);
-        }
     }
     Ok(last)
 }
@@ -148,7 +150,11 @@ fn eval_prefix_expression(operator: &Token, right: &Object) -> Result<Object, Ru
     }
 }
 
-fn eval_infix_expression(left: &Object, operator: &Token, right: &Object) -> Result<Object, RuntimeError> {
+fn eval_infix_expression(
+    left: &Object,
+    operator: &Token,
+    right: &Object,
+) -> Result<Object, RuntimeError> {
     match (left, operator, right) {
         // Equality operators
         (l, Token::Equals, r) => Ok(Object::Boolean(are_equal(l, r))),
@@ -158,11 +164,19 @@ fn eval_infix_expression(left: &Object, operator: &Token, right: &Object) -> Res
         // String concatenation
         (Object::Str(l), Token::Plus, Object::Str(r)) => Ok(Object::Str(l.clone() + r)),
 
-        _ => Err(InfixTypeError(left.type_str(), operator.clone(), right.type_str())),
+        _ => Err(InfixTypeError(
+            left.type_str(),
+            operator.clone(),
+            right.type_str(),
+        )),
     }
 }
 
-fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Result<Object, RuntimeError> {
+fn eval_int_infix_expression(
+    operator: &Token,
+    left: i64,
+    right: i64,
+) -> Result<Object, RuntimeError> {
     match operator {
         // Arithmetic operators
         Token::Plus => Ok(Object::Integer(left + right)),
@@ -192,23 +206,34 @@ fn are_equal(left: &Object, right: &Object) -> bool {
         (Object::Boolean(l), Object::Boolean(r)) => l == r,
         (Object::Str(l), Object::Str(r)) => l == r,
         (Object::Nil, Object::Nil) => true,
-        (_, Object::ReturnValue(_)) => panic!(),
-        (Object::ReturnValue(_), _) => panic!(),
         _ => false,
     }
 }
 
-pub fn call_function_object(fo: FunctionObject, args: Vec<Object>, call_pos: (usize, usize)) -> MonkeyResult<Object> {
+pub fn call_function_object(
+    fo: FunctionObject,
+    args: Vec<Object>,
+    call_pos: (usize, usize),
+) -> MonkeyResult<Object> {
     if fo.parameters.len() != args.len() {
-        return Err(runtime_err(call_pos, WrongNumberOfArgs(fo.parameters.len(), args.len())));
+        return Err(runtime_err(
+            call_pos,
+            WrongNumberOfArgs(fo.parameters.len(), args.len()),
+        ));
     }
     let mut call_env = fo.environment.borrow().clone();
     call_env.is_fn_context = true;
     for (name, value) in fo.parameters.into_iter().zip(args) {
         call_env.insert(name, value);
     }
-    let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)))?;
-    Ok(result.unwrap_return_value())
+    let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)));
+    result.or_else(|e| {
+        if let ErrorType::Runtime(ReturnValue(obj)) = e.error  {
+            Ok(*obj)
+        } else {
+            Err(e)
+        }
+    })
 }
 
 pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, RuntimeError> {
@@ -222,17 +247,12 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
                 Ok(vector[*i as usize].clone())
             }
         }
-        (Object::Array(_), other) =>  {
-            Err(ArrayIndexTypeError(other.type_str()))
-        }
+        (Object::Array(_), other) => Err(ArrayIndexTypeError(other.type_str())),
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
-            let key = HashableObject::from_object(key.clone()).ok_or_else(||
-                HashKeyTypeError(key_type)
-            )?;
-            let value = map.get(&key).ok_or_else(|| {
-                KeyError(key)
-            })?;
+            let key = HashableObject::from_object(key.clone())
+                .ok_or_else(|| HashKeyTypeError(key_type))?;
+            let value = map.get(&key).ok_or_else(|| KeyError(key))?;
             Ok(value.clone())
         }
         (other, _) => Err(IndexingWrongType(other.type_str())),
@@ -280,9 +300,8 @@ mod tests {
             let got = eval_statement(statement, &env).expect_err("No runtime error encountered");
             match got.error {
                 ErrorType::Runtime(e) => assert_eq!(e.message(), error),
-                _ => panic!("Wrong error type")
+                _ => panic!("Wrong error type"),
             }
-
         }
     }
 
@@ -378,7 +397,7 @@ mod tests {
             Object::Str("abc".into()),
             Object::Str("abcdef".into()),
         ];
-        assert_eval(input,  &expected);
+        assert_eval(input, &expected);
     }
 
     #[test]
@@ -439,14 +458,111 @@ mod tests {
 
     #[test]
     fn test_return_statements() {
-        let input = "
-            fn() { return 5 }()
-            fn() { 5; return 10 }()
-            fn() { 4; return 9; 3 }()
-            fn() { 8; return 6; return 0; 2 }()
-            fn() { if true { if true { return 1; } return 2; } }()
-        ";
-        let expected = [Integer(5), Integer(10), Integer(9), Integer(6), Integer(1)];
+        let input = r#"
+            fn() { 1; return 0; }();
+            fn() { 4; return 1; 9; }();
+            fn() { 16; return 2; return 25; 36; }();
+            fn() {
+                if true {
+                    if true {
+                        return 3;
+                    }
+                    return 49;
+                }
+            }();
+            fn() {
+                if false {
+                    return 64;
+                } else {
+                    return 4;
+                }
+            }();
+        "#;
+        let expected = [Integer(0), Integer(1), Integer(2), Integer(3), Integer(4)];
+        assert_eval(input, &expected);
+    }
+    #[test]
+    fn test_return_in_expressions() {
+        // One thing that makes return statements very problematic is the fact that they can
+        // appear inside block expressions, meaning they can appear in any expression context.
+        // The following tests make sure everything works properly in these contexts.
+        let input = r#"
+            // Inside prefix and infix expressions
+            fn() {
+                !{ return 0; }
+            }();
+            fn() {
+                0 + { return 1; }
+            }();
+
+            // Inside let statements
+            fn() {
+                let a = { return 2; false; };
+            }();
+
+            // Inside if conditions
+            fn() {
+                if ({ return 3; false; }) {
+                    false;
+                }
+            }();
+
+            // Inside array literals
+            fn() {
+                [false, { return 4;}, false]
+            }();
+
+            // Inside hash literals
+            // As values
+            fn() {
+                #{"a": false, "b": { return 5; }}
+            }();
+            // As keys
+            fn() {
+                #{ { return 6; "a" }: false }
+            }();
+
+            // Inside indexing expressions
+            // As index
+            fn() {
+                [false, false][{ return 7; }];
+            }();
+            // As expression being indexed
+            fn() {
+                { return 8; }[0];
+            }();
+
+            // Inside function calls
+            // As parameter
+            fn() {
+                let foo = fn(x) {};
+                foo({ return 9; });
+            }();
+            // As function being called
+            fn() {
+                ({ return 10; })();
+            }();
+
+            // Inside return statements
+            // I know this is silly, but it's better to test it anyway
+            fn() {
+                return { return 11; };
+            }();
+        "#;
+        let expected = [
+            Integer(0),
+            Integer(1),
+            Integer(2),
+            Integer(3),
+            Integer(4),
+            Integer(5),
+            Integer(6),
+            Integer(7),
+            Integer(8),
+            Integer(9),
+            Integer(10),
+            Integer(11),
+        ];
         assert_eval(input, &expected);
     }
 
@@ -603,7 +719,7 @@ mod tests {
             Nil,
             Integer(-289),
             Nil,
-            Integer(289)
+            Integer(289),
         ];
         assert_eval(input, &expected);
     }
