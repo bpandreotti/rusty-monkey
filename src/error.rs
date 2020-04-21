@@ -144,6 +144,8 @@ pub enum RuntimeError {
     NotCallable(&'static str),
     // Division or modulo by zero
     DivOrModByZero,
+    // Exponentiation with negative exponent
+    NegativeExponent,
     // General purpose TypeError, useful for type assertions
     TypeError(&'static str, &'static str),
     // Custom error
@@ -179,6 +181,7 @@ impl RuntimeError {
             ),
             NotCallable(obj) => format!("'{}' is not a function object", obj),
             DivOrModByZero => "division or modulo by zero".to_string(),
+            NegativeExponent => "negative exponent".to_string(),
             TypeError(expected, got) => format!(
                 "type error: expected '{}', got '{}'",
                 expected,

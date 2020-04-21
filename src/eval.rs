@@ -46,7 +46,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
                     Some(v) => v,
                     None => return Err(runtime_err(expression.position, HashKeyTypeError(obj_type))),
                 };
-                
+
                 let val = eval_expression(val, env)?;
                 map.insert(key, val);
             }
@@ -90,7 +90,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             for exp in arguments {
                 evaluated_args.push(eval_expression(exp, env)?);
             }
-            
+
             match obj {
                 Object::Function(fo) => call_function_object(fo, evaluated_args, expression.position),
                 Object::Builtin(b) => b.0(evaluated_args, env).map_err(|e| runtime_err(expression.position, e)),
@@ -170,7 +170,7 @@ fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Result<
         Token::Asterisk => Ok(Object::Integer(left * right)),
         Token::Slash if right == 0 => Err(DivOrModByZero),
         Token::Slash => Ok(Object::Integer(left / right)),
-        Token::Exponent if right < 0 => Err(Custom("negative exponent".into())),
+        Token::Exponent if right < 0 => Err(NegativeExponent),
         Token::Exponent => Ok(Object::Integer(left.pow(right as u32))),
         Token::Modulo if right == 0 => Err(DivOrModByZero),
         Token::Modulo => Ok(Object::Integer(left % right)),
@@ -213,6 +213,7 @@ pub fn call_function_object(fo: FunctionObject, args: Vec<Object>, call_pos: (us
 
 pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, RuntimeError> {
     // This function is pub because the "get" built-in needs to call it
+    // @TODO: Implement string indexing
     match (object, index) {
         (Object::Array(vector), Object::Integer(i)) => {
             if *i < 0 || *i >= vector.len() as i64 {
@@ -241,9 +242,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for string operations
-    // @TODO: Add tests for hashes
     // @TODO: Add tests for block expressions
-    // @TODO: Add tests for "%" and "^" operators
     use super::*;
     use Object::*;
 
@@ -283,12 +282,12 @@ mod tests {
                 ErrorType::Runtime(e) => assert_eq!(e.message(), error),
                 _ => panic!("Wrong error type")
             }
-            
+
         }
     }
 
     #[test]
-    fn test_eval_int_expression() {
+    fn test_int_expressions() {
         let input = "
             5;
             -10;
@@ -299,6 +298,11 @@ mod tests {
             1 + 2 * 3;
             (1 + 1) * (2 + 2);
             66 / (2 * 3 + 5);
+            1 + 2 / 3 ^ 0;
+            3 ^ 2 / 3 + 4;
+            16 % 7;
+            7 % 7;
+            -17 % 13;
         ";
         let expected = [
             Integer(5),
@@ -310,13 +314,18 @@ mod tests {
             Integer(7),
             Integer(8),
             Integer(6),
+            Integer(3),
+            Integer(7),
+            Integer(2),
+            Integer(0),
+            Integer(-4),
         ];
         assert_eval(input, &expected);
     }
 
     #[test]
-    fn test_eval_bool_expression() {
-        let input = "
+    fn test_bool_expressions() {
+        let input = r#"
             false;
             !true;
             !!true;
@@ -330,7 +339,11 @@ mod tests {
             false == false;
             false != false;
             true != false;
-        ";
+            !(-9)
+            !0
+            !"string"
+            !nil
+        "#;
         let expected = [
             Boolean(false),
             Boolean(false),
@@ -345,25 +358,64 @@ mod tests {
             Boolean(true),
             Boolean(false),
             Boolean(true),
+            Boolean(false),
+            Boolean(true),
+            Boolean(false),
+            Boolean(true),
         ];
         assert_eval(input, &expected);
     }
 
     #[test]
-    fn test_eval_block_statement() {
+    fn test_string_operations() {
+        let input = r#"
+            "abc" + "";
+            "" + "abc";
+            "abc" + "def";
+        "#;
+        let expected = [
+            Object::Str("abc".into()),
+            Object::Str("abc".into()),
+            Object::Str("abcdef".into()),
+        ];
+        assert_eval(input,  &expected);
+    }
+
+    #[test]
+    fn test_blocks() {
         let input = "
             { 5 }
             { 2; false }
             {
                 { true; 3; }
             }
+            let a = {
+                let b = 9;
+                b * (b - 1) * (b - 2);
+            };
+            a;
+            let c = 2;
+            let d = {
+                let c = 3;
+                c;
+            };
+            d;
         ";
-        let expected = [Integer(5), Boolean(false), Integer(3)];
+        let expected = [
+            Integer(5),
+            Boolean(false),
+            Integer(3),
+            Nil,
+            Integer(504),
+            Nil,
+            Nil,
+            Integer(3),
+        ];
         assert_eval(input, &expected);
     }
 
     #[test]
-    fn test_eval_if_expression() {
+    fn test_if_expressions() {
         let input = "
             if true { 10 }
             if false { 10 }
@@ -386,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_return_statement() {
+    fn test_return_statements() {
         let input = "
             fn() { return 5 }()
             fn() { 5; return 10 }()
@@ -399,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eval_let_statement() {
+    fn test_let_statements() {
         let input = "
             { let a = 5; a }
             { let a = 5 * 5; a }
@@ -430,6 +482,52 @@ mod tests {
             Integer(5),
             Nil,
             Integer(2),
+        ];
+        assert_eval(input, &expected);
+    }
+
+    #[test]
+    fn test_hashes() {
+        macro_rules! map {
+            ($($key:expr => $value:expr),*) => {
+                {
+                    let mut _map = HashMap::new();
+                    $(_map.insert($key, $value);)*
+                    _map
+                }
+            };
+        }
+        let input = r#"
+            #{};
+            #{"a": true, "b": [], "c": 3};
+            #{"nested": #{}};
+            let h = #{
+                "something": nil,
+                1 + 2: 5 - 1,
+                !true: "indeed"
+            };
+            h;
+            h["something"];
+            h[3];
+            h[false];
+        "#;
+        let expected = [
+            Hash(map! {}),
+            Hash(map! {
+                HashableObject::Str("a".into()) => Object::Boolean(true),
+                HashableObject::Str("b".into()) => Object::Array(Vec::new()),
+                HashableObject::Str("c".into()) => Object::Integer(3)
+            }),
+            Hash(map! { HashableObject::Str("nested".into()) =>  Hash(map! {}) }),
+            Nil,
+            Hash(map! {
+                HashableObject::Str("something".into()) => Object::Nil,
+                HashableObject::Integer(3) => Object::Integer(4),
+                HashableObject::Boolean(false) => Object::Str("indeed".into())
+            }),
+            Object::Nil,
+            Object::Integer(4),
+            Object::Str("indeed".into()),
         ];
         assert_eval(input, &expected);
     }
@@ -619,6 +717,19 @@ mod tests {
             "unsuported operand types for infix operator `>=`: 'function' and 'bool'",
             "unsuported operand types for infix operator `>`: 'bool' and 'nil'",
             "unsuported operand types for infix operator `*`: 'function' and 'function'",
+        ];
+        assert_runtime_error(input, &expected);
+
+        // Arithmetic errors
+        let input = "
+            2 / 0;
+            2 % 0;
+            2 ^ (-1)
+        ";
+        let expected = [
+            "division or modulo by zero",
+            "division or modulo by zero",
+            "negative exponent",
         ];
         assert_runtime_error(input, &expected);
     }

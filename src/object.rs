@@ -48,10 +48,11 @@ impl fmt::Display for Object {
                 }
 
                 write!(f, "#{{")?;
-                let entries: Vec<_> =  h.iter().collect();
-                write!(f, "{}: {}", entries[0].0, entries[0].1)?;
-                for (key, val) in &entries[1..] {
-                    write!(f, ", {}: {}", key, val)?;
+                let mut keys_sorted = h.keys().collect::<Vec<_>>();
+                keys_sorted.sort(); // We sort the keys so the hash printing will be consistent
+                write!(f, "{}: {}", keys_sorted[0], h[keys_sorted[0]])?;
+                for key in &keys_sorted[1..] {
+                    write!(f, ", {}: {}", key, h[key])?;
                 }
                 write!(f, "}}")
             }
@@ -93,7 +94,7 @@ impl Object {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HashableObject {
     Str(String),
     Integer(i64),
