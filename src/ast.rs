@@ -60,5 +60,4 @@ pub enum Statement {
     Let(Box<LetStatement>),
     Return(Box<NodeExpression>),
     ExpressionStatement(Box<NodeExpression>),
-    BlockStatement(Vec<NodeStatement>),
 }

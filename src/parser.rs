@@ -116,11 +116,6 @@ impl Parser {
                 let exp = Box::new(self.parse_return_statement()?);
                 Statement::Return(exp)
             }
-            // @TODO: Should block statements be expression statements with block expressions?
-            Token::OpenCurlyBrace => {
-                let block = self.parse_block_statement()?;
-                Statement::BlockStatement(block)
-            }
             _ => {
                 let exp = Box::new(self.parse_expression_statement()?);
                 Statement::ExpressionStatement(exp)
@@ -580,7 +575,6 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     // @TODO: Add tests for `parse_function_literal` and `parse_call_expression`
-    // @TODO: Add tests for block expressions
     // @TODO: Add tests for parser position
     use super::*;
     use crate::lexer::Lexer;
@@ -676,23 +670,6 @@ mod tests {
     }
 
     #[test]
-    fn test_block_statements() {
-        let input = "
-            { let foo = 2; return 1; }
-            { return 0 }
-            {}
-        ";
-        let expected = [
-            "BlockStatement([Let((\"foo\", IntLiteral(2))), Return(IntLiteral(1))])",
-            "BlockStatement([Return(IntLiteral(0))])",
-            "BlockStatement([])",
-        ];
-        assert_parse(input, &expected);
-
-        assert_parse_fails("{ return 0");
-    }
-
-    #[test]
     fn test_prefix_expressions() {
         let input = "-5; !true; --!!-foo;";
         let expected = [
@@ -763,4 +740,23 @@ mod tests {
         assert_parse_fails("1 + 1)");
         assert_parse_fails(")(");
     }
+
+    #[test]
+    fn test_block_expressions() {
+        let input = "
+            { let foo = 2; return 1; }
+            { return 0 }
+            {}
+        ";
+        let expected = [
+            "ExpressionStatement(BlockExpression([Let((\"foo\", IntLiteral(2))), \
+            Return(IntLiteral(1))]))",
+            "ExpressionStatement(BlockExpression([Return(IntLiteral(0))]))",
+            "ExpressionStatement(BlockExpression([]))",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("{ return 0");
+    }
+
 }

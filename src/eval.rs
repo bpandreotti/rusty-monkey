@@ -116,7 +116,6 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
 pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> MonkeyResult<Object> {
     match &statement.statement {
         Statement::ExpressionStatement(exp) => eval_expression(exp, env),
-        Statement::BlockStatement(block) => eval_block(block, env),
         Statement::Return(exp) => {
             let value = eval_expression(exp, env)?;
             Err(runtime_err(statement.position, RuntimeError::ReturnValue(Box::new(value))))
