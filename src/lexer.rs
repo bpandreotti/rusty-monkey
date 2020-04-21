@@ -114,6 +114,8 @@ impl Lexer {
             Some('-') => Token::Minus,
             Some('*') => Token::Asterisk,
             Some('/') => Token::Slash,
+            Some('^') => Token::Exponent,
+            Some('%') => Token::Modulo,
             Some('<') => Token::LessThan,
             Some('>') => Token::GreaterThan,
 
@@ -278,6 +280,8 @@ mod tests {
             :
             [1, 2, 3]
             #{
+            ^
+            %
         "#
         .to_string();
 
@@ -345,6 +349,8 @@ mod tests {
             Int(3),
             CloseSquareBracket,
             OpenHash,
+            Exponent,
+            Modulo,
             EOF,
         ];
 

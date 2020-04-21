@@ -168,8 +168,12 @@ fn eval_int_infix_expression(operator: &Token, left: i64, right: i64) -> Result<
         Token::Plus => Ok(Object::Integer(left + right)),
         Token::Minus => Ok(Object::Integer(left - right)),
         Token::Asterisk => Ok(Object::Integer(left * right)),
-        Token::Slash if right == 0 => Err(DivisionByZero),
+        Token::Slash if right == 0 => Err(DivOrModByZero),
         Token::Slash => Ok(Object::Integer(left / right)),
+        Token::Exponent if right < 0 => Err(Custom("negative exponent".into())),
+        Token::Exponent => Ok(Object::Integer(left.pow(right as u32))),
+        Token::Modulo if right == 0 => Err(DivOrModByZero),
+        Token::Modulo => Ok(Object::Integer(left % right)),
 
         // Comparison operators
         Token::LessThan => Ok(Object::Boolean(left < right)),
@@ -239,6 +243,7 @@ mod tests {
     // @TODO: Add tests for string operations
     // @TODO: Add tests for hashes
     // @TODO: Add tests for block expressions
+    // @TODO: Add tests for "%" and "^" operators
     use super::*;
     use Object::*;
 

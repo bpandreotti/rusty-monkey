@@ -15,6 +15,7 @@ enum Precedence {
     LessGreater,
     Sum,
     Product,
+    Exponent,
     Prefix,
     Call,
     Index,
@@ -544,7 +545,9 @@ impl Parser {
             | Token::Plus
             | Token::Minus
             | Token::Slash
-            | Token::Asterisk => Some(Parser::parse_infix_expression),
+            | Token::Asterisk
+            | Token::Exponent
+            | Token::Modulo => Some(Parser::parse_infix_expression),
             Token::OpenParen => Some(Parser::parse_call_expression),
             Token::OpenSquareBracket => Some(Parser::parse_index_expression),
             _ => None,
@@ -558,7 +561,8 @@ impl Parser {
             Equals | NotEquals                          => Precedence::Equals,
             LessThan | LessEq | GreaterThan | GreaterEq => Precedence::LessGreater,
             Plus | Minus                                => Precedence::Sum,
-            Slash | Asterisk                            => Precedence::Product,
+            Slash | Asterisk | Modulo                   => Precedence::Product,
+            Exponent                                    => Precedence::Exponent,
             OpenParen                                   => Precedence::Call,
             OpenSquareBracket                           => Precedence::Index,
             _                                           => Precedence::Lowest,

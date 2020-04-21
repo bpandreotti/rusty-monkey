@@ -142,8 +142,8 @@ pub enum RuntimeError {
     InfixTypeError(&'static str, Token, &'static str),
     // Trying to call non-callable object
     NotCallable(&'static str),
-    // Division by zero
-    DivisionByZero,
+    // Division or modulo by zero
+    DivOrModByZero,
     // General purpose TypeError, useful for type assertions
     TypeError(&'static str, &'static str),
     // Custom error
@@ -178,7 +178,7 @@ impl RuntimeError {
                 right,
             ),
             NotCallable(obj) => format!("'{}' is not a function object", obj),
-            DivisionByZero => "division by zero".to_string(),
+            DivOrModByZero => "division or modulo by zero".to_string(),
             TypeError(expected, got) => format!(
                 "type error: expected '{}', got '{}'",
                 expected,
