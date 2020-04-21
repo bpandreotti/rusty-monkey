@@ -9,11 +9,11 @@ mod repl;
 mod token;
 mod error;
 
-use std::error::Error;
+use error::MonkeyError;
 use std::fs::File;
 use std::io::BufReader;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), MonkeyError> {
     let mut args = std::env::args();
     if let Some(path) = args.nth(1) {
         if let Err(e) = run_program_file(path) {
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_program_file(path: String) -> Result<(), Box<dyn Error>> {
+fn run_program_file(path: String) -> Result<(), MonkeyError> {
     let reader = BufReader::new(File::open(path)?);
     let lexer = lexer::Lexer::new(Box::new(reader))?;
     let parsed_program = parser::Parser::new(lexer)?.parse_program()?;

@@ -81,42 +81,52 @@ impl Parser {
         }
     }
 
+    /// Checks if `self.peek_token` has the same discriminant as any of the possibilities passed.
+    /// If so, reads this token from the lexer. Otherwise, does nothing and returns an error. Same
+    /// as `expect_token`, but allows for more than one possibility.
+    fn expect_token_multiple(&mut self, possibilities: &'static [Token]) -> MonkeyResult<()> {
+        let found = possibilities
+            .iter()
+            .any(|tk| mem::discriminant(&self.peek_token) == mem::discriminant(tk));
+        if !found {
+            Err(parser_err(
+                self.position,
+                ParserError::UnexpectedTokenMultiple {
+                    possibilities,
+                    got: self.peek_token.clone(),
+                }
+            ))
+        } else {
+            self.read_token()?;
+            Ok(())
+        }
+    }
+
     /// Parses a statement from the program. A statement can be a "let" statement, a "return"
     /// statement, an expression statement, or a block of statements. May return an error if
     /// parsing fails.
     fn parse_statement(&mut self) -> MonkeyResult<NodeStatement> {
         let position = self.position;
-        match self.current_token {
+        let statement = match self.current_token {
             Token::Let => {
                 let let_st = Box::new(self.parse_let_statement()?);
-                Ok(NodeStatement {
-                    position,
-                    statement: Statement::Let(let_st)
-                })
+                Statement::Let(let_st)
             }
             Token::Return => {
                 let exp = Box::new(self.parse_return_statement()?);
-                Ok(NodeStatement {
-                    position,
-                    statement: Statement::Return(exp)
-                })
+                Statement::Return(exp)
             }
             // @TODO: Should block statements be expression statements with block expressions?
             Token::OpenCurlyBrace => {
                 let block = self.parse_block_statement()?;
-                Ok(NodeStatement {
-                    position,
-                    statement: Statement::BlockStatement(block)
-                })
+                Statement::BlockStatement(block)
             }
             _ => {
                 let exp = Box::new(self.parse_expression_statement()?);
-                Ok(NodeStatement {
-                    position,
-                    statement: Statement::ExpressionStatement(exp)
-                })
+                Statement::ExpressionStatement(exp)
             }
-        }
+        };
+        Ok(NodeStatement { position, statement })
     }
 
     /// Parses a "let" statement. Expects an "=" token, followed by an identifier and finally an
@@ -271,8 +281,14 @@ impl Parser {
 
         let alternative = if self.peek_token == Token::Else {
             self.read_token()?; // Consume "else" token
-            self.expect_token(Token::OpenCurlyBrace)?;
-            self.parse_block_statement()?
+            self.expect_token_multiple(&[Token::OpenCurlyBrace, Token::If])?;
+            match self.current_token {
+                Token::OpenCurlyBrace => self.parse_block_statement()?,
+                // This call to `self.parse_statement` is guaranteed to result in an expression
+                // statement with an if expression inside, because the current token is `if`.
+                Token::If => vec![self.parse_statement()?],
+                _ => unreachable!(),
+            }
         } else {
             Vec::new()
         };
@@ -335,22 +351,14 @@ impl Parser {
         // errors
         while let Token::Identifier(iden) = &self.current_token {
             params.push(iden.clone());
-
+            self.expect_token_multiple(&[Token::Comma, Token::CloseParen])?;
             match &self.peek_token {
                 Token::CloseParen => break,
                 Token::Comma => {
                     self.read_token()?;
                     self.expect_token(Token::Identifier("".into()))?;
                 }
-                invalid => {
-                    return Err(parser_err(
-                        self.position,
-                        ParserError::UnexpectedTokenMultiple {
-                            possibilities: &[Token::Comma, Token::CloseParen],
-                            got: invalid.clone(),
-                        }
-                    ));
-                }
+                _ => unreachable!(),
             }
         }
 
