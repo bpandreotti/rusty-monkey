@@ -140,7 +140,7 @@ impl Lexer {
             Some(c) if c.is_alphanumeric() || c == '_' => return self.read_identifier(),
 
             Some(c) => return Err(lexer_err(self.current_position, LexerError::IllegalChar(c))),
-            None => Token::EOF,
+            None => return Ok(Token::EOF),
         };
         self.read_char()?;
         Ok(tok)
@@ -528,6 +528,30 @@ mod tests {
             EOF,
         ];
         assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_lexer_position() {
+        let program = "first line\nsecond\n3";
+        let expected = [
+            // (token, current_position, token_position)
+            (iden!("first"), (1, 6), (1, 1)),
+            (iden!("line"), (1, 11), (1, 7)),
+            (iden!("second"), (2, 7), (2, 1)),
+            (Token::Int(3), (3, 2), (3, 1)),
+            (Token::EOF, (3, 2), (3, 2)),
+        ];
+
+        let mut lex = Lexer::from_string(program.into()).unwrap();
+        assert_eq!((1, 1), lex.current_position);
+        assert_eq!((0, 0), lex.token_position);
+
+        for (tk, current_pos, token_pos) in &expected {
+            let got = lex.next_token().unwrap();
+            assert_eq!(tk, &got);
+            assert_eq!(current_pos, &lex.current_position);
+            assert_eq!(token_pos, &lex.token_position);
+        }
     }
 
     #[test]
