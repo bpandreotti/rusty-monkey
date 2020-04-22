@@ -359,10 +359,10 @@ mod tests {
             false == false;
             false != false;
             true != false;
-            !(-9)
-            !0
-            !"string"
-            !nil
+            !(-9);
+            !0;
+            !"string";
+            !nil;
         "#;
         let expected = [
             Boolean(false),
@@ -482,8 +482,9 @@ mod tests {
                     return 4;
                 }
             }();
+            fn() { 81; return; 100; }();
         "#;
-        let expected = [Integer(0), Integer(1), Integer(2), Integer(3), Integer(4)];
+        let expected = [Integer(0), Integer(1), Integer(2), Integer(3), Integer(4), Nil];
         assert_eval(input, &expected);
     }
     #[test]
@@ -578,7 +579,7 @@ mod tests {
             { let a = 5 * 5; a }
             { let a = 5; let b = a; b }
             { let a = 5; let b = a; let c = a + b + 5; c }
-            { let a = 5; { let a = 0 } a }
+            { let a = 5; { let a = 0; } a }
         ";
         let expected = [Integer(5), Integer(25), Integer(5), Integer(15), Integer(5)];
         assert_eval(input, &expected);
@@ -656,14 +657,14 @@ mod tests {
     #[test]
     fn test_functions() {
         let input = "
-            let id = fn(x) { x }
-            id(5)
+            let id = fn(x) { x };
+            id(5);
 
-            let neg = fn(x) { -x }
-            neg(10)
+            let neg = fn(x) { -x };
+            neg(10);
 
-            let sqr = fn(x) { x * x }
-            sqr(17)
+            let sqr = fn(x) { x * x };
+            sqr(17);
 
             let and = fn(p, q) {
                 if p {
@@ -671,10 +672,10 @@ mod tests {
                 } else {
                     false
                 }
-            }
-            and(false, true)
-            and(true, false)
-            and(true, true)
+            };
+            and(false, true);
+            and(true, false);
+            and(true, true);
 
             let or = fn(p, q) {
                 if p {
@@ -682,27 +683,27 @@ mod tests {
                 } else {
                     q
                 }
-            }
-            or(false, true)
-            or(true, false)
-            or(false, false)
+            };
+            or(false, true);
+            or(true, false);
+            or(false, false);
 
-            fn(n) { n + 5 }(3)
-            fn(n, m) { n / m }(57, 19)
+            fn(n) { n + 5 }(3);
+            fn(n, m) { n / m }(57, 19);
 
             let compose = fn(f, g) {
                 fn(x) {
                     f(g(x))
                 }
-            }
-            compose(neg, sqr)(17)
+            };
+            compose(neg, sqr)(17);
 
             let flip = fn(f) {
                 fn(x, y) {
                     f(y, x)
                 }
-            }
-            flip(compose)(neg, sqr)(17)
+            };
+            flip(compose)(neg, sqr)(17);
         ";
         let expected = [
             Nil,
@@ -733,20 +734,20 @@ mod tests {
     fn test_closures() {
         let input = "
             let make_adder = fn(x) {
-                let adder = fn(y) { x + y }
+                let adder = fn(y) { x + y };
                 return adder;
-            }
+            };
             let add_3 = make_adder(3);
             add_3(5);
 
             let foo = fn() {
                 let outer = 1;
                 {
-                    let inner = 2
+                    let inner = 2;
                     return fn() { outer + inner };
                 }
-            }
-            foo()()
+            };
+            foo()();
         ";
         let expected = [Nil, Nil, Integer(8), Nil, Integer(3)];
         assert_eval(input, &expected);
@@ -761,8 +762,8 @@ mod tests {
                 } else {
                     1 + accumulate(n - 1)
                 }
-            }
-            accumulate(50)
+            };
+            accumulate(50);
 
             let fib = fn(n) {
                 if n <= 1 {
@@ -770,8 +771,8 @@ mod tests {
                 } else {
                     fib(n - 1) + fib(n - 2)
                 }
-            }
-            fib(13)
+            };
+            fib(13);
 
             let makefact = fn(multiplier) {
                 let foo = fn(x) {
@@ -780,11 +781,11 @@ mod tests {
                     } else {
                         foo(x - 1) * x
                     }
-                }
-                return foo
-            }
-            let fact = makefact(2)
-            fact(6)
+                };
+                return foo;
+            };
+            let fact = makefact(2);
+            fact(6);
         ";
         let expected = [Nil, Integer(50), Nil, Integer(233), Nil, Nil, Integer(1440)];
         assert_eval(input, &expected);
@@ -794,10 +795,10 @@ mod tests {
     fn test_runtime_errors() {
         // Basic errors
         let input = "
-            a + b
-            nil()
+            a + b;
+            nil();
             { let foo = 3; foo() }
-            return 2
+            return 2;
             { let a = fn(){}; a(1, 2) }
         ";
         let expected = [
@@ -811,9 +812,9 @@ mod tests {
 
         // Prefix expressions
         let input = "
-            -true
-            -(fn(){})
-            -nil
+            -true;
+            -(fn(){});
+            -nil;
         ";
         let expected = [
             "unsuported operand type for prefix operator `-`: 'bool'",
@@ -824,12 +825,12 @@ mod tests {
 
         // Infix expressions
         let input = "
-            true + false
-            false < false
-            true / nil
-            fn(){} >= false
-            true > nil
-            fn(){} * fn(){}
+            true + false;
+            false < false;
+            true / nil;
+            fn(){} >= false;
+            true > nil;
+            fn(){} * fn(){};
         ";
         let expected = [
             "unsuported operand types for infix operator `+`: 'bool' and 'bool'",
@@ -845,7 +846,7 @@ mod tests {
         let input = "
             2 / 0;
             2 % 0;
-            2 ^ (-1)
+            2 ^ (-1);
         ";
         let expected = [
             "division or modulo by zero",

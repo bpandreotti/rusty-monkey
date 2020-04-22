@@ -102,6 +102,16 @@ impl Parser {
         }
     }
 
+    /// Checks if `self.peek_token` has the same discriminant as the token passed. If so, reads
+    /// this token from the lexer. Otherwise, if `self.peek_token` is not the expected token,
+    /// does nothing.
+    fn consume_optional_token(&mut self, expected: Token) -> MonkeyResult<()> {
+        if mem::discriminant(&self.peek_token) == mem::discriminant(&expected) {
+            self.read_token()?;
+        }
+        Ok(())
+    }
+
     /// Parses a statement from the program. A statement can be a "let" statement, a "return"
     /// statement, an expression statement, or a block of statements. May return an error if
     /// parsing fails.
@@ -126,7 +136,7 @@ impl Parser {
 
     /// Parses a "let" statement. Expects an "=" token, followed by an identifier and finally an
     /// expression. Returns an error if any of those steps fail. Doesn't check if
-    /// `self.current_token` is a "let" token.
+    /// `self.current_token` is a "let" token. Must end in a semicolon.
     fn parse_let_statement(&mut self) -> MonkeyResult<LetStatement> {
         self.read_token()?; // Read identifier token
         if let Token::Identifier(iden) = &self.current_token {
@@ -138,11 +148,7 @@ impl Parser {
 
             // At this point, self.current_token is the first token in the expression
             let value = self.parse_expression(Precedence::Lowest)?;
-
-            if self.peek_token == Token::Semicolon {
-                self.read_token()?; // Consume optional semicolon
-            }
-
+            self.expect_token(Token::Semicolon)?;
             Ok((identifier, value))
         } else {
             Err(parser_err(
@@ -156,23 +162,42 @@ impl Parser {
     }
 
     /// Parses a "return" statement. Expects a valid expression, and returns an error if its
-    /// parsing fails. Doesn't check if `self.current_token` is a "return" token.
+    /// parsing fails. Doesn't check if `self.current_token` is a "return" token.  Must end in a
+    /// semicolon.
     fn parse_return_statement(&mut self) -> MonkeyResult<NodeExpression> {
-        // @TODO: Add support for return statements withou any values, i.e.: "return;"
-        self.read_token()?; // Read first token from the expression
-        let return_value = self.parse_expression(Precedence::Lowest)?;
-
-        if self.peek_token == Token::Semicolon {
-            self.read_token()?; // Consume optional semicolon
-        }
+        let return_value = if self.peek_token == Token::Semicolon {
+            // In case of no return value, we return nil
+            NodeExpression {
+                position: self.position,
+                expression: Expression::Nil
+            }
+        } else {
+            self.read_token()?; // Read first token from the expression
+            self.parse_expression(Precedence::Lowest)?
+        };
+        self.expect_token(Token::Semicolon)?;
         Ok(return_value)
     }
 
-    /// Parses an expression statement, returns an error if parsing fails.
+    /// Parses an expression statement, returns an error if parsing fails.  Must end in a
+    /// semicolon, unless either:
+    /// * The expression is an "if" expression, a function literal or a block expression.
+    /// * The first token after the expression is a "}" token, meaning the expression is the last
+    /// expression in the current block.
     fn parse_expression_statement(&mut self) -> MonkeyResult<NodeExpression> {
         let exp = self.parse_expression(Precedence::Lowest)?;
-        if self.peek_token == Token::Semicolon {
-            self.read_token()?; // Consume optional semicolon
+        match exp.expression {
+            Expression::IfExpression { .. }
+            | Expression::FunctionLiteral { .. }
+            | Expression::BlockExpression { .. } => {
+                // In these three cases, the semicolon is optional
+                self.consume_optional_token(Token::Semicolon)?
+            }
+            // If we are at the end of a block, that is, if peek token is "}", the semicolon is
+            // also optional
+            _ => if self.peek_token != Token::CloseCurlyBrace {
+                self.expect_token(Token::Semicolon)?
+            }
         }
         Ok(exp)
     }
@@ -604,7 +629,7 @@ mod tests {
             true;
             false;
             nil;
-            "brown is dark orange"
+            "brown is dark orange";
             "hello world";
             [];
             [0, false, nil];
@@ -658,7 +683,7 @@ mod tests {
 
     #[test]
     fn test_call_expressions() {
-        let input = "foo(); foo(x); foo(x, y, z); fn(x) { x }(5);";
+        let input = "foo(); foo(x); foo(x, y, z); fn(x) { x; }(5);";
         let expected = [
             "ExpressionStatement(CallExpression { function: Identifier(\"foo\"), arguments: [] })",
             "ExpressionStatement(CallExpression { function: Identifier(\"foo\"), arguments: \
@@ -709,7 +734,7 @@ mod tests {
     fn test_return_statements() {
         // Not much to test here, to be honest
         assert_parse("return 0;", &["Return(IntLiteral(0))"]);
-        assert_parse_fails("return;");
+        assert_parse("return;", &["Return(Nil)"]);
     }
 
     #[test]
@@ -774,7 +799,7 @@ mod tests {
 
     #[test]
     fn test_grouped_expression() {
-        let input = "(2 + 3) * (5 + 7); (1 + (1 + (1 + 1)))";
+        let input = "(2 + 3) * (5 + 7); (1 + (1 + (1 + 1)));";
         let expected = [
             "ExpressionStatement(InfixExpression(InfixExpression(IntLiteral(2), Plus, \
             IntLiteral(3)), Asterisk, InfixExpression(IntLiteral(5), Plus, IntLiteral(7))))",
@@ -792,7 +817,7 @@ mod tests {
     fn test_block_expressions() {
         let input = "
             { let foo = 2; return 1; }
-            { return 0 }
+            { return 0; }
             {}
         ";
         let expected = [
