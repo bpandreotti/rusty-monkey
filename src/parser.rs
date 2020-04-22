@@ -158,6 +158,7 @@ impl Parser {
     /// Parses a "return" statement. Expects a valid expression, and returns an error if its
     /// parsing fails. Doesn't check if `self.current_token` is a "return" token.
     fn parse_return_statement(&mut self) -> MonkeyResult<NodeExpression> {
+        // @TODO: Add support for return statements withou any values, i.e.: "return;"
         self.read_token()?; // Read first token from the expression
         let return_value = self.parse_expression(Precedence::Lowest)?;
 
@@ -574,8 +575,6 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    // @TODO: Add tests for `parse_function_literal` and `parse_call_expression`
-    // @TODO: Add tests for parser position
     use super::*;
     use crate::lexer::Lexer;
 
@@ -609,11 +608,14 @@ mod tests {
             "hello world";
             [];
             [0, false, nil];
-            let hash = #{
+            #{
                 first : "entry",
                 second : 1,
                 nil : []
-            }
+            };
+            fn(x, y, z) {
+                return x;
+            };
         "#;
         let expected = [
             "ExpressionStatement(IntLiteral(0))",
@@ -625,12 +627,53 @@ mod tests {
             "ExpressionStatement(StringLiteral(\"hello world\"))",
             "ExpressionStatement(ArrayLiteral([]))",
             "ExpressionStatement(ArrayLiteral([IntLiteral(0), Boolean(false), Nil]))",
-            "Let((\"hash\", HashLiteral([(Identifier(\"first\"), StringLiteral(\"entry\")), \
-            (Identifier(\"second\"), IntLiteral(1)), (Nil, ArrayLiteral([]))])))"
+            "ExpressionStatement(HashLiteral([(Identifier(\"first\"), StringLiteral(\"entry\")), \
+            (Identifier(\"second\"), IntLiteral(1)), (Nil, ArrayLiteral([]))]))",
+            "ExpressionStatement(FunctionLiteral { parameters: [\"x\", \"y\", \"z\"], body: \
+            [Return(Identifier(\"x\"))] })",
         ];
         assert_parse(input, &expected);
+        
+        // Testing parser failures:
+        // Arrays
         assert_parse_fails("[a, b");
         assert_parse_fails("[nil,]");
+        assert_parse_fails("[,true]");
+
+        // Hashes
+        assert_parse_fails("#{ a: b,");
+        assert_parse_fails("#{ a: b, c: d, }");
+        assert_parse_fails("#{ a: b c: d }");
+        assert_parse_fails("#{ a: }");
+        assert_parse_fails("#{ a }");
+
+        // Functions
+        assert_parse_fails("fn() {");
+        assert_parse_fails("fn( {}");
+        assert_parse_fails("fn(x, y,) {}");
+        assert_parse_fails("fn(,) {}");
+        assert_parse_fails("fn {}");
+        assert_parse_fails("fn()");
+    }
+
+    #[test]
+    fn test_call_expressions() {
+        let input = "foo(); foo(x); foo(x, y, z); fn(x) { x }(5);";
+        let expected = [
+            "ExpressionStatement(CallExpression { function: Identifier(\"foo\"), arguments: [] })",
+            "ExpressionStatement(CallExpression { function: Identifier(\"foo\"), arguments: \
+            [Identifier(\"x\")] })",
+            "ExpressionStatement(CallExpression { function: Identifier(\"foo\"), arguments: \
+            [Identifier(\"x\"), Identifier(\"y\"), Identifier(\"z\")] })",
+            "ExpressionStatement(CallExpression { function: FunctionLiteral { parameters: \
+            [\"x\"], body: [ExpressionStatement(Identifier(\"x\"))] }, arguments: \
+            [IntLiteral(5)] })",
+        ];
+        assert_parse(input, &expected);
+
+        assert_parse_fails("foo(x, y,)");
+        assert_parse_fails("foo(");
+        assert_parse_fails("foo(x y)");
     }
 
     #[test]
@@ -708,6 +751,7 @@ mod tests {
             if 1 { 1 } else { 0 }
             if 2 { 2 }
             if (true) {}
+            if nil {} else if nil {} else {}
         ";
         let expected = [
             "ExpressionStatement(IfExpression { condition: IntLiteral(1), consequence: \
@@ -717,6 +761,9 @@ mod tests {
             [ExpressionStatement(IntLiteral(2))], alternative: [] })",
             "ExpressionStatement(IfExpression { condition: Boolean(true), consequence: \
             [], alternative: [] })",
+            "ExpressionStatement(IfExpression { condition: Nil, consequence: [], alternative: \
+            [ExpressionStatement(IfExpression { condition: Nil, consequence: [], alternative: [] \
+            })] })"
         ];
         assert_parse(input, &expected);
 
