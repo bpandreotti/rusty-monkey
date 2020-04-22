@@ -69,7 +69,7 @@ pub enum ErrorType {
 }
 
 // @TODO: Maybe merge LexerError and Parser Error?
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LexerError {
     UnexpectedEOF,
     UnknownEscapeSequence(char),
@@ -157,7 +157,7 @@ pub enum RuntimeError {
     // forward it further. If there is a return statement outside of a function context, there will
     // be no `call_function_object` call in the call stack, and the error will be forwarded along
     // all the way to the root call. Now, whether this was in the REPL or the code was being
-    // executed form a file, the error will be interpreted as an invalid return -- a return
+    // executed from a file, the error will be interpreted as an invalid return -- a return
     // statement ouside of a function context -- and will be handled like any other runtime error.
     ReturnValue(Box<Object>),
 }

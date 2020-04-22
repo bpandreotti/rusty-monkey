@@ -137,7 +137,7 @@ impl Lexer {
             Some(c) if c.is_ascii_digit() => return self.read_number(),
             // Identifiers can have any alphanumeric character, but they can't begin with an ascii
             // digit, in which case it will be interpreted as a number
-            Some(c) if c.is_alphanumeric() => return self.read_identifier(),
+            Some(c) if c.is_alphanumeric() || c == '_' => return self.read_identifier(),
 
             Some(c) => return Err(lexer_err(self.current_position, LexerError::IllegalChar(c))),
             None => Token::EOF,
@@ -163,10 +163,11 @@ impl Lexer {
     fn read_number(&mut self) -> Result<Token, MonkeyError> {
         let mut literal = String::new();
         while let Some(ch) = self.current_char {
-            if !ch.is_ascii_digit() {
+            if ch.is_ascii_digit() {
+                literal.push(ch);
+            } else if ch != '_' {
                 break;
             }
-            literal.push(ch);
             self.read_char()?;
         }
 
@@ -234,133 +235,314 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
-    // @TODO: Add tests for lexer errors
     // @TODO: Add tests for lexer position
     use super::*;
     use crate::token::Token;
 
-    #[test]
-    fn test_next_token() {
-        // @TODO: Split up this test into several smaller tests
-        use Token::*;
+    // Shortcut to create a `Token::Identifier` from a string literal
+    macro_rules! iden {
+        ($x:expr) => { Token::Identifier($x.into()) }
+    }
 
-        // Shortcut to create a `Token::Identifier` from a string literal
-        macro_rules! iden {
-            ($x:expr) => { Token::Identifier($x.into()) }
+    fn assert_lex(input: &str, expected: &[Token]) {
+        let mut lex = Lexer::from_string(input.into()).unwrap();
+        for ex in expected {
+            let got = lex.next_token().expect("Lexer error during test");
+            assert_eq!(ex, &got);
         }
+    }
 
-        let input = r#"
-            let five = 5; // testing comments
-            let add = fn(x, y) {
-                x + y;
-            };
-            // more comments
-            !-/*5;
-
-            //
-            // a
-            // bunch
-            // of
-            // comments
-            //
-
-            if (5 < 10) {
-                return true;
-            } else {
-                return false;
+    fn assert_lexer_error(input: &str, expected_error: LexerError) {
+        let mut lex = Lexer::from_string(input.into()).unwrap();
+        loop {
+            match lex.next_token() {
+                Ok(Token::EOF) => panic!("No lexer errors encountered"),
+                Err(e) => {
+                    match e.error {
+                        ErrorType::Lexer(got) => assert_eq!(expected_error, got),
+                        _ => panic!("Wrong error type")
+                    }
+                    return;
+                }
+                _ => continue,
             }
+        }
+    }
 
-            // yay
-
-            10 == 10;
-            != <= >=
-            "foobar" ///
-            "foo bar"
-            "foo\n\"\tbar"
-            :
-            [1, 2, 3]
-            #{
-            ^
-            %
-        "#
-        .to_string();
-
+    #[test]
+    fn test_identifiers() {
+        let input = "foo bar two_words _ _foo2 back2thefuture 3different_ones olá 統一碼 यूनिकोड";
         let expected = [
+            iden!("foo"),
+            iden!("bar"),
+            iden!("two_words"),
+            iden!("_"),
+            iden!("_foo2"),
+            iden!("back2thefuture"),
+            Token::Int(3),
+            iden!("different_ones"),
+            iden!("olá"),
+            iden!("統一碼"),
+            iden!("यूनिकोड"),
+            Token::EOF,
+        ];
+        assert_lex(input, &expected);
+
+        // Test keywords
+        let input = "fn let true false if else return nil";
+        let expected = [
+            Token::Function,
+            Token::Let,
+            Token::True,
+            Token::False,
+            Token::If,
+            Token::Else,
+            Token::Return,
+            Token::Nil,
+            Token::EOF,
+        ];
+        assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_int_literals() {
+        let input = "0 1729 808017424794 1_000_000 1___0____2 _1_000_000";
+        let expected = [
+            Token::Int(0),
+            Token::Int(1729),
+            Token::Int(808_017_424_794),
+            Token::Int(1_000_000),
+            Token::Int(102),
+            iden!("_1_000_000"),
+            Token::EOF,
+        ];
+        assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_strings() {
+        let input = r#"
+            "string"
+            "escape sequences: \\ \n \t \r \" "
+            "whitespace
+            inside strings"
+        "#;
+        let expected = [
+            Token::Str("string".into()),
+            Token::Str("escape sequences: \\ \n \t \r \" ".into()),
+            Token::Str("whitespace\n            inside strings".into()),
+            Token::EOF,
+        ];
+        assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_operators() {
+        let input = "= ! + - * / ^ % < > == != <= >=";
+        let expected = [
+            Token::Assign,
+            Token::Bang,
+            Token::Plus,
+            Token::Minus,
+            Token::Asterisk,
+            Token::Slash,
+            Token::Exponent,
+            Token::Modulo,
+            Token::LessThan,
+            Token::GreaterThan,
+            Token::Equals,
+            Token::NotEquals,
+            Token::LessEq,
+            Token::GreaterEq,
+            Token::EOF,
+        ];
+        assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_delimiters() {
+        let input = ", ; : () {} [] #{}";
+        let expected = [
+            Token::Comma,
+            Token::Semicolon,
+            Token::Colon,
+            Token::OpenParen,
+            Token::CloseParen,
+            Token::OpenCurlyBrace,
+            Token::CloseCurlyBrace,
+            Token::OpenSquareBracket,
+            Token::CloseSquareBracket,
+            Token::OpenHash,
+            Token::CloseCurlyBrace,
+            Token::EOF,
+        ];
+        assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_comments() {
+        let input = r"
+            // comments
+            foo // bar
+            // Unicode! 中文 Português हिन्दी Français Español
+            //
+            baz
+        ";
+        let expected = [iden!("foo"), iden!("baz"), Token::EOF];
+        assert_lex(input, &expected);
+    }
+
+    #[test]
+    fn test_large_program() {
+        use Token::*;
+        let input = r#"
+            let fizzbuzz = fn(i) {
+                let result = if i % 3 == 0 {
+                    "fizz"
+                } else {
+                    ""
+                };
+                let result = if i % 5 == 0 {
+                    result + "buzz"
+                } else {
+                    result
+                };
+                if result != "" {
+                    puts(result)
+                } else {
+                    puts(i)
+                }
+            }
+            map(fizzbuzz, range(1, 100));
+        "#;
+        let expected = [
+            // Line 1
             Let,
-            iden!("five"),
-            Assign,
-            Int(5),
-            Semicolon,
-            Let,
-            iden!("add"),
+            iden!("fizzbuzz"),
             Assign,
             Function,
             OpenParen,
-            iden!("x"),
-            Comma,
-            iden!("y"),
+            iden!("i"),
             CloseParen,
             OpenCurlyBrace,
-            iden!("x"),
-            Plus,
-            iden!("y"),
-            Semicolon,
-            CloseCurlyBrace,
-            Semicolon,
-            Bang,
-            Minus,
-            Slash,
-            Asterisk,
-            Int(5),
-            Semicolon,
+
+            // Line 2
+            Let,
+            iden!("result"),
+            Assign,
             If,
-            OpenParen,
-            Int(5),
-            LessThan,
-            Int(10),
-            CloseParen,
+            iden!("i"),
+            Modulo,
+            Int(3),
+            Equals,
+            Int(0),
             OpenCurlyBrace,
-            Return,
-            True,
-            Semicolon,
+
+            // Line 3
+            Str("fizz".into()),
+
+            // Line 4
             CloseCurlyBrace,
             Else,
             OpenCurlyBrace,
-            Return,
-            False,
-            Semicolon,
+
+            // Line 5
+            Str("".into()),
+
+            // Line 6
             CloseCurlyBrace,
-            Int(10),
-            Equals,
-            Int(10),
             Semicolon,
+
+            // Line 7
+            Let,
+            iden!("result"),
+            Assign,
+            If,
+            iden!("i"),
+            Modulo,
+            Int(5),
+            Equals,
+            Int(0),
+            OpenCurlyBrace,
+
+            // Line 8
+            iden!("result"),
+            Plus,
+            Str("buzz".into()),
+
+            // Line 9
+            CloseCurlyBrace,
+            Else,
+            OpenCurlyBrace,
+
+            // Line 10
+            iden!("result"),
+
+            // Line 11
+            CloseCurlyBrace,
+            Semicolon,
+
+            // Line 12
+            If,
+            iden!("result"),
             NotEquals,
-            LessEq,
-            GreaterEq,
-            Str("foobar".into()),
-            Str("foo bar".into()),
-            Str("foo\n\"\tbar".into()),
-            Colon,
-            OpenSquareBracket,
+            Str("".into()),
+            OpenCurlyBrace,
+
+            // Line 13
+            iden!("puts"),
+            OpenParen,
+            iden!("result"),
+            CloseParen,
+
+            // Line 14
+            CloseCurlyBrace,
+            Else,
+            OpenCurlyBrace,
+
+            // Line 15
+            iden!("puts"),
+            OpenParen,
+            iden!("i"),
+            CloseParen,
+
+            // Line 16
+            CloseCurlyBrace,
+            
+            // Line 17
+            CloseCurlyBrace,
+            
+            // Line 18
+            iden!("map"),
+            OpenParen,
+            iden!("fizzbuzz"),
+            Comma,
+            iden!("range"),
+            OpenParen,
             Int(1),
             Comma,
-            Int(2),
-            Comma,
-            Int(3),
-            CloseSquareBracket,
-            OpenHash,
-            Exponent,
-            Modulo,
+            Int(100),
+            CloseParen,
+            CloseParen,
+            Semicolon,
             EOF,
         ];
+        assert_lex(input, &expected);
+    }
 
-        let mut lex = Lexer::from_string(input).unwrap();
-        let mut got = lex.next_token();
-        for expected_token in expected.iter() {
-            assert_eq!(&got.unwrap(), expected_token);
-            got = lex.next_token();
-        }
-
-        assert_eq!(got.unwrap(), Token::EOF);
+    #[test]
+    fn test_lexer_errors() {
+        assert_lexer_error(
+            r#" "some string that doesn't end "#,
+            LexerError::UnexpectedEOF
+        );
+        assert_lexer_error(
+            r#" "i don't know this guy: \w" "#,
+            LexerError::UnknownEscapeSequence('w')
+        );
+        assert_lexer_error(
+            r#" "whats up with this weird symbol:" & "#,
+            LexerError::IllegalChar('&')
+        );
     }
 }
