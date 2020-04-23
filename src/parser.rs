@@ -148,7 +148,9 @@ impl Parser {
 
             // At this point, self.current_token is the first token in the expression
             let value = self.parse_expression(Precedence::Lowest)?;
-            self.expect_token(Token::Semicolon)?;
+            if self.peek_token != Token::EOF {
+                self.expect_token(Token::Semicolon)?;
+            }
             Ok((identifier, value))
         } else {
             Err(parser_err(
@@ -175,7 +177,9 @@ impl Parser {
             self.read_token()?; // Read first token from the expression
             self.parse_expression(Precedence::Lowest)?
         };
-        self.expect_token(Token::Semicolon)?;
+        if self.peek_token != Token::EOF {
+            self.expect_token(Token::Semicolon)?;
+        }
         Ok(return_value)
     }
 
