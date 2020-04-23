@@ -188,7 +188,7 @@ impl RuntimeError {
                 left,
                 right,
             ),
-            NotCallable(obj) => format!("'{}' is not a function object", obj),
+            NotCallable(obj) => format!("'{}' is not a function object or built-in function", obj),
             DivOrModByZero => "division or modulo by zero".to_string(),
             NegativeExponent => "negative exponent".to_string(),
             TypeError(expected, got) => format!(

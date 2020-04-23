@@ -83,7 +83,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             Ok(Object::Function(fo))
         }
         Expression::CallExpression { function, arguments } => {
-            // Evaluate the called object and make sure it's a function
+            // Evaluate the called object
             let obj = eval_expression(function, env)?;
             // Evaluate all arguments sequentially
             let mut evaluated_args = Vec::with_capacity(arguments.len());
@@ -91,18 +91,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
                 evaluated_args.push(eval_expression(exp, env)?);
             }
 
-            match obj {
-                Object::Function(fo) => {
-                    call_function_object(fo, evaluated_args, expression.position)
-                }
-                Object::Builtin(b) => {
-                    b.0(evaluated_args, env).map_err(|e| runtime_err(expression.position, e))
-                }
-                other => Err(runtime_err(
-                    expression.position,
-                    NotCallable(other.type_str()),
-                )),
-            }
+            eval_call_expression(obj, evaluated_args, expression.position, env)
         }
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
@@ -206,7 +195,20 @@ fn are_equal(left: &Object, right: &Object) -> bool {
     }
 }
 
-pub fn call_function_object(
+pub fn eval_call_expression(
+    obj: Object,
+    args: Vec<Object>,
+    call_position: (usize, usize), // We need the caller position to properly report errors
+    env: &EnvHandle // Some built-ins, like "import" need the caller environment
+) -> MonkeyResult<Object> {
+    match obj {
+        Object::Function(fo) => call_function_object(fo, args, call_position),
+        Object::Builtin(b) => b.0(args, env).map_err(|e| runtime_err(call_position, e)),
+        other => Err(runtime_err(call_position, NotCallable(other.type_str()))),
+    }
+}
+
+fn call_function_object(
     fo: FunctionObject,
     args: Vec<Object>,
     call_pos: (usize, usize),
@@ -803,8 +805,8 @@ mod tests {
         ";
         let expected = [
             "identifier not found: 'a'",
-            "'nil' is not a function object",
-            "'int' is not a function object",
+            "'nil' is not a function object or built-in function",
+            "'int' is not a function object or built-in function",
             "`return` outside of function context",
             "wrong number of arguments: expected 0 arguments but 2 were given",
         ];

@@ -83,7 +83,7 @@ impl Token {
             OpenCurlyBrace => "`{`",
             CloseCurlyBrace => "`}`",
             OpenSquareBracket => "`[`",
-            CloseSquareBracket => "`[`",
+            CloseSquareBracket => "`]`",
             OpenHash => "`#{`",
             Function => "`fn`",
             Let => "`let`",

@@ -70,14 +70,6 @@ fn assert_object_type_string(obj: &Object) -> Result<&String, RuntimeError> {
     }
 }
 
-fn assert_object_type_function(obj: &Object) -> Result<&FunctionObject, RuntimeError> {
-    if let Object::Function(fo) = obj {
-        Ok(fo)
-    } else {
-        Err(RuntimeError::TypeError("function", obj.type_str()))
-    }
-}
-
 fn builtin_type(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
     Ok(Object::Str(args[0].type_str().into()))
@@ -180,16 +172,18 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
     Ok(Object::Nil)
 }
 
-// @TODO: Add support for mapping built-ins. Maybe merge the object representation of
-// FunctionObject and BuiltinFn into a "Callable" enum?
-fn builtin_map(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_map(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 2)?;
-    let fo = assert_object_type_function(&args[0])?;
     let array = assert_object_type_array(&args[1])?;
 
     let mut new_vector = Vec::new();
     for element in array {
-        let call_result = eval::call_function_object(fo.clone(), vec![element.clone()], (0, 0));
+        let call_result = eval::eval_call_expression(
+            args[0].clone(),
+            vec![element.clone()],
+            (0, 0), // This position will get thrown out anyway
+            env
+        );
         match call_result {
             Ok(v) => new_vector.push(v),
             Err(monkey_err) => match monkey_err.error {
