@@ -215,9 +215,9 @@ I think this is a nice compromise<sup><a name="footnote-3-return">[\(3\)](#footn
 
 <a name="footnote-1">[\(1\)](#footnote-1-return)</a>: For instance, what about `{}`? Is that an empty hash or an empty block?
 
-<a name="footnote-1">[\(2\)](#footnote-2-return)</a>: In particular, expressions whose prefix token can also be in infix position would be problematic. So, "[" can be the start of an array, but can also be an indexing operation if in infix position. "(" can be the start of a grouped expression or a call expression. And "-" can be prefix negation, or infix subtraction.
+<a name="footnote-2">[\(2\)](#footnote-2-return)</a>: In particular, expressions whose prefix token can also be in infix position would be problematic. So, "[" can be the start of an array, but can also be an indexing operation if in infix position. "(" can be the start of a grouped expression or a call expression. And "-" can be prefix negation, or infix subtraction.
 
-<a name="footnote-2">[\(3\)](#footnote-3-return)</a>: By the way, this is still just a compromise, there still is some room for error. The following snippet, for example, still returns a parser error.
+<a name="footnote-3">[\(3\)](#footnote-3-return)</a>: By the way, this is still just a compromise, there still is some room for error. The following snippet, for example, still returns a parser error.
 
 ```rust
 let safe_div = fn(a, b) {
