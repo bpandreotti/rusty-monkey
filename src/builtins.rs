@@ -156,6 +156,7 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
     assert_num_arguments(&args, 1)?;
     let file_name = assert_object_type_string(&args[0])?;
     // @TODO: Read file using BufRead instead of reading to string
+    // @TODO: Change the error formatting to be a bit more readable
     let contents = fs::read_to_string(file_name)
         .map_err(|e| RuntimeError::Custom(format!("File error: {}", e)))?;
     let lexer = Lexer::from_string(contents)

@@ -193,10 +193,14 @@ impl Parser {
                 // In these three cases, the semicolon is optional
                 self.consume_optional_token(Token::Semicolon)?
             }
-            // If we are at the end of a block, that is, if peek token is "}", the semicolon is
-            // also optional
-            _ => if self.peek_token != Token::CloseCurlyBrace {
-                self.expect_token(Token::Semicolon)?
+            _ => {
+                // If we are at the end of a block (peek token is "}") or at the end of the program
+                // (peek token is EOF), the semicolon is also optional
+                if self.peek_token == Token::CloseCurlyBrace || self.peek_token == Token::EOF {
+                    self.consume_optional_token(Token::Semicolon)?
+                } else {
+                    self.expect_token(Token::Semicolon)?
+                }                
             }
         }
         Ok(exp)
