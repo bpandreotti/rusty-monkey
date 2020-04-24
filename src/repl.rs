@@ -5,12 +5,17 @@ use crate::lexer::Lexer;
 use crate::object;
 use crate::parser::Parser;
 
+use colored::*;
+use std::borrow::Cow;
 use std::io::BufRead;
 use std::rc::Rc;
 use std::cell::RefCell;
+use rustyline::error::ReadlineError;
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline::highlight::Highlighter;
+use rustyline_derive::{Completer, Helper, Hinter};
 
 const PROMPT: &str = "monkey » ";
-const CONTINUATION_PROMPT: &str = "   ... » ";
 
 pub fn fancy() -> Repl {
     Repl::new(true)
@@ -20,11 +25,70 @@ pub fn old() -> Repl {
     Repl::new(false)
 }
 
-#[derive(PartialEq)]
-enum ValidationResult {
-    Done,
-    Incomplete,
-    Mismatched,
+#[derive(Completer, Helper, Hinter)]
+struct ReplHelper {}
+
+impl Validator for ReplHelper {
+    fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
+        fn try_pop(stack: &mut Vec<char>, c: char) -> bool {
+            let top = stack.pop();
+            top == Some(c)
+        }
+
+        let line = ctx.input();
+        let mut stack = Vec::new();
+        let mut skip_next = false;
+        for c in line.split("//").next().unwrap().chars() {
+            if skip_next {
+                skip_next = false;
+                continue;
+            }
+            if stack.last() == Some(&'"') {
+                // We are in a string
+                match c {
+                    '\\' => skip_next = true, // Skip escaped quotes
+                    '"' => {
+                        stack.pop();
+                    }
+                    _ => (),
+                }
+            } else {
+                match c {
+                    '(' | '[' | '{' | '"' => stack.push(c),
+                    ')' => if !try_pop(&mut stack, '(') {
+                        return Ok(ValidationResult::Valid(None));
+                    }
+                    ']' => if !try_pop(&mut stack, '[') {
+                        return Ok(ValidationResult::Valid(None));
+                    }
+                    '}' => if !try_pop(&mut stack, '{') {
+                        return Ok(ValidationResult::Valid(None));
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        if stack.is_empty() {
+            Ok(ValidationResult::Valid(None))
+        } else {
+            Ok(ValidationResult::Incomplete)
+        }
+    }
+}
+
+impl Highlighter for ReplHelper {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        default: bool
+    ) -> Cow<'b, str> {
+        if default {
+            Cow::Owned(format!("{}", PROMPT.blue().bold()))
+        } else {
+            Cow::Borrowed(prompt)
+        }
+    }
 }
 
 pub struct Repl {
@@ -52,33 +116,41 @@ impl Repl {
     }
 
     fn start_fancy(self) -> Result<(), std::io::Error> {
-        eprintln!("Now with a fancy new REPL");
-        eprint!("{}", PROMPT);
-        let mut prefix = String::new();
-        for line in self.stdin.lock().lines() {
-            let line = prefix + &line?;
-            if line == "exit" {
-                break;
-            }
-    
-            let validation_result = validate_matching_delimiters(&line);
-            if validation_result == ValidationResult::Incomplete {
-                prefix = line + "\n";
-                eprint!("{}", CONTINUATION_PROMPT);
-                continue;
-            } else {
-                prefix = String::new();
-            }
-    
-            match self.run_line(line) {
-                Ok(values) => for v in values {
-                    println!("{}", v);
+        eprintln!("Now with an even fancier REPL!");
+        let mut rl = rustyline::Editor::<ReplHelper>::new();
+        rl.set_helper(Some(ReplHelper {}));
+        
+        // Unbind Tab
+        rl.unbind_sequence(rustyline::KeyPress::Tab);
+        // Bind Tab to inster 4 spaces
+        rl.bind_sequence(rustyline::KeyPress::Tab, rustyline::Cmd::Insert(1, "    ".into()));
+        loop {
+            let readline = rl.readline(PROMPT);
+            match readline {
+                Ok(line) => {
+                    rl.add_history_entry(line.as_str());
+                    match self.run_line(line) {
+                        Ok(values) => for v in values {
+                            println!("{}", v);
+                        }
+                        Err(e) => eprintln!("{}", e),
+                    }
+                },
+                Err(ReadlineError::Interrupted) => {
+                    println!("CTRL-C");
+                    break;
                 }
-                Err(e) => eprintln!("{}", e),
+                Err(ReadlineError::Eof) => {
+                    println!("CTRL-D");
+                    break;
+                }
+                Err(other) => {
+                    println!("rustyline Error: {:?}", other);
+                    break;
+                }
             }
-            eprint!("{}", PROMPT);
         }
-    
+
         eprintln!("Goodbye!");
         Ok(())
     }
@@ -90,7 +162,7 @@ impl Repl {
             if line == "exit" {
                 break;
             }
-    
+
             match self.run_line(line) {
                 Ok(values) => for v in values {
                     println!("{}", v);
@@ -99,7 +171,7 @@ impl Repl {
             }
             eprint!("{}", PROMPT);
         }
-    
+
         eprintln!("Goodbye!");
         Ok(())
     }
@@ -115,48 +187,3 @@ impl Repl {
     }
 }
 
-fn validate_matching_delimiters(line: &str) -> ValidationResult {
-    fn try_pop(stack: &mut Vec<char>, c: char) -> bool {
-        let top = stack.pop();
-        top == Some(c)
-    }
-
-    let mut stack = Vec::new();
-    let mut skip_next = false;
-    for c in line.split("//").collect::<Vec<_>>()[0].chars() {
-        if skip_next {
-            skip_next = false;
-            continue;
-        }
-        if stack.last() == Some(&'"') {
-            // We are in a string
-            match c {
-                '\\' => skip_next = true, // Skip escaped quotes
-                '"' => {
-                    stack.pop();
-                }
-                _ => (),
-            }
-        } else {
-            match c {
-                '(' | '[' | '{' | '"' => stack.push(c),
-                ')' => if !try_pop(&mut stack, '(') {
-                    return ValidationResult::Mismatched;
-                }
-                ']' => if !try_pop(&mut stack, '[') {
-                    return ValidationResult::Mismatched;
-                }
-                '}' => if !try_pop(&mut stack, '{') {
-                    return ValidationResult::Mismatched;
-                }
-                _ => (),
-            }
-        }
-    }
-
-    if stack.is_empty() {
-        ValidationResult::Done
-    } else {
-        ValidationResult::Incomplete
-    }
-}

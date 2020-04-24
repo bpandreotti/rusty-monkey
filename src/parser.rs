@@ -70,20 +70,34 @@ impl Parser {
     /// this token from the lexer. Otherwise, if `self.peek_token` is not the expected token,
     /// does nothing and returns an error.
     fn expect_token(&mut self, expected: Token) -> MonkeyResult<()> {
-        if mem::discriminant(&self.peek_token) != mem::discriminant(&expected) {
+        if mem::discriminant(&self.peek_token) == mem::discriminant(&expected) {
+            self.read_token()?;
+            Ok(())
+        } else {
             Err(parser_err(
                 self.position,
                 ParserError::UnexpectedToken(expected, self.peek_token.clone())
             ))
-        } else {
-            self.read_token()?;
-            Ok(())
         }
     }
 
-    /// Checks if `self.peek_token` has the same discriminant as any of the possibilities passed.
-    /// If so, reads this token from the lexer. Otherwise, does nothing and returns an error. Same
-    /// as `expect_token`, but allows for more than one possibility.
+    /// Same as `expect_token`, but also accepts `Token::EOF`. If it does find EOF, doesn't
+    /// consume it.
+    fn expect_token_or_eof(&mut self, expected: Token) -> MonkeyResult<()> {
+        if mem::discriminant(&self.peek_token) == mem::discriminant(&expected) {
+            self.read_token()?;
+            Ok(())            
+        } else if self.peek_token == Token::EOF {
+            Ok(())
+        } else {
+            Err(parser_err(
+                self.position,
+                ParserError::UnexpectedToken(expected, self.peek_token.clone())
+            ))
+        }
+    }
+
+    /// Same as `expect_token`, but allows for more than one possibility.
     fn expect_token_multiple(&mut self, possibilities: &'static [Token]) -> MonkeyResult<()> {
         let found = possibilities
             .iter()
@@ -102,9 +116,7 @@ impl Parser {
         }
     }
 
-    /// Checks if `self.peek_token` has the same discriminant as the token passed. If so, reads
-    /// this token from the lexer. Otherwise, if `self.peek_token` is not the expected token,
-    /// does nothing.
+    /// Same as `expect_token`, but if it doesn't find the expected token, just does nothing.
     fn consume_optional_token(&mut self, expected: Token) -> MonkeyResult<()> {
         if mem::discriminant(&self.peek_token) == mem::discriminant(&expected) {
             self.read_token()?;
@@ -148,9 +160,7 @@ impl Parser {
 
             // At this point, self.current_token is the first token in the expression
             let value = self.parse_expression(Precedence::Lowest)?;
-            if self.peek_token != Token::EOF {
-                self.expect_token(Token::Semicolon)?;
-            }
+            self.expect_token_or_eof(Token::Semicolon)?;
             Ok((identifier, value))
         } else {
             Err(parser_err(
@@ -177,9 +187,7 @@ impl Parser {
             self.read_token()?; // Read first token from the expression
             self.parse_expression(Precedence::Lowest)?
         };
-        if self.peek_token != Token::EOF {
-            self.expect_token(Token::Semicolon)?;
-        }
+        self.expect_token_or_eof(Token::Semicolon)?;
         Ok(return_value)
     }
 
@@ -200,11 +208,9 @@ impl Parser {
             _ => {
                 // If we are at the end of a block (peek token is "}") or at the end of the program
                 // (peek token is EOF), the semicolon is also optional
-                if self.peek_token == Token::CloseCurlyBrace || self.peek_token == Token::EOF {
-                    self.consume_optional_token(Token::Semicolon)?
-                } else {
+                if self.peek_token != Token::CloseCurlyBrace && self.peek_token != Token::EOF {
                     self.expect_token(Token::Semicolon)?
-                }                
+                }
             }
         }
         Ok(exp)

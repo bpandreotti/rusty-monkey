@@ -1,6 +1,7 @@
 use crate::object::*;
 use crate::token::Token;
 
+use colored::*;
 use std::fmt;
 use std::io;
 
@@ -19,10 +20,10 @@ impl fmt::Display for MonkeyError {
         writeln!(f, "At line {}, column {}:", self.position.0, self.position.1)?;
         write!(f, "    ")?; // Indentation
         match &self.error {
-            ErrorType::Io(e) => write!(f, "IO error: {}", e),
-            ErrorType::Lexer(e) => write!(f, "Lexer error: {}", e.message()),
-            ErrorType::Parser(e) => write!(f, "Parser error: {}", e.message()),
-            ErrorType::Runtime(e) => write!(f, "Runtime error: {}", e.message()),
+            ErrorType::Io(e) => write!(f, "{} {}", "IO error:".red().bold(), e),
+            ErrorType::Lexer(e) => write!(f, "{} {}", "Lexer error:".red().bold(), e.message()),
+            ErrorType::Parser(e) => write!(f, "{} {}", "Parser error:".red().bold(), e.message()),
+            ErrorType::Runtime(e) => write!(f, "{} {}", "Runtime error:".red().bold(), e.message()),
         }
     }
 }
