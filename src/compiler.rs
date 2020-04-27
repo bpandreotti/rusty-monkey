@@ -11,7 +11,7 @@ struct Compiler {
 impl Compiler {
     fn new() -> Compiler {
         Compiler {
-            instructions: Vec::new(),
+            instructions: Instructions(Vec::new()),
             constants: Vec::new(),
         }
     }
@@ -42,6 +42,7 @@ mod tests {
         pars.parse_program().unwrap()
     }
 
+    // @TODO: Also compare constants
     fn assert_compile(input: &str, expected: Instructions) {
         let program = parse(input);
         let comp = Compiler::new();
@@ -51,9 +52,9 @@ mod tests {
 
     #[test]
     fn test_integer_arithmetic() {
-        assert_compile("1 + 2", vec![
+        assert_compile("1 + 2", Instructions([
             make(OpCode::OpConstant, &[0]),
             make(OpCode::OpConstant, &[1]),
-        ].concat())
+        ].concat()))
     }
 }
