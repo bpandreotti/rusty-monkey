@@ -235,7 +235,6 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
-    // @TODO: Add tests for lexer position
     use super::*;
     use crate::token::Token;
 

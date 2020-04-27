@@ -20,7 +20,7 @@ fn main() -> Result<(), MonkeyError> {
             eprintln!("{}", e);
         }
     } else {
-        repl::fancy().start()?;
+        repl::start()?;
     }
     Ok(())
 }

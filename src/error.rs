@@ -69,7 +69,6 @@ pub enum ErrorType {
     Runtime(RuntimeError),
 }
 
-// @TODO: Maybe merge LexerError and Parser Error?
 #[derive(Debug, PartialEq)]
 pub enum LexerError {
     UnexpectedEOF,
