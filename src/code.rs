@@ -42,6 +42,7 @@ impl OpCode {
 
     pub fn from_byte(byte: u8) -> OpCode {
         // @TODO: Write a macro to automatically implement this
+        // @PERFORMANCE: mem::transmute would be faster, but horribly unsafe
         match byte {
             0 => OpCode::OpConstant,
             _ => panic!("byte does not represent valid opcode")
@@ -64,7 +65,7 @@ pub fn make(op: OpCode, operands: &[usize]) -> Box<[u8]> {
 }
 
 pub fn read_operands(op: OpCode, instructions: &[u8]) -> (Vec<usize>, usize) {
-    // Maybe taking a &mut &[u8] would be faster?
+    // @PERFORMANCE: Maybe taking a &mut &[u8] would be faster?
     let mut operands = Vec::with_capacity(op.operand_widths().len());
     let mut offset = 0;
     for width in op.operand_widths() {

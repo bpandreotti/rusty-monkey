@@ -10,6 +10,7 @@ mod object;
 mod parser;
 mod repl;
 mod token;
+mod vm;
 
 use error::MonkeyError;
 use std::fs::File;
