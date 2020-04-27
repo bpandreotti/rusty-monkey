@@ -1,13 +1,15 @@
 mod ast;
 mod builtins;
+mod code;
+mod compiler;
 mod environment;
+mod error;
 mod eval;
 mod lexer;
 mod object;
 mod parser;
 mod repl;
 mod token;
-mod error;
 
 use error::MonkeyError;
 use std::fs::File;
