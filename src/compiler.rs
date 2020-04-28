@@ -49,7 +49,11 @@ impl Compiler {
 
     fn compile_statement(&mut self, statement: NodeStatement) -> Result<(), MonkeyError> {
         match statement.statement {
-            Statement::ExpressionStatement(exp) => self.compile_expression(*exp),
+            Statement::ExpressionStatement(exp) => {
+                self.compile_expression(*exp)?;
+                self.emit(OpCode::OpPop, &[]);
+                Ok(())
+            }
             _ => todo!(),
         }
     }
@@ -83,10 +87,21 @@ mod tests {
 
     #[test]
     fn test_integer_arithmetic() {
-        test_utils::assert_compile("1 + 2", Instructions([
-            make(OpCode::OpConstant, &[0]),
-            make(OpCode::OpConstant, &[1]),
-            make(OpCode::OpAdd, &[]),
-        ].concat()))
+        test_utils::assert_compile("1 + 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpAdd, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("1; 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpPop, &[]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
     }
 }

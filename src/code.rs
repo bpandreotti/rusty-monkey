@@ -3,7 +3,7 @@ use crate::object::Object;
 use std::convert::TryInto;
 use std::fmt;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq)]
 pub struct Instructions(pub Vec<u8>);
 
 impl fmt::Display for Instructions {
@@ -23,6 +23,12 @@ impl fmt::Display for Instructions {
     }    
 }
 
+impl fmt::Debug for Instructions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Instructions:\n{}", self)
+    }    
+}
+
 pub struct Bytecode {
     pub instructions: Instructions,
     pub constants: Vec<Object>,
@@ -32,6 +38,7 @@ pub struct Bytecode {
 pub enum OpCode {
     OpConstant,
     OpAdd,
+    OpPop,
 }
 
 impl OpCode {
@@ -39,6 +46,7 @@ impl OpCode {
         match self {
             OpCode::OpConstant => &[2],
             OpCode::OpAdd => &[],
+            OpCode::OpPop => &[],
         }
     }
 
@@ -48,6 +56,7 @@ impl OpCode {
         match byte {
             0 => OpCode::OpConstant,
             1 => OpCode::OpAdd,
+            2 => OpCode::OpPop,
             _ => panic!("byte does not represent valid opcode")
         }
     }

@@ -10,14 +10,14 @@ const STACK_SIZE: usize = 2048;
 pub struct VM {
     constants: Vec<Object>,
     instructions: Instructions,
-    stack: [Object; STACK_SIZE],
+    stack: [Object; STACK_SIZE], // @PERFORMANCE: Maybe using a Vec here would be fine
     sp: usize,
 }
 
 impl VM {
     pub fn new(bytecode: Bytecode) -> VM {
         // Since `Object` does not implement `Copy`, we can't just initialize an array of objects
-        // like we would normally. In this case, I would like to be ably to just do
+        // like we would normally. In this case, I would like to be able to just do
         // "[Object::Nil; STACK_SIZE]". Instead, I have to do this unsafe witchcraft.
         // Safety: We're creating an unitialized array of `MaybeUninit`, and this type doesn't need
         // any initialization, so this is safe.
@@ -38,7 +38,7 @@ impl VM {
         }
     }
 
-    pub  fn run(&mut self) -> Result<(), MonkeyError> {
+    pub fn run(&mut self) -> Result<(), MonkeyError> {
         let mut pc = 0;
         while pc < self.instructions.0.len() {
             let op = OpCode::from_byte(self.instructions.0[pc]);
@@ -62,6 +62,7 @@ impl VM {
                     let result = Object::Integer(right + left);
                     self.push(result)?;
                 }
+                OpCode::OpPop => { self.pop()?; },
                 _ => todo!(),
             }
             pc += 1;
@@ -74,6 +75,14 @@ impl VM {
             None
         } else {
             Some(&self.stack[self.sp - 1])
+        }
+    }
+
+    pub fn last_popped(&self) -> &Object {
+        if self.sp >= STACK_SIZE {
+            panic!("stack overflow"); // @TODO: Add proper errors
+        } else {
+            &self.stack[self.sp]
         }
     }
 
@@ -108,6 +117,6 @@ mod tests {
         let bytecode = test_utils::compile(parsed).expect("Compiler erorr during test");
         let mut vm = VM::new(bytecode);
         vm.run().unwrap();
-        test_utils::assert_object_integer(5, vm.stack_top().unwrap());
+        test_utils::assert_object_integer(5, vm.last_popped());
     }
 }
