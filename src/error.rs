@@ -17,13 +17,17 @@ impl std::error::Error for MonkeyError {}
 
 impl fmt::Display for MonkeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let ErrorType::Io(e) = &self.error {
+            // There's no point in printing the line and column nubmers for IO errors
+            return write!(f, "{} {}", "IO error:".red().bold(), e)
+        }
         writeln!(f, "At line {}, column {}:", self.position.0, self.position.1)?;
         write!(f, "    ")?; // Indentation
         match &self.error {
-            ErrorType::Io(e) => write!(f, "{} {}", "IO error:".red().bold(), e),
             ErrorType::Lexer(e) => write!(f, "{} {}", "Lexer error:".red().bold(), e.message()),
             ErrorType::Parser(e) => write!(f, "{} {}", "Parser error:".red().bold(), e.message()),
             ErrorType::Runtime(e) => write!(f, "{} {}", "Runtime error:".red().bold(), e.message()),
+            _ => unreachable!() // IO errors have already been handled in the special case above
         }
     }
 }

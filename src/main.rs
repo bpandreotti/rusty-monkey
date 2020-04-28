@@ -19,12 +19,14 @@ use std::io::BufReader;
 
 fn main() -> Result<(), MonkeyError> {
     let mut args = std::env::args();
-    if let Some(path) = args.nth(1) {
-        if let Err(e) = run_program_file(path) {
-            eprintln!("{}", e);
+    match args.nth(1).as_deref() {
+        Some("-c") | Some("c") | None => repl::start(true).unwrap(),
+        Some("-i") | Some("i") => repl::start(false).unwrap(),
+        Some(path) => {
+            if let Err(e) = run_program_file(path.into()) {
+                eprintln!("{}", e);
+            }
         }
-    } else {
-        repl::start()?;
     }
     Ok(())
 }

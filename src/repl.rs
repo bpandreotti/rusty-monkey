@@ -1,9 +1,11 @@
+use crate::compiler;
 use crate::environment::*;
 use crate::error::MonkeyResult;
 use crate::eval;
 use crate::lexer::Lexer;
 use crate::object;
 use crate::parser::Parser;
+use crate::vm;
 
 use colored::*;
 use std::borrow::Cow;
@@ -82,8 +84,9 @@ impl Highlighter for ReplHelper {
     }
 }
 
-pub fn start() -> Result<(), std::io::Error> {
+pub fn start(compiled: bool) -> Result<(), std::io::Error> {
     eprintln!("Now with an even fancier REPL!");
+    eprintln!("(running using {})", if compiled { "compiler and VM" } else { "interpreter" });
     let mut rl = rustyline::Editor::<ReplHelper>::new();
     rl.set_helper(Some(ReplHelper {}));
     
@@ -99,7 +102,7 @@ pub fn start() -> Result<(), std::io::Error> {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                match run_line(line, &env) {
+                match run_line(line, &env, compiled) {
                     Ok(values) => for v in values {
                         println!("{}", v);
                     }
@@ -125,12 +128,21 @@ pub fn start() -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn run_line(line: String, env: &EnvHandle) -> MonkeyResult<Vec<object::Object>> {
+fn run_line(line: String, env: &EnvHandle, compile: bool) -> MonkeyResult<Vec<object::Object>> {
     let lexer = Lexer::from_string(line)?;
     let mut parser = Parser::new(lexer)?;
     let mut results = Vec::new();
     for statement in parser.parse_program()? {
-        results.push(eval::eval_statement(&statement, &env)?);
+        let value = if compile {
+            let mut comp = compiler::Compiler::new();
+            comp.compile_program(vec![statement])?;
+            let mut vm = vm::VM::new(comp.bytecode());
+            vm.run()?;
+            vm.stack_top().unwrap().clone() // @TODO: Add error handling here
+        } else {
+            eval::eval_statement(&statement, &env)?
+        };
+        results.push(value);
     }
     Ok(results)
 }

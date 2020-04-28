@@ -7,7 +7,7 @@ use std::mem;
 
 const STACK_SIZE: usize = 2048;
 
-struct VM {
+pub struct VM {
     constants: Vec<Object>,
     instructions: Instructions,
     stack: [Object; STACK_SIZE],
@@ -38,7 +38,7 @@ impl VM {
         }
     }
 
-    fn run(&mut self) -> Result<(), MonkeyError> {
+    pub  fn run(&mut self) -> Result<(), MonkeyError> {
         let mut pc = 0;
         while pc < self.instructions.0.len() {
             let op = OpCode::from_byte(self.instructions.0[pc]);
@@ -100,9 +100,6 @@ impl VM {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::*;
-    use crate::lexer::Lexer;
-    use crate::parser::Parser;
     use crate::test_utils;
 
     #[test]
