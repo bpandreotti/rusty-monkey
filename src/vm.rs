@@ -1,4 +1,3 @@
-// @TODO: Add tests for this module
 use crate::object::*;
 use crate::code::*;
 use crate::compiler;
@@ -47,15 +46,30 @@ impl VM {
                 OpCode::OpConstant => {
                     let constant_index = read_u16(&self.instructions.0[pc + 1..]) as usize;
                     pc += 2;
-                    self.push(self.constants[constant_index].clone());
+                    self.push(self.constants[constant_index].clone())?;
                 }
+                OpCode::OpAdd => {
+                    let right = self.pop()?;
+                    let right = match right {
+                        Object::Integer(i) => *i,
+                        _ => panic!("type error"),
+                    };
+                    let left = self.pop()?;
+                    let left = match left {
+                        Object::Integer(i) => *i,
+                        _ => panic!("type error"),
+                    };
+                    let result = Object::Integer(right + left);
+                    self.push(result)?;
+                }
+                _ => todo!(),
             }
             pc += 1;
         }
         Ok(())
     }
 
-    fn stack_top(&self) -> Option<&Object> {
+    pub fn stack_top(&self) -> Option<&Object> {
         if self.sp == 0 {
             None
         } else {
@@ -71,5 +85,50 @@ impl VM {
             self.sp += 1;
             Ok(())
         }
+    }
+
+    fn pop(&mut self) -> Result<&Object, MonkeyError> {
+        if self.sp == 0 {
+            panic!("stack underflow");
+        } else {
+            self.sp -= 1;
+            Ok(&self.stack[self.sp])
+        }
+    }
+}
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+    use crate::ast::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
+    fn parse(program: &str) -> Vec<NodeStatement> {
+        let lex = Lexer::from_string(program.into()).unwrap();
+        let mut parser = Parser::new(lex).unwrap();
+        parser.parse_program().unwrap()
+    }
+
+    fn compile(program: Vec<NodeStatement>) -> Bytecode {
+        let mut comp = compiler::Compiler::new();
+        comp.compile_program(program).unwrap();
+        comp.bytecode()
+    }
+
+    fn assert_integer(expected: i64, got: &Object) {
+        match got {
+            Object::Integer(i) => assert_eq!(*i, expected),
+            _ => panic!("Wrong object type"),
+        }
+    }
+
+    #[test]
+    fn test_integer_arithmetic() {
+        let bytecode = compile(parse("2 + 3"));
+        let mut vm = VM::new(bytecode);
+        vm.run().unwrap();
+        assert_integer(5, vm.stack_top().unwrap());
     }
 }

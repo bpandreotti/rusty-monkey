@@ -2,21 +2,22 @@ use crate::ast::*;
 use crate::code::*;
 use crate::error::*;
 use crate::object::*;
+use crate::token::Token;
 
-struct Compiler {
+pub struct Compiler {
     instructions: Instructions,
     constants: Vec<Object>,
 }
 
 impl Compiler {
-    fn new() -> Compiler {
+    pub fn new() -> Compiler {
         Compiler {
             instructions: Instructions(Vec::new()),
             constants: Vec::new(),
         }
     }
    
-    fn bytecode(self) -> Bytecode {
+    pub fn bytecode(self) -> Bytecode {
         Bytecode {
             instructions: self.instructions,
             constants: self.constants,
@@ -55,10 +56,13 @@ impl Compiler {
 
     fn compile_expression(&mut self, expression: NodeExpression) -> Result<(), MonkeyError> {
         match expression.expression {
-            Expression::InfixExpression(left, op, right) => {
+            Expression::InfixExpression(left, tk, right) => {
                 self.compile_expression(*left)?;
                 self.compile_expression(*right)?;
-                // @WIP
+                match tk {
+                    Token::Plus => self.emit(OpCode::OpAdd, &[]),
+                    _ => todo!(), // @WIP
+                };
             }
             Expression::IntLiteral(i) => {
                 let obj = Object::Integer(i);
@@ -97,6 +101,7 @@ mod tests {
         assert_compile("1 + 2", Instructions([
             make(OpCode::OpConstant, &[0]),
             make(OpCode::OpConstant, &[1]),
+            make(OpCode::OpAdd, &[]),
         ].concat()))
     }
 }

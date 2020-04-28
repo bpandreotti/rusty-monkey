@@ -31,12 +31,14 @@ pub struct Bytecode {
 #[derive(Debug, Clone, Copy)]
 pub enum OpCode {
     OpConstant,
+    OpAdd,
 }
 
 impl OpCode {
     pub fn operand_widths(&self) -> &'static [usize] {
         match self {
             OpCode::OpConstant => &[2],
+            OpCode::OpAdd => &[],
         }
     }
 
@@ -45,6 +47,7 @@ impl OpCode {
         // @PERFORMANCE: mem::transmute would be faster, but horribly unsafe
         match byte {
             0 => OpCode::OpConstant,
+            1 => OpCode::OpAdd,
             _ => panic!("byte does not represent valid opcode")
         }
     }
@@ -92,19 +95,20 @@ mod tests {
     #[test]
     fn test_make() {
         assert_eq!(&[0, 255, 254], &*make(OpCode::OpConstant, &[65534]));
+        assert_eq!(&[1], &*make(OpCode::OpAdd, &[]));
     }
 
     #[test]
     fn test_instruction_printing() {
         let input = Instructions([
-            make(OpCode::OpConstant, &[1]),
+            make(OpCode::OpAdd, &[]),
             make(OpCode::OpConstant, &[2]),
             make(OpCode::OpConstant, &[65535]),
         ].concat());
         let expected = "\
-        0000 OpConstant 1\n\
-        0003 OpConstant 2\n\
-        0006 OpConstant 65535\n\
+        0000 OpAdd\n\
+        0001 OpConstant 2\n\
+        0004 OpConstant 65535\n\
         ";
         assert_eq!(expected, format!("{}", input));
     }
