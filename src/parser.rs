@@ -614,26 +614,7 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::lexer::Lexer;
-
-    fn assert_parse(input: &str, expected: &[&str]) {
-        let lex = Lexer::from_string(input.into()).unwrap();
-        let mut pars = Parser::new(lex).unwrap();
-        let output = pars.parse_program().expect("Parser error during test");
-        assert_eq!(output.len(), expected.len());
-
-        for i in 0..output.len() {
-            assert_eq!(format!("{:?}", output[i]), expected[i]);
-        }
-    }
-
-    fn assert_parse_fails(input: &str) {
-        let lex = Lexer::from_string(input.into()).unwrap();
-        let mut pars = Parser::new(lex).unwrap();
-        let output = pars.parse_program();
-        assert!(output.is_err());
-    }
+    use crate::test_utils;
 
     #[test]
     fn test_literals() {
@@ -671,28 +652,28 @@ mod tests {
             "ExpressionStatement(FunctionLiteral { parameters: [\"x\", \"y\", \"z\"], body: \
             [Return(Identifier(\"x\"))] })",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
         
         // Testing parser failures:
         // Arrays
-        assert_parse_fails("[a, b");
-        assert_parse_fails("[nil,]");
-        assert_parse_fails("[,true]");
+        test_utils::assert_parse_fails("[a, b");
+        test_utils::assert_parse_fails("[nil,]");
+        test_utils::assert_parse_fails("[,true]");
 
         // Hashes
-        assert_parse_fails("#{ a: b,");
-        assert_parse_fails("#{ a: b, c: d, }");
-        assert_parse_fails("#{ a: b c: d }");
-        assert_parse_fails("#{ a: }");
-        assert_parse_fails("#{ a }");
+        test_utils::assert_parse_fails("#{ a: b,");
+        test_utils::assert_parse_fails("#{ a: b, c: d, }");
+        test_utils::assert_parse_fails("#{ a: b c: d }");
+        test_utils::assert_parse_fails("#{ a: }");
+        test_utils::assert_parse_fails("#{ a }");
 
         // Functions
-        assert_parse_fails("fn() {");
-        assert_parse_fails("fn( {}");
-        assert_parse_fails("fn(x, y,) {}");
-        assert_parse_fails("fn(,) {}");
-        assert_parse_fails("fn {}");
-        assert_parse_fails("fn()");
+        test_utils::assert_parse_fails("fn() {");
+        test_utils::assert_parse_fails("fn( {}");
+        test_utils::assert_parse_fails("fn(x, y,) {}");
+        test_utils::assert_parse_fails("fn(,) {}");
+        test_utils::assert_parse_fails("fn {}");
+        test_utils::assert_parse_fails("fn()");
     }
 
     #[test]
@@ -708,11 +689,11 @@ mod tests {
             [\"x\"], body: [ExpressionStatement(Identifier(\"x\"))] }, arguments: \
             [IntLiteral(5)] })",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("foo(x, y,)");
-        assert_parse_fails("foo(");
-        assert_parse_fails("foo(x y)");
+        test_utils::assert_parse_fails("foo(x, y,)");
+        test_utils::assert_parse_fails("foo(");
+        test_utils::assert_parse_fails("foo(x y)");
     }
 
     #[test]
@@ -725,30 +706,30 @@ mod tests {
             "ExpressionStatement(IndexExpression(Identifier(\"a\"), IntLiteral(0)))",
             "ExpressionStatement(IndexExpression(ArrayLiteral([Nil]), IntLiteral(0)))",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("array[]");
-        assert_parse_fails("array[i");
-        assert_parse_fails("array[only, one, index, man]");
+        test_utils::assert_parse_fails("array[]");
+        test_utils::assert_parse_fails("array[i");
+        test_utils::assert_parse_fails("array[only, one, index, man]");
     }
 
     #[test]
     fn test_let_statements() {
-        assert_parse(
+        test_utils::assert_parse(
             "let a = 1;",
             &["Let((\"a\", IntLiteral(1)))"],
         );
-        assert_parse_fails("let 2 = 3;");
-        assert_parse_fails("let foo whatever 3;");
-        assert_parse_fails("let bar = ;");
-        assert_parse_fails("let baz;");
+        test_utils::assert_parse_fails("let 2 = 3;");
+        test_utils::assert_parse_fails("let foo whatever 3;");
+        test_utils::assert_parse_fails("let bar = ;");
+        test_utils::assert_parse_fails("let baz;");
     }
 
     #[test]
     fn test_return_statements() {
         // Not much to test here, to be honest
-        assert_parse("return 0;", &["Return(IntLiteral(0))"]);
-        assert_parse("return;", &["Return(Nil)"]);
+        test_utils::assert_parse("return 0;", &["Return(IntLiteral(0))"]);
+        test_utils::assert_parse("return;", &["Return(Nil)"]);
     }
 
     #[test]
@@ -760,10 +741,10 @@ mod tests {
             "ExpressionStatement(PrefixExpression(Minus, PrefixExpression(Minus, PrefixExpression(\
             Bang, PrefixExpression(Bang, PrefixExpression(Minus, Identifier(\"foo\")))))))",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("!;");
-        assert_parse_fails("-");
+        test_utils::assert_parse_fails("!;");
+        test_utils::assert_parse_fails("-");
     }
 
     #[test]
@@ -777,11 +758,11 @@ mod tests {
             GreaterEq, IntLiteral(2)), Equals, InfixExpression(IntLiteral(2), LessThan, \
             IntLiteral(3))), NotEquals, Boolean(true)))",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("1 + 2 -");
-        assert_parse_fails("1 == + 2");
-        assert_parse_fails("> 1 + 2");
+        test_utils::assert_parse_fails("1 + 2 -");
+        test_utils::assert_parse_fails("1 == + 2");
+        test_utils::assert_parse_fails("> 1 + 2");
     }
 
     #[test]
@@ -804,11 +785,11 @@ mod tests {
             [ExpressionStatement(IfExpression { condition: Nil, consequence: [], alternative: [] \
             })] })"
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("if true");
-        assert_parse_fails("if { return 1; }");
-        assert_parse_fails("if true {} else");
+        test_utils::assert_parse_fails("if true");
+        test_utils::assert_parse_fails("if { return 1; }");
+        test_utils::assert_parse_fails("if true {} else");
     }
 
     #[test]
@@ -820,11 +801,11 @@ mod tests {
             "ExpressionStatement(InfixExpression(IntLiteral(1), Plus, InfixExpression(\
             IntLiteral(1), Plus, InfixExpression(IntLiteral(1), Plus, IntLiteral(1)))))",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("(1 + 1");
-        assert_parse_fails("1 + 1)");
-        assert_parse_fails(")(");
+        test_utils::assert_parse_fails("(1 + 1");
+        test_utils::assert_parse_fails("1 + 1)");
+        test_utils::assert_parse_fails(")(");
     }
 
     #[test]
@@ -840,9 +821,9 @@ mod tests {
             "ExpressionStatement(BlockExpression([Return(IntLiteral(0))]))",
             "ExpressionStatement(BlockExpression([]))",
         ];
-        assert_parse(input, &expected);
+        test_utils::assert_parse(input, &expected);
 
-        assert_parse_fails("{ return 0");
+        test_utils::assert_parse_fails("{ return 0");
     }
 
 }

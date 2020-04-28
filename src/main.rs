@@ -11,6 +11,7 @@ mod parser;
 mod repl;
 mod token;
 mod vm;
+mod test_utils;
 
 use error::MonkeyError;
 use std::fs::File;

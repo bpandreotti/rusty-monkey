@@ -237,35 +237,11 @@ impl Lexer {
 mod tests {
     use super::*;
     use crate::token::Token;
+    use crate::test_utils;
 
     // Shortcut to create a `Token::Identifier` from a string literal
     macro_rules! iden {
         ($x:expr) => { Token::Identifier($x.into()) }
-    }
-
-    fn assert_lex(input: &str, expected: &[Token]) {
-        let mut lex = Lexer::from_string(input.into()).unwrap();
-        for ex in expected {
-            let got = lex.next_token().expect("Lexer error during test");
-            assert_eq!(ex, &got);
-        }
-    }
-
-    fn assert_lexer_error(input: &str, expected_error: LexerError) {
-        let mut lex = Lexer::from_string(input.into()).unwrap();
-        loop {
-            match lex.next_token() {
-                Ok(Token::EOF) => panic!("No lexer errors encountered"),
-                Err(e) => {
-                    match e.error {
-                        ErrorType::Lexer(got) => assert_eq!(expected_error, got),
-                        _ => panic!("Wrong error type")
-                    }
-                    return;
-                }
-                _ => continue,
-            }
-        }
     }
 
     #[test]
@@ -285,7 +261,7 @@ mod tests {
             iden!("यूनिकोड"),
             Token::EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
 
         // Test keywords
         let input = "fn let true false if else return nil";
@@ -300,7 +276,7 @@ mod tests {
             Token::Nil,
             Token::EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -315,7 +291,7 @@ mod tests {
             iden!("_1_000_000"),
             Token::EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -332,7 +308,7 @@ mod tests {
             Token::Str("whitespace\n            inside strings".into()),
             Token::EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -355,7 +331,7 @@ mod tests {
             Token::GreaterEq,
             Token::EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -375,7 +351,7 @@ mod tests {
             Token::CloseCurlyBrace,
             Token::EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -388,7 +364,7 @@ mod tests {
             baz
         ";
         let expected = [iden!("foo"), iden!("baz"), Token::EOF];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -526,7 +502,7 @@ mod tests {
             Semicolon,
             EOF,
         ];
-        assert_lex(input, &expected);
+        test_utils::assert_lex(input, &expected);
     }
 
     #[test]
@@ -555,15 +531,15 @@ mod tests {
 
     #[test]
     fn test_lexer_errors() {
-        assert_lexer_error(
+        test_utils::assert_lexer_error(
             r#" "some string that doesn't end "#,
             LexerError::UnexpectedEOF
         );
-        assert_lexer_error(
+        test_utils::assert_lexer_error(
             r#" "i don't know this guy: \w" "#,
             LexerError::UnknownEscapeSequence('w')
         );
-        assert_lexer_error(
+        test_utils::assert_lexer_error(
             r#" "whats up with this weird symbol:" & "#,
             LexerError::IllegalChar('&')
         );

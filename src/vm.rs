@@ -98,37 +98,19 @@ impl VM {
 }
 
 #[cfg(test)]
-
 mod tests {
     use super::*;
     use crate::ast::*;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
-
-    fn parse(program: &str) -> Vec<NodeStatement> {
-        let lex = Lexer::from_string(program.into()).unwrap();
-        let mut parser = Parser::new(lex).unwrap();
-        parser.parse_program().unwrap()
-    }
-
-    fn compile(program: Vec<NodeStatement>) -> Bytecode {
-        let mut comp = compiler::Compiler::new();
-        comp.compile_program(program).unwrap();
-        comp.bytecode()
-    }
-
-    fn assert_integer(expected: i64, got: &Object) {
-        match got {
-            Object::Integer(i) => assert_eq!(*i, expected),
-            _ => panic!("Wrong object type"),
-        }
-    }
+    use crate::test_utils;
 
     #[test]
     fn test_integer_arithmetic() {
-        let bytecode = compile(parse("2 + 3"));
+        let parsed = test_utils::parse("2 + 3").expect("Paser error during test");
+        let bytecode = test_utils::compile(parsed).expect("Compiler erorr during test");
         let mut vm = VM::new(bytecode);
         vm.run().unwrap();
-        assert_integer(5, vm.stack_top().unwrap());
+        test_utils::assert_object_integer(5, vm.stack_top().unwrap());
     }
 }

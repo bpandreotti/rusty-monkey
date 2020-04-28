@@ -268,45 +268,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
 mod tests {
     use super::*;
     use Object::*;
-
-    fn assert_eval(input: &str, expected: &[Object]) {
-        use crate::lexer::Lexer;
-        use crate::parser::Parser;
-
-        // Parse program into vector of statements
-        let parsed = Parser::new(Lexer::from_string(input.into()).unwrap())
-            .unwrap()
-            .parse_program()
-            .expect("Parser error during test");
-
-        assert_eq!(parsed.len(), expected.len());
-        let env = Rc::new(RefCell::new(Environment::empty()));
-
-        // Eval program statements and compare with expected
-        for (st, exp) in parsed.into_iter().zip(expected) {
-            let got = eval_statement(&st, &env).expect("Runtime error during test");
-            assert_eq!(format!("{}", got), format!("{}", exp));
-        }
-    }
-
-    fn assert_runtime_error(input: &str, expected_errors: &[&str]) {
-        use crate::lexer::Lexer;
-        use crate::parser::Parser;
-
-        // Parse program into vector of statements
-        let parsed = Parser::new(Lexer::from_string(input.into()).unwrap())
-            .unwrap()
-            .parse_program()
-            .expect("Parser error during test");
-        let env = Rc::new(RefCell::new(Environment::empty()));
-        for (statement, &error) in parsed.iter().zip(expected_errors) {
-            let got = eval_statement(statement, &env).expect_err("No runtime error encountered");
-            match got.error {
-                ErrorType::Runtime(e) => assert_eq!(e.message(), error),
-                _ => panic!("Wrong error type"),
-            }
-        }
-    }
+    use crate::test_utils;    
 
     #[test]
     fn test_int_expressions() {
@@ -342,7 +304,7 @@ mod tests {
             Integer(0),
             Integer(-4),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -385,7 +347,7 @@ mod tests {
             Boolean(false),
             Boolean(true),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -404,7 +366,7 @@ mod tests {
             Object::Str("f".into()),
             Object::Str("r".into()),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -437,7 +399,7 @@ mod tests {
             Nil,
             Integer(3),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -460,7 +422,7 @@ mod tests {
             Integer(10),
             Integer(20),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -487,7 +449,7 @@ mod tests {
             fn() { 81; return; 100; }();
         "#;
         let expected = [Integer(0), Integer(1), Integer(2), Integer(3), Integer(4), Nil];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
     #[test]
     fn test_return_in_expressions() {
@@ -571,7 +533,7 @@ mod tests {
             Integer(10),
             Integer(11),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -584,7 +546,7 @@ mod tests {
             { let a = 5; { let a = 0; } a }
         ";
         let expected = [Integer(5), Integer(25), Integer(5), Integer(15), Integer(5)];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -607,7 +569,7 @@ mod tests {
             Nil,
             Integer(2),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -653,7 +615,7 @@ mod tests {
             Object::Integer(4),
             Object::Str("indeed".into()),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -729,7 +691,7 @@ mod tests {
             Nil,
             Integer(289),
         ];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -752,7 +714,7 @@ mod tests {
             foo()();
         ";
         let expected = [Nil, Nil, Integer(8), Nil, Integer(3)];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -790,7 +752,7 @@ mod tests {
             fact(6);
         ";
         let expected = [Nil, Integer(50), Nil, Integer(233), Nil, Nil, Integer(1440)];
-        assert_eval(input, &expected);
+        test_utils::assert_eval(input, &expected);
     }
 
     #[test]
@@ -810,7 +772,7 @@ mod tests {
             "`return` outside of function context",
             "wrong number of arguments: expected 0 arguments but 2 were given",
         ];
-        assert_runtime_error(input, &expected);
+        test_utils::assert_runtime_error(input, &expected);
 
         // Prefix expressions
         let input = "
@@ -823,7 +785,7 @@ mod tests {
             "unsuported operand type for prefix operator `-`: 'function'",
             "unsuported operand type for prefix operator `-`: 'nil'",
         ];
-        assert_runtime_error(input, &expected);
+        test_utils::assert_runtime_error(input, &expected);
 
         // Infix expressions
         let input = "
@@ -842,7 +804,7 @@ mod tests {
             "unsuported operand types for infix operator `>`: 'bool' and 'nil'",
             "unsuported operand types for infix operator `*`: 'function' and 'function'",
         ];
-        assert_runtime_error(input, &expected);
+        test_utils::assert_runtime_error(input, &expected);
 
         // Arithmetic errors
         let input = "
@@ -855,6 +817,6 @@ mod tests {
             "division or modulo by zero",
             "negative exponent",
         ];
-        assert_runtime_error(input, &expected);
+        test_utils::assert_runtime_error(input, &expected);
     }
 }
