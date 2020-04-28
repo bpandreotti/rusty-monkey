@@ -39,30 +39,20 @@ impl VM {
     }
 
     pub fn run(&mut self) -> Result<(), MonkeyError> {
+        use OpCode::*;
         let mut pc = 0;
         while pc < self.instructions.0.len() {
             let op = OpCode::from_byte(self.instructions.0[pc]);
             match op {
-                OpCode::OpConstant => {
+                OpConstant => {
                     let constant_index = read_u16(&self.instructions.0[pc + 1..]) as usize;
                     pc += 2;
                     self.push(self.constants[constant_index].clone())?;
                 }
-                OpCode::OpAdd => {
-                    let right = self.pop()?;
-                    let right = match right {
-                        Object::Integer(i) => *i,
-                        _ => panic!("type error"),
-                    };
-                    let left = self.pop()?;
-                    let left = match left {
-                        Object::Integer(i) => *i,
-                        _ => panic!("type error"),
-                    };
-                    let result = Object::Integer(right + left);
-                    self.push(result)?;
-                }
-                OpCode::OpPop => { self.pop()?; },
+                OpPop => { self.pop()?; },
+                OpAdd | OpSub | OpMul | OpDiv | OpExponent | OpModulo => {
+                    self.execute_binary_operation(op)?
+                }                    
                 _ => todo!(),
             }
             pc += 1;
@@ -103,6 +93,41 @@ impl VM {
             self.sp -= 1;
             Ok(&self.stack[self.sp])
         }
+    }
+
+    fn execute_binary_operation(&mut self, op: OpCode) -> Result<(), MonkeyError> {
+        // I'm matching on right and then on left (instead of matching both at the same time)
+        // because, to please the borrow checker, I need to copy over the value inside the right
+        // object before I get the left object with `self.pop`. I could just clone the whole
+        // objects, but that would be much slower. Maybe there's a simpler way to do this.
+        let right = self.pop()?;
+        match right {
+            &Object::Integer(r) => {
+                let left = self.pop()?;
+                if let &Object::Integer(l) = left {
+                    return self.execute_integer_operation(op, l, r)
+                } else {
+                    panic!("type error") // @TODO: Add proper errors
+                }
+            },
+            _ => todo!(),
+        }        
+    }
+
+    fn execute_integer_operation(&mut self, op: OpCode, left: i64, right: i64)  -> Result<(), MonkeyError>  {
+        let result = match op {
+            OpCode::OpAdd => (left + right),
+            OpCode::OpSub => (left - right),
+            OpCode::OpMul => (left * right),
+            OpCode::OpDiv => (left / right),
+            // @TODO: Make sure exponent is positive
+            OpCode::OpExponent => (left.pow(right as u32)),
+            OpCode::OpModulo => (left % right),
+            _ => unreachable!(),
+        };
+        let result = Object::Integer(result);
+        self.push(result)?;
+        Ok(())
     }
 }
 

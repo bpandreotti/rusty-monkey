@@ -37,16 +37,26 @@ pub struct Bytecode {
 #[derive(Debug, Clone, Copy)]
 pub enum OpCode {
     OpConstant,
-    OpAdd,
     OpPop,
+    OpAdd,
+    OpSub,
+    OpMul,
+    OpDiv,
+    OpExponent,
+    OpModulo,
 }
 
 impl OpCode {
     pub fn operand_widths(&self) -> &'static [usize] {
         match self {
             OpCode::OpConstant => &[2],
-            OpCode::OpAdd => &[],
             OpCode::OpPop => &[],
+            OpCode::OpAdd => &[],
+            OpCode::OpSub => &[],
+            OpCode::OpMul => &[],
+            OpCode::OpDiv => &[],
+            OpCode::OpExponent => &[],
+            OpCode::OpModulo => &[],
         }
     }
 
@@ -55,8 +65,13 @@ impl OpCode {
         // @PERFORMANCE: mem::transmute would be faster, but horribly unsafe
         match byte {
             0 => OpCode::OpConstant,
-            1 => OpCode::OpAdd,
-            2 => OpCode::OpPop,
+            1 => OpCode::OpPop,
+            2 => OpCode::OpAdd,
+            3 => OpCode::OpSub,
+            4 => OpCode::OpMul,
+            5 => OpCode::OpDiv,
+            6 => OpCode::OpExponent,
+            7 => OpCode::OpModulo,
             _ => panic!("byte does not represent valid opcode")
         }
     }
@@ -103,8 +118,8 @@ mod tests {
 
     #[test]
     fn test_make() {
-        assert_eq!(&[0, 255, 254], &*make(OpCode::OpConstant, &[65534]));
-        assert_eq!(&[1], &*make(OpCode::OpAdd, &[]));
+        assert_eq!(&[OpCode::OpConstant as u8, 255, 254], &*make(OpCode::OpConstant, &[65534]));
+        assert_eq!(&[OpCode::OpAdd as u8], &*make(OpCode::OpAdd, &[]));
     }
 
     #[test]

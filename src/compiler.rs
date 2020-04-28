@@ -65,6 +65,11 @@ impl Compiler {
                 self.compile_expression(*right)?;
                 match tk {
                     Token::Plus => self.emit(OpCode::OpAdd, &[]),
+                    Token::Minus => self.emit(OpCode::OpSub, &[]),
+                    Token::Asterisk => self.emit(OpCode::OpMul, &[]),
+                    Token::Slash => self.emit(OpCode::OpDiv, &[]),
+                    Token::Exponent => self.emit(OpCode::OpExponent, &[]),
+                    Token::Modulo => self.emit(OpCode::OpModulo, &[]),
                     _ => todo!(), // @WIP
                 };
             }
@@ -100,6 +105,14 @@ mod tests {
                 make(OpCode::OpConstant, &[0]),
                 make(OpCode::OpPop, &[]),
                 make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("1 * 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpMul, &[]),
                 make(OpCode::OpPop, &[]),
             ].concat())
         );
