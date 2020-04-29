@@ -50,6 +50,8 @@ pub enum OpCode {
     OpNotEquals,
     OpGreaterThan,
     OpGreaterEq, // @TODO: Maybe this should be implemented in terms of "!" and "<"?
+    OpPrefixMinus,
+    OpPrefixNot,
 }
 
 impl OpCode {
@@ -69,6 +71,8 @@ impl OpCode {
             OpCode::OpNotEquals => &[],
             OpCode::OpGreaterThan => &[],
             OpCode::OpGreaterEq => &[],
+            OpCode::OpPrefixMinus => &[],
+            OpCode::OpPrefixNot => &[],
         }
     }
 
@@ -90,6 +94,8 @@ impl OpCode {
             0x0b => OpCode::OpNotEquals,
             0x0c => OpCode::OpGreaterThan,
             0x0d => OpCode::OpGreaterEq,
+            0x0e => OpCode::OpPrefixMinus,
+            0x0f => OpCode::OpPrefixNot,
             _ => panic!("byte does not represent valid opcode")
         }
     }

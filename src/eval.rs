@@ -142,8 +142,8 @@ fn eval_infix_expression(
 ) -> Result<Object, RuntimeError> {
     match (left, operator, right) {
         // Equality operators
-        (l, Token::Equals, r) => Ok(Object::Boolean(are_equal(l, r))),
-        (l, Token::NotEquals, r) => Ok(Object::Boolean(!are_equal(l, r))),
+        (l, Token::Equals, r) => Ok(Object::Boolean(Object::are_equal(l, r).unwrap_or(false))),
+        (l, Token::NotEquals, r) => Ok(Object::Boolean(!Object::are_equal(l, r).unwrap_or(false))),
         // int `anything` int
         (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
         // String concatenation
@@ -181,17 +181,6 @@ fn eval_int_infix_expression(
         Token::GreaterEq => Ok(Object::Boolean(left >= right)),
 
         _ => unreachable!(),
-    }
-}
-
-fn are_equal(left: &Object, right: &Object) -> bool {
-    // Function object, array, and hash comparisons are unsupported, and always return false
-    match (left, right) {
-        (Object::Integer(l), Object::Integer(r)) => l == r,
-        (Object::Boolean(l), Object::Boolean(r)) => l == r,
-        (Object::Str(l), Object::Str(r)) => l == r,
-        (Object::Nil, Object::Nil) => true,
-        _ => false,
     }
 }
 

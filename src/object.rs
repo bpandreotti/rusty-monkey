@@ -82,6 +82,17 @@ impl Object {
             _ => true,
         }
     }
+
+    pub fn are_equal(left: &Object, right: &Object) -> Option<bool> {
+        // Function object, array, and hash comparisons are unsupported
+        match (left, right) {
+            (Object::Integer(l), Object::Integer(r)) => Some(l == r),
+            (Object::Boolean(l), Object::Boolean(r)) => Some(l == r),
+            (Object::Str(l), Object::Str(r)) => Some(l == r),
+            (Object::Nil, Object::Nil) => Some(true),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

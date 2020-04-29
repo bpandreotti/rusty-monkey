@@ -9,6 +9,7 @@ use crate::lexer::*;
 use crate::object::*;
 use crate::parser::*;
 use crate::token::*;
+use crate::vm::*;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -109,4 +110,13 @@ pub fn assert_compile(input: &str, expected: Instructions) {
     let mut comp = Compiler::new();
     comp.compile_program(program).expect("Compiler error during test");
     assert_eq!(expected, comp.bytecode().instructions)
+}
+
+pub fn assert_vm_runs(input: &[&str], expected: &[Object]) {
+    for (program, exp) in input.iter().zip(expected) {
+        let bytecode = parse_and_compile(program).expect("Parser or compiler error during test");
+        let mut vm = VM::new(bytecode);
+        vm.run().unwrap();
+        assert!(Object::are_equal(exp, vm.last_popped()).unwrap());
+    }
 }

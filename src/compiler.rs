@@ -83,6 +83,14 @@ impl Compiler {
                     _ => unreachable!(),
                 };
             }
+            Expression::PrefixExpression(tk, right) => {
+                self.compile_expression(*right)?;
+                match tk {
+                    Minus => self.emit(OpCode::OpPrefixMinus, &[]),
+                    Bang => self.emit(OpCode::OpPrefixNot, &[]),
+                    _ => unreachable!(),
+                };
+            }
             Expression::IntLiteral(i) => {
                 let obj = Object::Integer(i);
                 let constant_index = self.add_constant(obj);
@@ -125,6 +133,13 @@ mod tests {
                 make(OpCode::OpConstant, &[0]),
                 make(OpCode::OpConstant, &[1]),
                 make(OpCode::OpMul, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("-1",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpPrefixMinus, &[]),
                 make(OpCode::OpPop, &[]),
             ].concat())
         );
@@ -173,6 +188,13 @@ mod tests {
                 make(OpCode::OpConstant, &[0]),
                 make(OpCode::OpConstant, &[1]),
                 make(OpCode::OpNotEquals, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("!true",
+            Instructions([
+                make(OpCode::OpTrue, &[]),
+                make(OpCode::OpPrefixNot, &[]),
                 make(OpCode::OpPop, &[]),
             ].concat())
         );

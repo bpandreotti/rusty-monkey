@@ -62,7 +62,7 @@ impl VM {
                 | OpGreaterEq => self.execute_binary_operation(op)?,
                 OpTrue => self.push(Object::Boolean(true))?,
                 OpFalse => self.push(Object::Boolean(false))?,
-                _ => todo!(),
+                OpPrefixMinus | OpPrefixNot => self.execute_prefix_operation(op)?,
             }
             pc += 1;
         }
@@ -164,6 +164,25 @@ impl VM {
         self.push(result)?;
         Ok(())
     }
+
+    fn execute_prefix_operation(&mut self, op: OpCode) -> Result<(), MonkeyError> {
+        let right = self.pop()?;
+        match op {
+            OpCode::OpPrefixMinus => {
+                if let &Object::Integer(i) = right {
+                    self.push(Object::Integer(-i))?;
+                } else {
+                    panic!("type error") // @TODO: Add proper errors
+                }
+            }
+            OpCode::OpPrefixNot => {
+                let value = !right.is_truthy();
+                self.push(Object::Boolean(value))?;
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -173,37 +192,33 @@ mod tests {
 
     #[test]
     fn test_integer_arithmetic() {
-        let bytecode = test_utils::parse_and_compile("2 + 3")
-            .expect("Parser or compiler erorr during test");
-        let mut vm = VM::new(bytecode);
-        vm.run().unwrap();
-        test_utils::assert_object_integer(5, vm.last_popped());
+        let input = [
+            "2 + 3",
+            "-3",
+        ];
+        let expected = [
+            Object::Integer(5),
+            Object::Integer(-3),
+        ];
+        test_utils::assert_vm_runs(&input, &expected);
     }
     
     #[test]
     fn test_boolean_expressions() {
-        let bytecode = test_utils::parse_and_compile("true")
-            .expect("Parser or compiler erorr during test");
-        let mut vm = VM::new(bytecode);
-        vm.run().unwrap();
-        test_utils::assert_object_bool(true, vm.last_popped());
-
-        let bytecode = test_utils::parse_and_compile("false")
-            .expect("Parser or compiler erorr during test");
-        let mut vm = VM::new(bytecode);
-        vm.run().unwrap();
-        test_utils::assert_object_bool(false, vm.last_popped());
-
-        let bytecode = test_utils::parse_and_compile("2 >= 3 == true")
-            .expect("Parser or compiler erorr during test");
-        let mut vm = VM::new(bytecode);
-        vm.run().unwrap();
-        test_utils::assert_object_bool(false, vm.last_popped());
-
-        let bytecode = test_utils::parse_and_compile("false != 1 < 2")
-            .expect("Parser or compiler erorr during test");
-        let mut vm = VM::new(bytecode);
-        vm.run().unwrap();
-        test_utils::assert_object_bool(true, vm.last_popped());
+        let input = [
+            "true",
+            "false",
+            "2 >= 3 == true",
+            "false != 1 < 2",
+            "!false",
+        ];
+        let expected = [
+            Object::Boolean(true),
+            Object::Boolean(false),
+            Object::Boolean(false),
+            Object::Boolean(true),
+            Object::Boolean(true),
+        ];
+        test_utils::assert_vm_runs(&input, &expected);
     }
 }
