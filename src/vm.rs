@@ -63,6 +63,18 @@ impl VM {
                 OpTrue => self.push(Object::Boolean(true))?,
                 OpFalse => self.push(Object::Boolean(false))?,
                 OpPrefixMinus | OpPrefixNot => self.execute_prefix_operation(op)?,
+                OpCode::OpJumpNotTruthy => {
+                    let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
+                    pc += 2;
+
+                    if !Object::is_truthy(self.pop()?) {
+                        pc = pos - 1;
+                    }
+                }
+                OpJump => {
+                    let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
+                    pc = pos - 1;
+                }
                 _ => todo!()
             }
             pc += 1;
@@ -219,6 +231,25 @@ mod tests {
             Object::Boolean(false),
             Object::Boolean(true),
             Object::Boolean(true),
+        ];
+        test_utils::assert_vm_runs(&input, &expected);
+    }
+
+    #[test]
+    fn test_conditional_expressions() {
+        let input = [
+            "if true { 10 }",
+            "if true { 10 } else { 20 }",
+            "if false { 10 } else { 20 }",
+            "if 1 > 2 { 10 } else { 20 }",
+            "if 1 > 2 { 10 }", // @TODO: This one still breaks. We need nil!
+        ];
+        let expected = [
+            Object::Integer(10),
+            Object::Integer(10),
+            Object::Integer(20),
+            Object::Integer(20),
+            Object::Nil,
         ];
         test_utils::assert_vm_runs(&input, &expected);
     }
