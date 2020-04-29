@@ -135,7 +135,7 @@ fn run_line(line: String, env: &EnvHandle, compile: bool) -> MonkeyResult<Vec<ob
     for statement in parser.parse_program()? {
         let value = if compile {
             let mut comp = compiler::Compiler::new();
-            comp.compile_program(vec![statement])?;
+            comp.compile_block(vec![statement])?;
             let mut vm = vm::VM::new(comp.bytecode());
             vm.run()?;
             vm.last_popped().clone()

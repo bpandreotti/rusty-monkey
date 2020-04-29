@@ -63,6 +63,7 @@ impl VM {
                 OpTrue => self.push(Object::Boolean(true))?,
                 OpFalse => self.push(Object::Boolean(false))?,
                 OpPrefixMinus | OpPrefixNot => self.execute_prefix_operation(op)?,
+                _ => todo!()
             }
             pc += 1;
         }

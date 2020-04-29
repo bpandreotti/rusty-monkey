@@ -52,6 +52,8 @@ pub enum OpCode {
     OpGreaterEq, // @TODO: Maybe this should be implemented in terms of "!" and "<"?
     OpPrefixMinus,
     OpPrefixNot,
+    OpJumpNotTruthy,
+    OpJump,
 }
 
 impl OpCode {
@@ -73,6 +75,8 @@ impl OpCode {
             OpCode::OpGreaterEq => &[],
             OpCode::OpPrefixMinus => &[],
             OpCode::OpPrefixNot => &[],
+            OpCode::OpJumpNotTruthy => &[2],
+            OpCode::OpJump => &[2],
         }
     }
 
@@ -96,9 +100,18 @@ impl OpCode {
             0x0d => OpCode::OpGreaterEq,
             0x0e => OpCode::OpPrefixMinus,
             0x0f => OpCode::OpPrefixNot,
+            0x10 => OpCode::OpJumpNotTruthy,
+            0x11 => OpCode::OpJump,
             _ => panic!("byte does not represent valid opcode")
         }
     }
+}
+
+#[macro_export]
+macro_rules! make {
+    ($op:expr $(,$rand:expr )*) => {
+        crate::code::make($op, &[ $( $rand ),*])
+    };
 }
 
 pub fn make(op: OpCode, operands: &[usize]) -> Box<[u8]> {
@@ -142,16 +155,16 @@ mod tests {
 
     #[test]
     fn test_make() {
-        assert_eq!(&[OpCode::OpConstant as u8, 255, 254], &*make(OpCode::OpConstant, &[65534]));
-        assert_eq!(&[OpCode::OpAdd as u8], &*make(OpCode::OpAdd, &[]));
+        assert_eq!(&[OpCode::OpConstant as u8, 255, 254], &*make!(OpCode::OpConstant, 65534));
+        assert_eq!(&[OpCode::OpAdd as u8], &*make!(OpCode::OpAdd));
     }
 
     #[test]
     fn test_instruction_printing() {
         let input = Instructions([
-            make(OpCode::OpAdd, &[]),
-            make(OpCode::OpConstant, &[2]),
-            make(OpCode::OpConstant, &[65535]),
+            make!(OpCode::OpAdd),
+            make!(OpCode::OpConstant, 2),
+            make!(OpCode::OpConstant, 65535),
         ].concat());
         let expected = "\
         0000 OpAdd\n\

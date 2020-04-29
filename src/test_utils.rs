@@ -23,7 +23,7 @@ pub fn parse(program: &str) -> Result<Vec<NodeStatement>, MonkeyError> {
 pub fn parse_and_compile(program: &str) -> Result<Bytecode, MonkeyError> {
     let parsed = parse(program)?;
     let mut comp = Compiler::new();
-    comp.compile_program(parsed)?;
+    comp.compile_block(parsed)?;
     Ok(comp.bytecode())
 }
 
@@ -108,7 +108,7 @@ pub fn assert_runtime_error(input: &str, expected_errors: &[&str]) {
 pub fn assert_compile(input: &str, expected: Instructions) {
     let program = parse(input).expect("Parser error during test");
     let mut comp = Compiler::new();
-    comp.compile_program(program).expect("Compiler error during test");
+    comp.compile_block(program).expect("Compiler error during test");
     assert_eq!(expected, comp.bytecode().instructions)
 }
 
@@ -117,6 +117,6 @@ pub fn assert_vm_runs(input: &[&str], expected: &[Object]) {
         let bytecode = parse_and_compile(program).expect("Parser or compiler error during test");
         let mut vm = VM::new(bytecode);
         vm.run().unwrap();
-        assert!(Object::are_equal(exp, vm.last_popped()).unwrap());
+        assert!(Object::are_equal(exp, vm.stack_top().unwrap()).unwrap());
     }
 }

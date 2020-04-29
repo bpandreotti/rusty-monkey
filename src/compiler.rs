@@ -40,18 +40,33 @@ impl Compiler {
         new_instruction_pos
     }
 
-    pub fn compile_program(&mut self, program: Vec<NodeStatement>) -> Result<(), MonkeyError> {
-        for statement in program {
-            self.compile_statement(statement)?;
+    fn change_operand(&mut self, op_pos: usize, new_operand: usize) {
+        let op_code = OpCode::from_byte(self.instructions.0[op_pos]);
+        let new_instruction = make!(op_code, new_operand);
+        self.replace_instruction(op_pos, &new_instruction)
+    }
+
+    fn replace_instruction(&mut self, pos: usize, new_instruction: &[u8]) {
+        for (i, b) in new_instruction.iter().enumerate() {
+            self.instructions.0[pos + i] = *b;
+        }
+    }
+
+    pub fn compile_block(&mut self, block: Vec<NodeStatement>) -> Result<(), MonkeyError> {
+        let last_index = block.len() - 1;
+        for (i, statement) in block.into_iter().enumerate() {
+            self.compile_statement(statement, i == last_index)?;
         }
         Ok(())
     }
 
-    fn compile_statement(&mut self, statement: NodeStatement) -> Result<(), MonkeyError> {
+    fn compile_statement(&mut self, statement: NodeStatement, last: bool) -> Result<(), MonkeyError> {
         match statement.statement {
             Statement::ExpressionStatement(exp) => {
                 self.compile_expression(*exp)?;
-                self.emit(OpCode::OpPop, &[]);
+                if !last {
+                    self.emit(OpCode::OpPop, &[]);
+                }
                 Ok(())
             }
             _ => todo!(),
@@ -98,6 +113,30 @@ impl Compiler {
             },
             Expression::Boolean(true) => { self.emit(OpCode::OpTrue, &[]); }
             Expression::Boolean(false) => { self.emit(OpCode::OpFalse, &[]); }
+            Expression::IfExpression { condition, consequence, alternative } => {
+                self.compile_expression(*condition)?;
+                let jump_not_truthy_pos = self.emit(OpCode::OpJumpNotTruthy, &[9999]);
+                self.compile_block(consequence)?;
+
+                if alternative.is_empty() {
+                    // If there is no alternative we just have to modify the OpJumpNotTruthy
+                    // instruction emitted earlier to point to after the consequence
+                    let after_consequence = self.instructions.0.len();
+                    self.change_operand(jump_not_truthy_pos, after_consequence);
+                } else {
+                    // If there *is* an alternative, we emit an OpJump instruction as part of the 
+                    // consequence, and store its position
+                    let jump_pos = self.emit(OpCode::OpJump, &[9999]);
+                    // Then modify the OpJumpNotTruthy instruction 
+                    let after_consequence = self.instructions.0.len();
+                    self.change_operand(jump_not_truthy_pos, after_consequence);
+                    // Compile the alternative
+                    self.compile_block(alternative)?;
+                    let after_alternative = self.instructions.0.len();
+                    // And finally modify the OpJump instruction to point after the alternative
+                    self.change_operand(jump_pos, after_alternative);
+                }
+            } 
             _ => todo!(),
         }
         Ok(())
@@ -114,33 +153,29 @@ mod tests {
     fn test_integer_arithmetic() {
         test_utils::assert_compile("1 + 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpAdd, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpAdd),
             ].concat())
         );
         test_utils::assert_compile("1; 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpPop, &[]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpPop),
+                make!(OpCode::OpConstant, 1),
             ].concat())
         );
         test_utils::assert_compile("1 * 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpMul, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpMul),
             ].concat())
         );
         test_utils::assert_compile("-1",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpPrefixMinus, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpPrefixMinus),
             ].concat())
         );
     }
@@ -149,53 +184,70 @@ mod tests {
     fn test_boolean_expressions() {
         test_utils::assert_compile("true",
             Instructions([
-                make(OpCode::OpTrue, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpTrue),
             ].concat())
         );
         test_utils::assert_compile("false",
             Instructions([
-                make(OpCode::OpFalse, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpFalse),
             ].concat())
         );
         test_utils::assert_compile("1 > 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpGreaterThan, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpGreaterThan),
             ].concat())
         );
         test_utils::assert_compile("1 < 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpGreaterThan, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpGreaterThan),
             ].concat())
         );
         test_utils::assert_compile("1 == 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpEquals, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpEquals),
             ].concat())
         );
         test_utils::assert_compile("1 != 2",
             Instructions([
-                make(OpCode::OpConstant, &[0]),
-                make(OpCode::OpConstant, &[1]),
-                make(OpCode::OpNotEquals, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpNotEquals),
             ].concat())
         );
         test_utils::assert_compile("!true",
             Instructions([
-                make(OpCode::OpTrue, &[]),
-                make(OpCode::OpPrefixNot, &[]),
-                make(OpCode::OpPop, &[]),
+                make!(OpCode::OpTrue),
+                make!(OpCode::OpPrefixNot),
+            ].concat())
+        );
+    }
+
+    #[test]
+    fn test_conditionals() {
+        test_utils::assert_compile("if true { 10 }; 3333", 
+            Instructions([
+                make!(OpCode::OpTrue),
+                make!(OpCode::OpJumpNotTruthy, 7),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpPop),
+                make!(OpCode::OpConstant, 1),
+            ].concat())
+        );
+        test_utils::assert_compile("if true { 10 } else { 20 }; 3333", 
+            Instructions([
+                make!(OpCode::OpTrue),
+                make!(OpCode::OpJumpNotTruthy, 10),
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpJump, 13),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpPop),
+                make!(OpCode::OpConstant, 2),
             ].concat())
         );
     }

@@ -1,6 +1,6 @@
 mod ast;
 mod builtins;
-mod code;
+#[macro_use] mod code;
 mod compiler;
 mod environment;
 mod error;
