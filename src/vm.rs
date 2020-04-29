@@ -67,6 +67,7 @@ impl VM {
                     let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
                     pc += 2;
 
+                    // @PERFORMANCE: Using `is_truthy` might be slow
                     if !Object::is_truthy(self.pop()?) {
                         pc = pos - 1;
                     }
@@ -75,6 +76,7 @@ impl VM {
                     let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
                     pc = pos - 1;
                 }
+                OpNil => self.push(Object::Nil)?,
                 _ => todo!()
             }
             pc += 1;
@@ -189,6 +191,7 @@ impl VM {
                 }
             }
             OpCode::OpPrefixNot => {
+                // @PERFORMANCE: Using `is_truthy` might be slow
                 let value = !right.is_truthy();
                 self.push(Object::Boolean(value))?;
             }
@@ -224,11 +227,13 @@ mod tests {
             "2 >= 3 == true",
             "false != 1 < 2",
             "!false",
+            "!(if false { 3 })"
         ];
         let expected = [
             Object::Boolean(true),
             Object::Boolean(false),
             Object::Boolean(false),
+            Object::Boolean(true),
             Object::Boolean(true),
             Object::Boolean(true),
         ];
@@ -242,7 +247,7 @@ mod tests {
             "if true { 10 } else { 20 }",
             "if false { 10 } else { 20 }",
             "if 1 > 2 { 10 } else { 20 }",
-            "if 1 > 2 { 10 }", // @TODO: This one still breaks. We need nil!
+            "if 1 > 2 { 10 }",
         ];
         let expected = [
             Object::Integer(10),

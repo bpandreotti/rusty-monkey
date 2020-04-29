@@ -54,6 +54,7 @@ pub enum OpCode {
     OpPrefixNot,
     OpJumpNotTruthy,
     OpJump,
+    OpNil,
 }
 
 impl OpCode {
@@ -77,6 +78,7 @@ impl OpCode {
             OpCode::OpPrefixNot => &[],
             OpCode::OpJumpNotTruthy => &[2],
             OpCode::OpJump => &[2],
+            OpCode::OpNil => &[],
         }
     }
 
@@ -102,6 +104,7 @@ impl OpCode {
             0x0f => OpCode::OpPrefixNot,
             0x10 => OpCode::OpJumpNotTruthy,
             0x11 => OpCode::OpJump,
+            0x12 => OpCode::OpNil,
             _ => panic!("byte does not represent valid opcode")
         }
     }

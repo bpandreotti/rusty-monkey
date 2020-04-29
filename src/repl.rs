@@ -138,7 +138,7 @@ fn run_line(line: String, env: &EnvHandle, compile: bool) -> MonkeyResult<Vec<ob
             comp.compile_block(vec![statement])?;
             let mut vm = vm::VM::new(comp.bytecode());
             vm.run()?;
-            vm.last_popped().clone()
+            vm.stack_top().unwrap().clone()
         } else {
             eval::eval_statement(&statement, &env)?
         };

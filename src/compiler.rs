@@ -53,9 +53,14 @@ impl Compiler {
     }
 
     pub fn compile_block(&mut self, block: Vec<NodeStatement>) -> Result<(), MonkeyError> {
-        let last_index = block.len() - 1;
-        for (i, statement) in block.into_iter().enumerate() {
-            self.compile_statement(statement, i == last_index)?;
+        if block.is_empty() {
+            // Empty blocks evaluate to `nil`
+            self.emit(OpCode::OpNil, &[]);
+        } else {
+            let last_index = block.len() - 1;
+            for (i, statement) in block.into_iter().enumerate() {
+                self.compile_statement(statement, i == last_index)?;
+            }
         }
         Ok(())
     }
@@ -113,29 +118,27 @@ impl Compiler {
             },
             Expression::Boolean(true) => { self.emit(OpCode::OpTrue, &[]); }
             Expression::Boolean(false) => { self.emit(OpCode::OpFalse, &[]); }
+            Expression::Nil => { self.emit(OpCode::OpNil, &[]); }
             Expression::IfExpression { condition, consequence, alternative } => {
                 self.compile_expression(*condition)?;
+                // Emit an OpJumpNotTruthy instruction that will eventually point to after the
+                // consequence
                 let jump_not_truthy_pos = self.emit(OpCode::OpJumpNotTruthy, &[9999]);
+
                 self.compile_block(consequence)?;
 
-                if alternative.is_empty() {
-                    // If there is no alternative we just have to modify the OpJumpNotTruthy
-                    // instruction emitted earlier to point to after the consequence
-                    let after_consequence = self.instructions.0.len();
-                    self.change_operand(jump_not_truthy_pos, after_consequence);
-                } else {
-                    // If there *is* an alternative, we emit an OpJump instruction as part of the 
-                    // consequence, and store its position
-                    let jump_pos = self.emit(OpCode::OpJump, &[9999]);
-                    // Then modify the OpJumpNotTruthy instruction 
-                    let after_consequence = self.instructions.0.len();
-                    self.change_operand(jump_not_truthy_pos, after_consequence);
-                    // Compile the alternative
-                    self.compile_block(alternative)?;
-                    let after_alternative = self.instructions.0.len();
-                    // And finally modify the OpJump instruction to point after the alternative
-                    self.change_operand(jump_pos, after_alternative);
-                }
+                // Emit an OpJump instruction that will eventually point to after the alternative
+                let jump_pos = self.emit(OpCode::OpJump, &[9999]);
+
+                // Modify the OpJumpNotTruthy instruction
+                let after_consequence = self.instructions.0.len();
+                self.change_operand(jump_not_truthy_pos, after_consequence);
+
+                self.compile_block(alternative)?;
+
+                // Modify the OpJump instruction
+                let after_alternative = self.instructions.0.len();
+                self.change_operand(jump_pos, after_alternative);
             } 
             _ => todo!(),
         }
@@ -233,8 +236,10 @@ mod tests {
         test_utils::assert_compile("if true { 10 }; 3333", 
             Instructions([
                 make!(OpCode::OpTrue),
-                make!(OpCode::OpJumpNotTruthy, 7),
+                make!(OpCode::OpJumpNotTruthy, 10),
                 make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpJump, 11),
+                make!(OpCode::OpNil),
                 make!(OpCode::OpPop),
                 make!(OpCode::OpConstant, 1),
             ].concat())
