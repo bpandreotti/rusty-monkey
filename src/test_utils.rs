@@ -19,15 +19,23 @@ pub fn parse(program: &str) -> Result<Vec<NodeStatement>, MonkeyError> {
     parser.parse_program()
 }
 
-pub fn compile(program: Vec<NodeStatement>) -> Result<Bytecode, MonkeyError> {
+pub fn parse_and_compile(program: &str) -> Result<Bytecode, MonkeyError> {
+    let parsed = parse(program)?;
     let mut comp = Compiler::new();
-    comp.compile_program(program)?;
+    comp.compile_program(parsed)?;
     Ok(comp.bytecode())
 }
 
 pub fn assert_object_integer(expected: i64, got: &Object) {
     match got {
-        Object::Integer(i) => assert_eq!(*i, expected),
+        Object::Integer(i) => assert_eq!(expected, *i),
+        _ => panic!("Wrong object type"),
+    }
+}
+
+pub fn assert_object_bool(expected: bool, got: &Object) {
+    match got {
+        Object::Boolean(p) => assert_eq!(expected, *p),
         _ => panic!("Wrong object type"),
     }
 }

@@ -44,6 +44,12 @@ pub enum OpCode {
     OpDiv,
     OpExponent,
     OpModulo,
+    OpTrue,
+    OpFalse,
+    OpEquals,
+    OpNotEquals,
+    OpGreaterThan,
+    OpGreaterEq, // @TODO: Maybe this should be implemented in terms of "!" and "<"?
 }
 
 impl OpCode {
@@ -57,6 +63,12 @@ impl OpCode {
             OpCode::OpDiv => &[],
             OpCode::OpExponent => &[],
             OpCode::OpModulo => &[],
+            OpCode::OpTrue => &[],
+            OpCode::OpFalse => &[],
+            OpCode::OpEquals => &[],
+            OpCode::OpNotEquals => &[],
+            OpCode::OpGreaterThan => &[],
+            OpCode::OpGreaterEq => &[],
         }
     }
 
@@ -64,14 +76,20 @@ impl OpCode {
         // @TODO: Write a macro to automatically implement this
         // @PERFORMANCE: mem::transmute would be faster, but horribly unsafe
         match byte {
-            0 => OpCode::OpConstant,
-            1 => OpCode::OpPop,
-            2 => OpCode::OpAdd,
-            3 => OpCode::OpSub,
-            4 => OpCode::OpMul,
-            5 => OpCode::OpDiv,
-            6 => OpCode::OpExponent,
-            7 => OpCode::OpModulo,
+            0x00 => OpCode::OpConstant,
+            0x01 => OpCode::OpPop,
+            0x02 => OpCode::OpAdd,
+            0x03 => OpCode::OpSub,
+            0x04 => OpCode::OpMul,
+            0x05 => OpCode::OpDiv,
+            0x06 => OpCode::OpExponent,
+            0x07 => OpCode::OpModulo,
+            0x08 => OpCode::OpTrue,
+            0x09 => OpCode::OpFalse,
+            0x0a => OpCode::OpEquals,
+            0x0b => OpCode::OpNotEquals,
+            0x0c => OpCode::OpGreaterThan,
+            0x0d => OpCode::OpGreaterEq,
             _ => panic!("byte does not represent valid opcode")
         }
     }

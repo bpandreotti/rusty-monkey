@@ -59,18 +59,28 @@ impl Compiler {
     }
 
     fn compile_expression(&mut self, expression: NodeExpression) -> Result<(), MonkeyError> {
+        use Token::*;
         match expression.expression {
             Expression::InfixExpression(left, tk, right) => {
-                self.compile_expression(*left)?;
-                self.compile_expression(*right)?;
+                if let Token::LessThan | Token::LessEq = tk {
+                    self.compile_expression(*right)?;
+                    self.compile_expression(*left)?;
+                } else {
+                    self.compile_expression(*left)?;
+                    self.compile_expression(*right)?;
+                }
                 match tk {
-                    Token::Plus => self.emit(OpCode::OpAdd, &[]),
-                    Token::Minus => self.emit(OpCode::OpSub, &[]),
-                    Token::Asterisk => self.emit(OpCode::OpMul, &[]),
-                    Token::Slash => self.emit(OpCode::OpDiv, &[]),
-                    Token::Exponent => self.emit(OpCode::OpExponent, &[]),
-                    Token::Modulo => self.emit(OpCode::OpModulo, &[]),
-                    _ => todo!(), // @WIP
+                    Plus => self.emit(OpCode::OpAdd, &[]),
+                    Minus => self.emit(OpCode::OpSub, &[]),
+                    Asterisk => self.emit(OpCode::OpMul, &[]),
+                    Slash => self.emit(OpCode::OpDiv, &[]),
+                    Exponent => self.emit(OpCode::OpExponent, &[]),
+                    Modulo => self.emit(OpCode::OpModulo, &[]),
+                    Equals => self.emit(OpCode::OpEquals, &[]),
+                    NotEquals => self.emit(OpCode::OpNotEquals, &[]),
+                    GreaterThan | LessThan => self.emit(OpCode::OpGreaterThan, &[]),
+                    GreaterEq | LessEq => self.emit(OpCode::OpGreaterEq, &[]),
+                    _ => unreachable!(),
                 };
             }
             Expression::IntLiteral(i) => {
@@ -78,6 +88,8 @@ impl Compiler {
                 let constant_index = self.add_constant(obj);
                 self.emit(OpCode::OpConstant, &[constant_index]);
             },
+            Expression::Boolean(true) => { self.emit(OpCode::OpTrue, &[]); }
+            Expression::Boolean(false) => { self.emit(OpCode::OpFalse, &[]); }
             _ => todo!(),
         }
         Ok(())
@@ -113,6 +125,54 @@ mod tests {
                 make(OpCode::OpConstant, &[0]),
                 make(OpCode::OpConstant, &[1]),
                 make(OpCode::OpMul, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+    }
+
+    #[test]
+    fn test_boolean_expressions() {
+        test_utils::assert_compile("true",
+            Instructions([
+                make(OpCode::OpTrue, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("false",
+            Instructions([
+                make(OpCode::OpFalse, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("1 > 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpGreaterThan, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("1 < 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpGreaterThan, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("1 == 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpEquals, &[]),
+                make(OpCode::OpPop, &[]),
+            ].concat())
+        );
+        test_utils::assert_compile("1 != 2",
+            Instructions([
+                make(OpCode::OpConstant, &[0]),
+                make(OpCode::OpConstant, &[1]),
+                make(OpCode::OpNotEquals, &[]),
                 make(OpCode::OpPop, &[]),
             ].concat())
         );

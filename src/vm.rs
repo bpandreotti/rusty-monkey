@@ -50,9 +50,18 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 OpPop => { self.pop()?; },
-                OpAdd | OpSub | OpMul | OpDiv | OpExponent | OpModulo => {
-                    self.execute_binary_operation(op)?
-                }                    
+                OpAdd
+                | OpSub
+                | OpMul
+                | OpDiv
+                | OpExponent
+                | OpModulo
+                | OpEquals
+                | OpNotEquals
+                | OpGreaterThan
+                | OpGreaterEq => self.execute_binary_operation(op)?,
+                OpTrue => self.push(Object::Boolean(true))?,
+                OpFalse => self.push(Object::Boolean(false))?,
                 _ => todo!(),
             }
             pc += 1;
@@ -110,22 +119,48 @@ impl VM {
                     panic!("type error") // @TODO: Add proper errors
                 }
             },
+            &Object::Boolean(r) => {
+                let left = self.pop()?;
+                if let &Object::Boolean(l) = left {
+                    return self.execute_boolean_operation(op, l, r)
+                } else {
+                    panic!("type error") // @TODO: Add proper errors
+                }
+            }
             _ => todo!(),
         }        
     }
 
-    fn execute_integer_operation(&mut self, op: OpCode, left: i64, right: i64)  -> Result<(), MonkeyError>  {
+    fn execute_integer_operation(&mut self, op: OpCode, left: i64, right: i64) -> Result<(), MonkeyError>  {
         let result = match op {
-            OpCode::OpAdd => (left + right),
-            OpCode::OpSub => (left - right),
-            OpCode::OpMul => (left * right),
-            OpCode::OpDiv => (left / right),
+            // Arithmetic operators
+            OpCode::OpAdd => Object::Integer(left + right),
+            OpCode::OpSub => Object::Integer(left - right),
+            OpCode::OpMul => Object::Integer(left * right),
+            OpCode::OpDiv => Object::Integer(left / right),
             // @TODO: Make sure exponent is positive
-            OpCode::OpExponent => (left.pow(right as u32)),
-            OpCode::OpModulo => (left % right),
+            OpCode::OpExponent => Object::Integer(left.pow(right as u32)),
+            OpCode::OpModulo => Object::Integer(left % right),
+
+            // Comparison operators
+            OpCode::OpEquals => Object::Boolean(left == right),
+            OpCode::OpNotEquals => Object::Boolean(left != right),
+            OpCode::OpGreaterThan => Object::Boolean(left > right),
+            OpCode::OpGreaterEq => Object::Boolean(left >= right),
             _ => unreachable!(),
         };
-        let result = Object::Integer(result);
+        self.push(result)?;
+        Ok(())
+    }
+
+    fn execute_boolean_operation(&mut self, op: OpCode, left: bool, right: bool) -> Result<(), MonkeyError>  {
+        let result = match op {
+            OpCode::OpEquals => Object::Boolean(left == right),
+            OpCode::OpNotEquals => Object::Boolean(left != right),
+            OpCode::OpGreaterThan => Object::Boolean(left > right),
+            OpCode::OpGreaterEq => Object::Boolean(left >= right),
+            _ => panic!("type error"), // @TODO: Add proper errors
+        };
         self.push(result)?;
         Ok(())
     }
@@ -138,10 +173,37 @@ mod tests {
 
     #[test]
     fn test_integer_arithmetic() {
-        let parsed = test_utils::parse("2 + 3").expect("Paser error during test");
-        let bytecode = test_utils::compile(parsed).expect("Compiler erorr during test");
+        let bytecode = test_utils::parse_and_compile("2 + 3")
+            .expect("Parser or compiler erorr during test");
         let mut vm = VM::new(bytecode);
         vm.run().unwrap();
         test_utils::assert_object_integer(5, vm.last_popped());
+    }
+    
+    #[test]
+    fn test_boolean_expressions() {
+        let bytecode = test_utils::parse_and_compile("true")
+            .expect("Parser or compiler erorr during test");
+        let mut vm = VM::new(bytecode);
+        vm.run().unwrap();
+        test_utils::assert_object_bool(true, vm.last_popped());
+
+        let bytecode = test_utils::parse_and_compile("false")
+            .expect("Parser or compiler erorr during test");
+        let mut vm = VM::new(bytecode);
+        vm.run().unwrap();
+        test_utils::assert_object_bool(false, vm.last_popped());
+
+        let bytecode = test_utils::parse_and_compile("2 >= 3 == true")
+            .expect("Parser or compiler erorr during test");
+        let mut vm = VM::new(bytecode);
+        vm.run().unwrap();
+        test_utils::assert_object_bool(false, vm.last_popped());
+
+        let bytecode = test_utils::parse_and_compile("false != 1 < 2")
+            .expect("Parser or compiler erorr during test");
+        let mut vm = VM::new(bytecode);
+        vm.run().unwrap();
+        test_utils::assert_object_bool(true, vm.last_popped());
     }
 }
