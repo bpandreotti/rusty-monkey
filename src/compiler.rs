@@ -2,11 +2,13 @@ use crate::ast::*;
 use crate::code::*;
 use crate::error::*;
 use crate::object::*;
+use crate::symbol_table::*;
 use crate::token::Token;
 
 pub struct Compiler {
     instructions: Instructions,
     constants: Vec<Object>,
+    symbol_table: SymbolTable,
 }
 
 impl Compiler {
@@ -14,9 +16,10 @@ impl Compiler {
         Compiler {
             instructions: Instructions(Vec::new()),
             constants: Vec::new(),
+            symbol_table: SymbolTable::new(),
         }
     }
-   
+
     pub fn bytecode(self) -> Bytecode {
         Bytecode {
             instructions: self.instructions,
@@ -71,6 +74,18 @@ impl Compiler {
                 self.compile_expression(*exp)?;
                 if !last {
                     self.emit(OpCode::OpPop, &[]);
+                }
+                Ok(())
+            }
+            Statement::Let(let_statement) => {
+                let (name, exp) = *let_statement;
+                self.compile_expression(exp)?;
+                let symbol = self.symbol_table.define(name);
+                let index = symbol.index;
+                self.emit(OpCode::OpSetGlobal, &[index]);
+                // If the "let" statement is the last in the block, it evaluates to `nil`
+                if last {
+                    self.emit(OpCode::OpNil, &[]);
                 }
                 Ok(())
             }
@@ -139,7 +154,12 @@ impl Compiler {
                 // Modify the OpJump instruction
                 let after_alternative = self.instructions.0.len();
                 self.change_operand(jump_pos, after_alternative);
-            } 
+            }
+            Expression::Identifier(name) => {
+                // @TODO: Add proper erros
+                let index = self.symbol_table.resolve(&name).unwrap().index;
+                self.emit(OpCode::OpGetGlobal, &[index]);
+            }
             _ => todo!(),
         }
         Ok(())
@@ -233,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_conditionals() {
-        test_utils::assert_compile("if true { 10 }; 3333", 
+        test_utils::assert_compile("if true { 10 }; 3333",
             Instructions([
                 make!(OpCode::OpTrue),
                 make!(OpCode::OpJumpNotTruthy, 10),
@@ -244,7 +264,7 @@ mod tests {
                 make!(OpCode::OpConstant, 1),
             ].concat())
         );
-        test_utils::assert_compile("if true { 10 } else { 20 }; 3333", 
+        test_utils::assert_compile("if true { 10 } else { 20 }; 3333",
             Instructions([
                 make!(OpCode::OpTrue),
                 make!(OpCode::OpJumpNotTruthy, 10),
@@ -253,6 +273,35 @@ mod tests {
                 make!(OpCode::OpConstant, 1),
                 make!(OpCode::OpPop),
                 make!(OpCode::OpConstant, 2),
+            ].concat())
+        );
+    }
+
+    #[test]
+    fn test_global_assignment() {
+        test_utils::assert_compile("let one = 1; let two = 2",
+            Instructions([
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpSetGlobal, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpSetGlobal, 1),
+                make!(OpCode::OpNil),
+            ].concat())
+        );
+        test_utils::assert_compile("let one = 1; one",
+            Instructions([
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpSetGlobal, 0),
+                make!(OpCode::OpGetGlobal, 0),
+            ].concat())
+        );
+        test_utils::assert_compile("let one = 1; let two = one; two",
+            Instructions([
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpSetGlobal, 0),
+                make!(OpCode::OpGetGlobal, 0),
+                make!(OpCode::OpSetGlobal, 1),
+                make!(OpCode::OpGetGlobal, 1),
             ].concat())
         );
     }

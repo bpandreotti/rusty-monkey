@@ -34,6 +34,7 @@ pub struct Bytecode {
     pub constants: Vec<Object>,
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum OpCode {
     OpConstant,
@@ -55,6 +56,8 @@ pub enum OpCode {
     OpJumpNotTruthy,
     OpJump,
     OpNil,
+    OpGetGlobal,
+    OpSetGlobal,
 }
 
 impl OpCode {
@@ -79,6 +82,8 @@ impl OpCode {
             OpCode::OpJumpNotTruthy => &[2],
             OpCode::OpJump => &[2],
             OpCode::OpNil => &[],
+            OpCode::OpGetGlobal => &[2],
+            OpCode::OpSetGlobal => &[2],
         }
     }
 
@@ -105,6 +110,8 @@ impl OpCode {
             0x10 => OpCode::OpJumpNotTruthy,
             0x11 => OpCode::OpJump,
             0x12 => OpCode::OpNil,
+            0x13 => OpCode::OpGetGlobal,
+            0x14 => OpCode::OpSetGlobal,
             _ => panic!("byte does not represent valid opcode")
         }
     }

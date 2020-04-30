@@ -9,9 +9,10 @@ mod lexer;
 mod object;
 mod parser;
 mod repl;
+mod symbol_table;
+mod test_utils;
 mod token;
 mod vm;
-mod test_utils;
 
 use error::MonkeyError;
 use std::fs::File;
