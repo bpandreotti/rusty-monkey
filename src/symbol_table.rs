@@ -11,6 +11,7 @@ pub struct Symbol {
     pub index: usize,
 }
 
+#[derive(Clone)]
 pub struct SymbolTable(HashMap<String, Symbol>);
 
 impl SymbolTable {

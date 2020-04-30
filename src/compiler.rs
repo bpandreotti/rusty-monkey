@@ -7,8 +7,8 @@ use crate::token::Token;
 
 pub struct Compiler {
     instructions: Instructions,
-    constants: Vec<Object>,
-    symbol_table: SymbolTable,
+    pub constants: Vec<Object>,
+    pub symbol_table: SymbolTable,
 }
 
 impl Compiler {
@@ -17,6 +17,14 @@ impl Compiler {
             instructions: Instructions(Vec::new()),
             constants: Vec::new(),
             symbol_table: SymbolTable::new(),
+        }
+    }
+
+    pub fn with_state(constants: Vec<Object>, symbol_table: SymbolTable) -> Compiler {
+        Compiler {
+            instructions: Instructions(Vec::new()),
+            constants,
+            symbol_table,
         }
     }
 

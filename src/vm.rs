@@ -6,18 +6,43 @@ use crate::error::*;
 use std::mem;
 
 const STACK_SIZE: usize = 2048;
-const GLOBALS_SIZE: usize = 65536;
+pub const GLOBALS_SIZE: usize = 65536;
 
 pub struct VM {
     constants: Vec<Object>,
     instructions: Instructions,
     stack: [Object; STACK_SIZE], // @PERFORMANCE: Maybe using a Vec here would be fine
     sp: usize,
-    globals: Box<[Object]>,
+    pub globals: Box<[Object]>,
 }
 
 impl VM {
     pub fn new(bytecode: Bytecode) -> VM {
+        // @PERFORMANCE: Maybe we shouldn't allocate all the memory for the globals upfront.
+        let mut globals = Vec::with_capacity(GLOBALS_SIZE);
+        globals.resize(GLOBALS_SIZE, Object::Nil);
+        let globals = globals.into_boxed_slice();
+
+        VM {
+            constants: bytecode.constants,
+            instructions: bytecode.instructions,
+            stack: VM::initialize_new_stack(),
+            sp: 0,
+            globals,
+        }
+    }
+
+    pub fn with_globals(bytecode: Bytecode, globals: Box<[Object]>) -> VM {
+        VM {
+            constants: bytecode.constants,
+            instructions: bytecode.instructions,
+            stack: VM::initialize_new_stack(),
+            sp: 0,
+            globals,
+        }
+    }
+
+    fn initialize_new_stack() -> [Object; STACK_SIZE] {
         // Since `Object` does not implement `Copy`, we can't just initialize an array of objects
         // like we would normally. In this case, I would like to be able to just do
         // "[Object::Nil; STACK_SIZE]". Instead, I have to do this unsafe witchcraft.
@@ -30,20 +55,7 @@ impl VM {
             *item = mem::MaybeUninit::new(Object::Nil);
         }
         // Safety: Everything is initialized, so we can safely transmute here.
-        let stack = unsafe { mem::transmute::<_, [Object; STACK_SIZE]>(stack) };
-
-        // @PERFORMANCE: Maybe we shouldn't allocate all the memory for the globals upfront.
-        let mut globals = Vec::with_capacity(GLOBALS_SIZE);
-        globals.resize(GLOBALS_SIZE, Object::Nil);
-        let globals = globals.into_boxed_slice();
-
-        VM {
-            constants: bytecode.constants,
-            instructions: bytecode.instructions,
-            stack,
-            sp: 0,            
-            globals,
-        }
+        unsafe { mem::transmute::<_, [Object; STACK_SIZE]>(stack) }
     }
 
     pub fn run(&mut self) -> Result<(), MonkeyError> {
@@ -161,7 +173,7 @@ impl VM {
                 }
             }
             _ => todo!(),
-        }        
+        }
     }
 
     fn execute_integer_operation(&mut self, op: OpCode, left: i64, right: i64) -> Result<(), MonkeyError>  {
@@ -236,7 +248,7 @@ mod tests {
         ];
         test_utils::assert_vm_runs(&input, &expected);
     }
-    
+
     #[test]
     fn test_boolean_expressions() {
         let input = [
@@ -289,6 +301,6 @@ mod tests {
             Object::Integer(3),
             Object::Integer(3),
         ];
-        test_utils::assert_vm_runs(&input, &expected);    
+        test_utils::assert_vm_runs(&input, &expected);
     }
 }
