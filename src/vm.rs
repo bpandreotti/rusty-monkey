@@ -6,12 +6,14 @@ use crate::error::*;
 use std::mem;
 
 const STACK_SIZE: usize = 2048;
+const GLOBALS_SIZE: usize = 65536;
 
 pub struct VM {
     constants: Vec<Object>,
     instructions: Instructions,
     stack: [Object; STACK_SIZE], // @PERFORMANCE: Maybe using a Vec here would be fine
     sp: usize,
+    globals: Box<[Object]>,
 }
 
 impl VM {
@@ -30,11 +32,17 @@ impl VM {
         // Safety: Everything is initialized, so we can safely transmute here.
         let stack = unsafe { mem::transmute::<_, [Object; STACK_SIZE]>(stack) };
 
+        // @PERFORMANCE: Maybe we shouldn't allocate all the memory for the globals upfront.
+        let mut globals = Vec::with_capacity(GLOBALS_SIZE);
+        globals.resize(GLOBALS_SIZE, Object::Nil);
+        let globals = globals.into_boxed_slice();
+
         VM {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
             stack,
-            sp: 0,
+            sp: 0,            
+            globals,
         }
     }
 
@@ -77,6 +85,16 @@ impl VM {
                     pc = pos - 1;
                 }
                 OpNil => self.push(Object::Nil)?,
+                OpSetGlobal => {
+                    let index = read_u16(&self.instructions.0[pc + 1..]) as usize;
+                    pc += 2;
+                    self.globals[index] = self.pop()?.clone();
+                }
+                OpGetGlobal => {
+                    let index = read_u16(&self.instructions.0[pc + 1..]) as usize;
+                    pc += 2;
+                    self.push(self.globals[index].clone())?;
+                }
                 _ => todo!()
             }
             pc += 1;
@@ -257,5 +275,20 @@ mod tests {
             Object::Nil,
         ];
         test_utils::assert_vm_runs(&input, &expected);
+    }
+
+    #[test]
+    fn test_global_assignment() {
+        let input = [
+            "let one = 1; one",
+            "let one = 1; let two = 2; one + two",
+            "let one = 1; let two = one + one; one + two",
+        ];
+        let expected = [
+            Object::Integer(1),
+            Object::Integer(3),
+            Object::Integer(3),
+        ];
+        test_utils::assert_vm_runs(&input, &expected);    
     }
 }
