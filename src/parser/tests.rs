@@ -49,7 +49,6 @@ fn test_literals() {
         [Return(Identifier(\"x\"))] })",
     ];
     assert_parse(input, &expected);
-    
     // Testing parser failures:
     // Arrays
     assert_parse_fails("[a, b");
@@ -111,10 +110,7 @@ fn test_index_expression() {
 
 #[test]
 fn test_let_statements() {
-    assert_parse(
-        "let a = 1;",
-        &["Let((\"a\", IntLiteral(1)))"],
-    );
+    assert_parse("let a = 1;", &["Let((\"a\", IntLiteral(1)))"]);
     assert_parse_fails("let 2 = 3;");
     assert_parse_fails("let foo whatever 3;");
     assert_parse_fails("let bar = ;");
@@ -179,7 +175,7 @@ fn test_if_expressions() {
         [], alternative: [] })",
         "ExpressionStatement(IfExpression { condition: Nil, consequence: [], alternative: \
         [ExpressionStatement(IfExpression { condition: Nil, consequence: [], alternative: [] \
-        })] })"
+        })] })",
     ];
     assert_parse(input, &expected);
 

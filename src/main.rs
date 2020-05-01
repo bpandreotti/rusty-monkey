@@ -4,7 +4,8 @@ mod interpreter;
 mod lexer;
 mod parser;
 mod repl;
-#[cfg(test)] mod test_utils;
+#[cfg(test)]
+mod test_utils;
 mod vm;
 
 use error::MonkeyError;

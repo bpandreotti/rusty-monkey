@@ -1,8 +1,9 @@
 pub mod ast;
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
 use crate::error::*;
-use crate::lexer::{Lexer, token::Token};
+use crate::lexer::{token::Token, Lexer};
 use ast::*;
 
 use std::mem;
@@ -41,7 +42,12 @@ impl Parser {
         let current_token = lexer.next_token()?;
         let position = lexer.token_position;
         let peek_token = lexer.next_token()?;
-        Ok(Parser { lexer, current_token, peek_token, position })
+        Ok(Parser {
+            lexer,
+            current_token,
+            peek_token,
+            position,
+        })
     }
 
     /// Parses the program passed to the lexer. Reads tokens from the lexer until reaching EOF, and
@@ -84,7 +90,7 @@ impl Parser {
         } else {
             Err(parser_err(
                 self.position,
-                ParserError::UnexpectedToken(expected, self.peek_token.clone())
+                ParserError::UnexpectedToken(expected, self.peek_token.clone()),
             ))
         }
     }
@@ -94,13 +100,13 @@ impl Parser {
     fn expect_token_or_eof(&mut self, expected: Token) -> MonkeyResult<()> {
         if mem::discriminant(&self.peek_token) == mem::discriminant(&expected) {
             self.read_token()?;
-            Ok(())            
+            Ok(())
         } else if self.peek_token == Token::EOF {
             Ok(())
         } else {
             Err(parser_err(
                 self.position,
-                ParserError::UnexpectedToken(expected, self.peek_token.clone())
+                ParserError::UnexpectedToken(expected, self.peek_token.clone()),
             ))
         }
     }
@@ -116,7 +122,7 @@ impl Parser {
                 ParserError::UnexpectedTokenMultiple {
                     possibilities,
                     got: self.peek_token.clone(),
-                }
+                },
             ))
         } else {
             self.read_token()?;
@@ -151,7 +157,10 @@ impl Parser {
                 Statement::ExpressionStatement(exp)
             }
         };
-        Ok(NodeStatement { position, statement })
+        Ok(NodeStatement {
+            position,
+            statement,
+        })
     }
 
     /// Parses a "let" statement. Expects an "=" token, followed by an identifier and finally an
@@ -175,7 +184,7 @@ impl Parser {
                 self.position,
                 ParserError::UnexpectedToken(
                     Token::Identifier("".into()),
-                    self.current_token.clone()
+                    self.current_token.clone(),
                 ),
             ))
         }
@@ -189,7 +198,7 @@ impl Parser {
             // In case of no return value, we return nil
             NodeExpression {
                 position: self.position,
-                expression: Expression::Nil
+                expression: Expression::Nil,
             }
         } else {
             self.read_token()?; // Read first token from the expression
@@ -246,10 +255,12 @@ impl Parser {
     fn parse_expression(&mut self, precedence: Precedence) -> MonkeyResult<NodeExpression> {
         let prefix_parse_fn = match Parser::get_prefix_parse_function(&self.current_token) {
             Some(f) => f,
-            None => return Err(parser_err(
-                self.position,
-                ParserError::NoPrefixParseFn(self.current_token.clone()),
-            )),
+            None => {
+                return Err(parser_err(
+                    self.position,
+                    ParserError::NoPrefixParseFn(self.current_token.clone()),
+                ))
+            }
         };
 
         let mut left_expression = prefix_parse_fn(self)?;
@@ -271,7 +282,6 @@ impl Parser {
                 None => unreachable!(),
             }
         }
-        
         Ok(left_expression)
     }
 
@@ -298,7 +308,10 @@ impl Parser {
     /// (like "+" or ">") and a right side expression. Takes an already parsed left side and parses
     /// the right side using the operator's precedence. `self.current_token` must be a valid
     /// operator token. Returns an error if the right side parsing fails.
-    fn parse_infix_expression(&mut self, left_side: Box<NodeExpression>) -> MonkeyResult<NodeExpression> {
+    fn parse_infix_expression(
+        &mut self,
+        left_side: Box<NodeExpression>,
+    ) -> MonkeyResult<NodeExpression> {
         let position = self.position;
         let operator = self.current_token.clone();
         let precedence = Parser::get_precedence(&operator);
@@ -306,7 +319,7 @@ impl Parser {
         let right_side = Box::new(self.parse_expression(precedence)?);
         Ok(NodeExpression {
             position,
-            expression: Expression::InfixExpression(left_side, operator, right_side)
+            expression: Expression::InfixExpression(left_side, operator, right_side),
         })
     }
 
@@ -335,14 +348,13 @@ impl Parser {
         } else {
             Vec::new()
         };
-        
         Ok(NodeExpression {
             position,
             expression: Expression::IfExpression {
                 condition: Box::new(condition),
                 consequence,
                 alternative,
-            }
+            },
         })
     }
 
@@ -358,19 +370,25 @@ impl Parser {
 
         Ok(NodeExpression {
             position,
-            expression: Expression::FunctionLiteral { parameters, body }
+            expression: Expression::FunctionLiteral { parameters, body },
         })
     }
 
     /// Parses a function call expression. The function must be already parsed, and passed as an
     /// expression. Expects a valid list of call arguments. Doesn't check if `self.current_token`
     /// is an "(" token. May return an error if parsing fails.
-    fn parse_call_expression(&mut self, function: Box<NodeExpression>) -> MonkeyResult<NodeExpression> {
+    fn parse_call_expression(
+        &mut self,
+        function: Box<NodeExpression>,
+    ) -> MonkeyResult<NodeExpression> {
         let position = self.position;
         let arguments = self.parse_expression_list(Token::CloseParen)?;
         Ok(NodeExpression {
             position,
-            expression: Expression::CallExpression { function, arguments }
+            expression: Expression::CallExpression {
+                function,
+                arguments,
+            },
         })
     }
 
@@ -456,7 +474,7 @@ impl Parser {
         let value = match &self.current_token {
             Token::True => true,
             Token::False => false,
-            _ => panic!()
+            _ => panic!(),
         };
         Ok(NodeExpression {
             position: self.position,
@@ -469,7 +487,7 @@ impl Parser {
         if self.current_token == Token::Nil {
             Ok(NodeExpression {
                 position: self.position,
-                expression: Expression::Nil
+                expression: Expression::Nil,
             })
         } else {
             panic!()
@@ -481,20 +499,23 @@ impl Parser {
         let elements = self.parse_expression_list(Token::CloseSquareBracket)?;
         Ok(NodeExpression {
             position: self.position,
-            expression: Expression::ArrayLiteral(elements)
+            expression: Expression::ArrayLiteral(elements),
         })
     }
 
     /// Parses a array indexing expression. The array must be already parsed, and passed as an
     /// expression. Expects an expression as the index. Doesn't check if `self.current_token`
     /// is an "[" token. May return an error if parsing fails.
-    fn parse_index_expression(&mut self, left: Box<NodeExpression>) -> MonkeyResult<NodeExpression> {
+    fn parse_index_expression(
+        &mut self,
+        left: Box<NodeExpression>,
+    ) -> MonkeyResult<NodeExpression> {
         self.read_token()?; // Read first token of index expression
         let index = self.parse_expression(Precedence::Lowest)?;
         self.expect_token(Token::CloseSquareBracket)?;
         Ok(NodeExpression {
             position: self.position,
-            expression: Expression::IndexExpression(left, Box::new(index))
+            expression: Expression::IndexExpression(left, Box::new(index)),
         })
     }
 
@@ -506,7 +527,7 @@ impl Parser {
             self.read_token()?;
             return Ok(NodeExpression {
                 position,
-                expression: Expression::HashLiteral(entries)
+                expression: Expression::HashLiteral(entries),
             });
         }
 
@@ -520,7 +541,7 @@ impl Parser {
         self.expect_token(Token::CloseCurlyBrace)?;
         Ok(NodeExpression {
             position,
-            expression: Expression::HashLiteral(entries)
+            expression: Expression::HashLiteral(entries),
         })
     }
 
@@ -538,7 +559,7 @@ impl Parser {
         let block = self.parse_block_statement()?;
         Ok(NodeExpression {
             position,
-            expression: Expression::BlockExpression(block)
+            expression: Expression::BlockExpression(block),
         })
     }
 
@@ -567,18 +588,18 @@ impl Parser {
     /// Returns the prefix parse function associated with the given token.
     fn get_prefix_parse_function(token: &Token) -> Option<PrefixParseFn> {
         match token {
-            Token::Identifier(_)        => Some(Parser::parse_identifier),
-            Token::Int(_)               => Some(Parser::parse_int_literal),
-            Token::Str(_)               => Some(Parser::parse_string_literal),
-            Token::Bang | Token::Minus  => Some(Parser::parse_prefix_expression),
-            Token::OpenParen            => Some(Parser::parse_grouped_expression),
-            Token::OpenCurlyBrace       => Some(Parser::parse_block_expression),
-            Token::OpenSquareBracket    => Some(Parser::parse_array_literal),
-            Token::OpenHash             => Some(Parser::parse_hash_literal),
-            Token::True | Token::False  => Some(Parser::parse_boolean),
-            Token::If                   => Some(Parser::parse_if_expression),
-            Token::Function             => Some(Parser::parse_function_literal),
-            Token::Nil                  => Some(Parser::parse_nil),
+            Token::Identifier(_) => Some(Parser::parse_identifier),
+            Token::Int(_) => Some(Parser::parse_int_literal),
+            Token::Str(_) => Some(Parser::parse_string_literal),
+            Token::Bang | Token::Minus => Some(Parser::parse_prefix_expression),
+            Token::OpenParen => Some(Parser::parse_grouped_expression),
+            Token::OpenCurlyBrace => Some(Parser::parse_block_expression),
+            Token::OpenSquareBracket => Some(Parser::parse_array_literal),
+            Token::OpenHash => Some(Parser::parse_hash_literal),
+            Token::True | Token::False => Some(Parser::parse_boolean),
+            Token::If => Some(Parser::parse_if_expression),
+            Token::Function => Some(Parser::parse_function_literal),
+            Token::Nil => Some(Parser::parse_nil),
             _ => None,
         }
     }
@@ -608,14 +629,14 @@ impl Parser {
     fn get_precedence(token: &Token) -> Precedence {
         use Token::*;
         match token {
-            Equals | NotEquals                          => Precedence::Equals,
+            Equals | NotEquals => Precedence::Equals,
             LessThan | LessEq | GreaterThan | GreaterEq => Precedence::LessGreater,
-            Plus | Minus                                => Precedence::Sum,
-            Slash | Asterisk | Modulo                   => Precedence::Product,
-            Exponent                                    => Precedence::Exponent,
-            OpenParen                                   => Precedence::Call,
-            OpenSquareBracket                           => Precedence::Index,
-            _                                           => Precedence::Lowest,
+            Plus | Minus => Precedence::Sum,
+            Slash | Asterisk | Modulo => Precedence::Product,
+            Exponent => Precedence::Exponent,
+            OpenParen => Precedence::Call,
+            OpenSquareBracket => Precedence::Index,
+            _ => Precedence::Lowest,
         }
     }
 }

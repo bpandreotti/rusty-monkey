@@ -2,13 +2,14 @@
 mod builtins;
 pub mod environment;
 pub mod object;
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
+use crate::error::*;
+use crate::lexer::token::Token;
 use crate::parser::ast::*;
 use environment::*;
-use crate::error::*;
 use object::*;
-use crate::lexer::token::Token;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -61,8 +62,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
-            eval_prefix_expression(tk, &right_side)
-                .map_err(|e| runtime_err(expression.position, e))
+            eval_prefix_expression(tk, &right_side).map_err(|e| runtime_err(expression.position, e))
         }
         Expression::InfixExpression(l, tk, r) => {
             let left_side = eval_expression(l, env)?;
@@ -70,7 +70,11 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             eval_infix_expression(&left_side, tk, &right_side)
                 .map_err(|e| runtime_err(expression.position, e))
         }
-        Expression::IfExpression { condition, consequence, alternative } => {
+        Expression::IfExpression {
+            condition,
+            consequence,
+            alternative,
+        } => {
             let value = eval_expression(condition, env)?;
             if value.is_truthy() {
                 eval_block(consequence, env)
@@ -87,7 +91,10 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             };
             Ok(Object::Function(fo))
         }
-        Expression::CallExpression { function, arguments } => {
+        Expression::CallExpression {
+            function,
+            arguments,
+        } => {
             // Evaluate the called object
             let obj = eval_expression(function, env)?;
             // Evaluate all arguments sequentially
@@ -112,7 +119,10 @@ pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> MonkeyResul
         Statement::ExpressionStatement(exp) => eval_expression(exp, env),
         Statement::Return(exp) => {
             let value = eval_expression(exp, env)?;
-            Err(runtime_err(statement.position, RuntimeError::ReturnValue(Box::new(value))))
+            Err(runtime_err(
+                statement.position,
+                RuntimeError::ReturnValue(Box::new(value)),
+            ))
         }
         Statement::Let(let_statement) => {
             let (name, exp) = &**let_statement;
@@ -193,7 +203,7 @@ pub fn eval_call_expression(
     obj: Object,
     args: Vec<Object>,
     call_position: (usize, usize), // We need the caller position to properly report errors
-    env: &EnvHandle // Some built-ins, like "import" need the caller environment
+    env: &EnvHandle,               // Some built-ins, like "import" need the caller environment
 ) -> MonkeyResult<Object> {
     match obj {
         Object::Function(fo) => call_function_object(fo, args, call_position),
@@ -219,7 +229,7 @@ fn call_function_object(
     }
     let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)));
     result.or_else(|e| {
-        if let ErrorType::Runtime(ReturnValue(obj)) = e.error  {
+        if let ErrorType::Runtime(ReturnValue(obj)) = e.error {
             Ok(*obj)
         } else {
             Err(e)
@@ -253,7 +263,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
                 Ok(Object::Str(chars[*i as usize].to_string()))
             }
         }
-        (Object::Str(_), other) =>  Err(IndexTypeError(other.type_str())),
+        (Object::Str(_), other) => Err(IndexTypeError(other.type_str())),
         (other, _) => Err(IndexingWrongType(other.type_str())),
     }
 }

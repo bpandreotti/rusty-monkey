@@ -1,7 +1,7 @@
-use crate::parser;
-use crate::interpreter::object;
 use crate::compiler::{self, code};
 use crate::error::*;
+use crate::interpreter::object;
+use crate::parser;
 
 pub fn parse_and_compile(program: &str) -> Result<code::Bytecode, MonkeyError> {
     let parsed = parser::parse(program.into())?;

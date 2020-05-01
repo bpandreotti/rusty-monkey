@@ -1,8 +1,9 @@
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
-use crate::interpreter::object::*;
 use crate::compiler::code::*;
 use crate::error::*;
+use crate::interpreter::object::*;
 
 use std::mem;
 
@@ -49,9 +50,8 @@ impl VM {
         // "[Object::Nil; STACK_SIZE]". Instead, I have to do this unsafe witchcraft.
         // Safety: We're creating an unitialized array of `MaybeUninit`, and this type doesn't need
         // any initialization, so this is safe.
-        let mut stack: [mem::MaybeUninit<Object>; STACK_SIZE] = unsafe {
-            mem::MaybeUninit::uninit().assume_init()
-        };
+        let mut stack: [mem::MaybeUninit<Object>; STACK_SIZE] =
+            unsafe { mem::MaybeUninit::uninit().assume_init() };
         for item in &mut stack[..] {
             *item = mem::MaybeUninit::new(Object::Nil);
         }
@@ -70,21 +70,15 @@ impl VM {
                     pc += 2;
                     self.push(self.constants[constant_index].clone())?;
                 }
-                OpPop => { self.pop()?; },
-                OpAdd
-                | OpSub
-                | OpMul
-                | OpDiv
-                | OpExponent
-                | OpModulo
-                | OpEquals
-                | OpNotEquals
-                | OpGreaterThan
-                | OpGreaterEq => self.execute_binary_operation(op)?,
+                OpPop => {
+                    self.pop()?;
+                }
+                OpAdd | OpSub | OpMul | OpDiv | OpExponent | OpModulo | OpEquals | OpNotEquals
+                | OpGreaterThan | OpGreaterEq => self.execute_binary_operation(op)?,
                 OpTrue => self.push(Object::Boolean(true))?,
                 OpFalse => self.push(Object::Boolean(false))?,
                 OpPrefixMinus | OpPrefixNot => self.execute_prefix_operation(op)?,
-                OpCode::OpJumpNotTruthy => {
+                OpJumpNotTruthy => {
                     let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
                     pc += 2;
 
@@ -108,7 +102,6 @@ impl VM {
                     pc += 2;
                     self.push(self.globals[index].clone())?;
                 }
-                _ => todo!()
             }
             pc += 1;
         }
@@ -156,19 +149,19 @@ impl VM {
         // object before I get the left object with `self.pop`. I could just clone the whole
         // objects, but that would be much slower. Maybe there's a simpler way to do this.
         let right = self.pop()?;
-        match right {
-            &Object::Integer(r) => {
+        match *right {
+            Object::Integer(r) => {
                 let left = self.pop()?;
-                if let &Object::Integer(l) = left {
-                    return self.execute_integer_operation(op, l, r)
+                if let Object::Integer(l) = *left {
+                    self.execute_integer_operation(op, l, r)
                 } else {
                     panic!("type error") // @TODO: Add proper errors
                 }
-            },
-            &Object::Boolean(r) => {
+            }
+            Object::Boolean(r) => {
                 let left = self.pop()?;
-                if let &Object::Boolean(l) = left {
-                    return self.execute_boolean_operation(op, l, r)
+                if let Object::Boolean(l) = *left {
+                    self.execute_bool_operation(op, l, r)
                 } else {
                     panic!("type error") // @TODO: Add proper errors
                 }
@@ -177,7 +170,7 @@ impl VM {
         }
     }
 
-    fn execute_integer_operation(&mut self, op: OpCode, left: i64, right: i64) -> Result<(), MonkeyError>  {
+    fn execute_integer_operation(&mut self, op: OpCode, left: i64, right: i64) -> MonkeyResult<()> {
         let result = match op {
             // Arithmetic operators
             OpCode::OpAdd => Object::Integer(left + right),
@@ -199,12 +192,10 @@ impl VM {
         Ok(())
     }
 
-    fn execute_boolean_operation(&mut self, op: OpCode, left: bool, right: bool) -> Result<(), MonkeyError>  {
+    fn execute_bool_operation(&mut self, op: OpCode, left: bool, right: bool) -> MonkeyResult<()> {
         let result = match op {
             OpCode::OpEquals => Object::Boolean(left == right),
             OpCode::OpNotEquals => Object::Boolean(left != right),
-            OpCode::OpGreaterThan => Object::Boolean(left > right),
-            OpCode::OpGreaterEq => Object::Boolean(left >= right),
             _ => panic!("type error"), // @TODO: Add proper errors
         };
         self.push(result)?;
@@ -215,7 +206,7 @@ impl VM {
         let right = self.pop()?;
         match op {
             OpCode::OpPrefixMinus => {
-                if let &Object::Integer(i) = right {
+                if let Object::Integer(i) = *right {
                     self.push(Object::Integer(-i))?;
                 } else {
                     panic!("type error") // @TODO: Add proper errors

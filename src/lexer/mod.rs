@@ -1,11 +1,12 @@
 // @TODO: Document this module
+#[cfg(test)]
+mod tests;
 pub mod token;
-#[cfg(test)] mod tests;
 
 use crate::error::*;
 use token::Token;
 
-use std::io::{BufRead, BufReader, Cursor, self};
+use std::io::{self, BufRead, BufReader, Cursor};
 use std::iter::Peekable;
 
 type LexerLine = Peekable<std::vec::IntoIter<(usize, char)>>;
@@ -89,7 +90,9 @@ impl Lexer {
         // character. Because of that, if we are on a line boundary -- that is, if
         // `current_char` is the last character in the current line -- `peek_char` will return
         // `None`.
-        self.current_line.as_mut().and_then(|l| l.peek().map(|c| c.1))
+        self.current_line
+            .as_mut()
+            .and_then(|l| l.peek().map(|c| c.1))
     }
 
     pub fn next_token(&mut self) -> Result<Token, MonkeyError> {
@@ -106,10 +109,22 @@ impl Lexer {
 
             // Operators
             // Two character operators (==, !=, <=, >=)
-            Some('=') if peek_ch == Some('=') => { self.read_char()?; Token::Equals }
-            Some('!') if peek_ch == Some('=') => { self.read_char()?; Token::NotEquals }
-            Some('<') if peek_ch == Some('=') => { self.read_char()?; Token::LessEq }
-            Some('>') if peek_ch == Some('=') => { self.read_char()?; Token::GreaterEq }
+            Some('=') if peek_ch == Some('=') => {
+                self.read_char()?;
+                Token::Equals
+            }
+            Some('!') if peek_ch == Some('=') => {
+                self.read_char()?;
+                Token::NotEquals
+            }
+            Some('<') if peek_ch == Some('=') => {
+                self.read_char()?;
+                Token::LessEq
+            }
+            Some('>') if peek_ch == Some('=') => {
+                self.read_char()?;
+                Token::GreaterEq
+            }
             // Single character operators
             Some('=') => Token::Assign,
             Some('!') => Token::Bang,
@@ -132,7 +147,10 @@ impl Lexer {
             Some('}') => Token::CloseCurlyBrace,
             Some('[') => Token::OpenSquareBracket,
             Some(']') => Token::CloseSquareBracket,
-            Some('#') if peek_ch == Some('{') => { self.read_char()?; Token::OpenHash }
+            Some('#') if peek_ch == Some('{') => {
+                self.read_char()?;
+                Token::OpenHash
+            }
 
             Some('\"') => self.read_string()?,
 
@@ -191,21 +209,19 @@ impl Lexer {
                         Some('t') => result.push('\t'),
                         Some('r') => result.push('\r'),
                         Some('"') => result.push('"'),
-                        Some(c) => return Err(lexer_err(
-                            self.current_position,
-                            LexerError::UnknownEscapeSequence(c)
-                        )),
-                        None => return Err(lexer_err(
-                            self.current_position,
-                            LexerError::UnexpectedEOF
-                        )),
+                        Some(c) => {
+                            return Err(lexer_err(
+                                self.current_position,
+                                LexerError::UnknownEscapeSequence(c),
+                            ))
+                        }
+                        None => {
+                            return Err(lexer_err(self.current_position, LexerError::UnexpectedEOF))
+                        }
                     }
                 }
                 Some(c) => result.push(c),
-                None => return Err(lexer_err(
-                    self.current_position,
-                    LexerError::UnexpectedEOF
-                )),
+                None => return Err(lexer_err(self.current_position, LexerError::UnexpectedEOF)),
             }
         }
         Ok(Token::Str(result))

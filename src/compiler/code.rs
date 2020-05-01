@@ -16,17 +16,17 @@ impl fmt::Display for Instructions {
             for r in rands {
                 write!(f, " {}", r)?;
             }
-            writeln!(f, "")?;
+            writeln!(f)?;
             byte_counter += 1 + bytes_read;
         }
         write!(f, "")
-    }    
+    }
 }
 
 impl fmt::Debug for Instructions {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Instructions:\n{}", self)
-    }    
+    }
 }
 
 pub struct Bytecode {
@@ -61,7 +61,7 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub fn operand_widths(&self) -> &'static [usize] {
+    pub fn operand_widths(self) -> &'static [usize] {
         match self {
             OpCode::OpConstant => &[2],
             OpCode::OpPop => &[],
@@ -112,7 +112,7 @@ impl OpCode {
             0x12 => OpCode::OpNil,
             0x13 => OpCode::OpGetGlobal,
             0x14 => OpCode::OpSetGlobal,
-            _ => panic!("byte does not represent valid opcode")
+            _ => panic!("byte does not represent valid opcode"),
         }
     }
 }
@@ -148,7 +148,7 @@ pub fn read_operands(op: OpCode, instructions: &[u8]) -> (Vec<usize>, usize) {
                 let operand = read_u16(&instructions[offset..]) as usize;
                 operands.push(operand);
             }
-            _ => panic!("unsupported operand width")
+            _ => panic!("unsupported operand width"),
         }
         offset += width;
     }

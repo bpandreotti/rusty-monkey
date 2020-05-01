@@ -1,20 +1,20 @@
 use crate::compiler::{self, symbol_table};
-use crate::interpreter::{self, environment, object};
 use crate::error::MonkeyResult;
+use crate::interpreter::{self, environment, object};
 use crate::parser;
 use crate::vm;
 
 use colored::*;
 use rustyline::{
     error::ReadlineError,
-    validate::{ValidationContext, ValidationResult, Validator},
     highlight::Highlighter,
+    validate::{ValidationContext, ValidationResult, Validator},
 };
 use rustyline_derive::{Completer, Helper, Hinter};
 
 use std::borrow::Cow;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 const PROMPT: &str = "monkey » ";
 
@@ -48,14 +48,20 @@ impl Validator for ReplHelper {
             } else {
                 match c {
                     '(' | '[' | '{' | '"' => stack.push(c),
-                    ')' => if !try_pop(&mut stack, '(') {
-                        return Ok(ValidationResult::Valid(None));
+                    ')' => {
+                        if !try_pop(&mut stack, '(') {
+                            return Ok(ValidationResult::Valid(None));
+                        }
                     }
-                    ']' => if !try_pop(&mut stack, '[') {
-                        return Ok(ValidationResult::Valid(None));
+                    ']' => {
+                        if !try_pop(&mut stack, '[') {
+                            return Ok(ValidationResult::Valid(None));
+                        }
                     }
-                    '}' => if !try_pop(&mut stack, '{') {
-                        return Ok(ValidationResult::Valid(None));
+                    '}' => {
+                        if !try_pop(&mut stack, '{') {
+                            return Ok(ValidationResult::Valid(None));
+                        }
                     }
                     _ => (),
                 }
@@ -74,7 +80,7 @@ impl Highlighter for ReplHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
         &'s self,
         prompt: &'p str,
-        default: bool
+        default: bool,
     ) -> Cow<'b, str> {
         if default {
             Cow::Owned(format!("{}", PROMPT.blue().bold()))
@@ -86,15 +92,24 @@ impl Highlighter for ReplHelper {
 
 pub fn start(compiled: bool) -> Result<(), std::io::Error> {
     eprintln!("Now with an even fancier REPL!");
-    eprintln!("(running using {})", if compiled { "compiler and VM" } else { "interpreter" });
+    eprintln!(
+        "(running using {})",
+        if compiled {
+            "compiler and VM"
+        } else {
+            "interpreter"
+        }
+    );
     let mut rl = rustyline::Editor::<ReplHelper>::new();
     rl.set_helper(Some(ReplHelper {}));
 
     // Unbind Tab
     rl.unbind_sequence(rustyline::KeyPress::Tab);
     // Bind Tab to insert 4 spaces
-    rl.bind_sequence(rustyline::KeyPress::Tab, rustyline::Cmd::Insert(1, "    ".into()));
-    
+    rl.bind_sequence(
+        rustyline::KeyPress::Tab,
+        rustyline::Cmd::Insert(1, "    ".into()),
+    );
     let res = if compiled {
         start_compiled(rl)
     } else {
@@ -157,7 +172,7 @@ fn read_line(rl: &mut rustyline::Editor<ReplHelper>) -> Option<String> {
         Ok(line) => {
             rl.add_history_entry(line.as_str());
             return Some(line);
-        },
+        }
         Err(ReadlineError::Interrupted) => println!("CTRL-C"),
         Err(ReadlineError::Eof) => println!("CTRL-D"),
         Err(other) => println!("rustyline Error: {:?}", other),
@@ -167,8 +182,10 @@ fn read_line(rl: &mut rustyline::Editor<ReplHelper>) -> Option<String> {
 
 fn print_results(results: MonkeyResult<Vec<object::Object>>) {
     match results {
-        Ok(values) => for v in values {
-            println!("{}", v);
+        Ok(values) => {
+            for v in values {
+                println!("{}", v);
+            }
         }
         Err(e) => eprintln!("{}", e),
     }

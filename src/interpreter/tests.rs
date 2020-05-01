@@ -1,7 +1,7 @@
 use super::*;
-use Object::*;
-use crate::test_utils;
 use crate::parser;
+use crate::test_utils;
+use Object::*;
 
 fn assert_eval(input: &str, expected: &[object::Object]) {
     let parsed = parser::parse(input.into()).expect("Parser error during test");
@@ -205,7 +205,14 @@ fn test_return_statements() {
         }();
         fn() { 81; return; 100; }();
     "#;
-    let expected = [Integer(0), Integer(1), Integer(2), Integer(3), Integer(4), Nil];
+    let expected = [
+        Integer(0),
+        Integer(1),
+        Integer(2),
+        Integer(3),
+        Integer(4),
+        Nil,
+    ];
     assert_eval(input, &expected);
 }
 #[test]

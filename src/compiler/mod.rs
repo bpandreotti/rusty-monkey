@@ -1,10 +1,11 @@
 #[macro_use]
 pub mod code;
 pub mod symbol_table;
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
-use crate::parser::ast::*;
 use crate::error::*;
+use crate::parser::ast::*;
 // @PERFORMANCE: The compiler currently uses the same object representation as the interpreter.
 // This might not be ideal.
 use crate::interpreter::object::Object;
@@ -70,7 +71,7 @@ impl Compiler {
         }
     }
 
-    pub fn compile_block(&mut self, block: Vec<NodeStatement>) -> Result<(), MonkeyError> {
+    pub fn compile_block(&mut self, block: Vec<NodeStatement>) -> MonkeyResult<()> {
         if block.is_empty() {
             // Empty blocks evaluate to `nil`
             self.emit(OpCode::OpNil, &[]);
@@ -83,7 +84,7 @@ impl Compiler {
         Ok(())
     }
 
-    fn compile_statement(&mut self, statement: NodeStatement, last: bool) -> Result<(), MonkeyError> {
+    fn compile_statement(&mut self, statement: NodeStatement, last: bool) -> MonkeyResult<()> {
         match statement.statement {
             Statement::ExpressionStatement(exp) => {
                 self.compile_expression(*exp)?;
@@ -108,7 +109,7 @@ impl Compiler {
         }
     }
 
-    fn compile_expression(&mut self, expression: NodeExpression) -> Result<(), MonkeyError> {
+    fn compile_expression(&mut self, expression: NodeExpression) -> MonkeyResult<()> {
         use Token::*;
         match expression.expression {
             Expression::InfixExpression(left, tk, right) => {
@@ -145,11 +146,21 @@ impl Compiler {
                 let obj = Object::Integer(i);
                 let constant_index = self.add_constant(obj);
                 self.emit(OpCode::OpConstant, &[constant_index]);
-            },
-            Expression::Boolean(true) => { self.emit(OpCode::OpTrue, &[]); }
-            Expression::Boolean(false) => { self.emit(OpCode::OpFalse, &[]); }
-            Expression::Nil => { self.emit(OpCode::OpNil, &[]); }
-            Expression::IfExpression { condition, consequence, alternative } => {
+            }
+            Expression::Boolean(true) => {
+                self.emit(OpCode::OpTrue, &[]);
+            }
+            Expression::Boolean(false) => {
+                self.emit(OpCode::OpFalse, &[]);
+            }
+            Expression::Nil => {
+                self.emit(OpCode::OpNil, &[]);
+            }
+            Expression::IfExpression {
+                condition,
+                consequence,
+                alternative,
+            } => {
                 self.compile_expression(*condition)?;
                 // Emit an OpJumpNotTruthy instruction that will eventually point to after the
                 // consequence

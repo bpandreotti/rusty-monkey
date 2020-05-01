@@ -1,6 +1,6 @@
-use crate::error::*;
 use super::environment::EnvHandle;
 use super::object::*;
+use crate::error::*;
 
 use std::fmt;
 
@@ -49,7 +49,10 @@ fn assert_object_type_integer(obj: &Object) -> Result<&i64, RuntimeError> {
     if let Object::Integer(i) = obj {
         Ok(i)
     } else {
-        Err(RuntimeError::TypeError(Object::Integer(0).type_str(), obj.type_str()))
+        Err(RuntimeError::TypeError(
+            Object::Integer(0).type_str(),
+            obj.type_str(),
+        ))
     }
 }
 
@@ -57,7 +60,10 @@ fn assert_object_type_array(obj: &Object) -> Result<&Vec<Object>, RuntimeError> 
     if let Object::Array(a) = obj {
         Ok(a)
     } else {
-        Err(RuntimeError::TypeError(Object::Array(vec![]).type_str(), obj.type_str()))
+        Err(RuntimeError::TypeError(
+            Object::Array(vec![]).type_str(),
+            obj.type_str(),
+        ))
     }
 }
 
@@ -65,7 +71,10 @@ fn assert_object_type_string(obj: &Object) -> Result<&String, RuntimeError> {
     if let Object::Str(s) = obj {
         Ok(s)
     } else {
-        Err(RuntimeError::TypeError(Object::Str("".into()).type_str(), obj.type_str()))
+        Err(RuntimeError::TypeError(
+            Object::Str("".into()).type_str(),
+            obj.type_str(),
+        ))
     }
 }
 
@@ -93,9 +102,12 @@ fn builtin_len(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError>
     let length = match &args[0] {
         Object::Str(s) => s.chars().count(),
         Object::Array(a) => a.len(),
-        o => return Err(RuntimeError::Custom(
-            format!("'{}' object has no length", o.type_str())
-        )),
+        o => {
+            return Err(RuntimeError::Custom(format!(
+                "'{}' object has no length",
+                o.type_str()
+            )))
+        }
     };
 
     Ok(Object::Integer(length as i64))
@@ -107,7 +119,7 @@ fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError>
     // Evaluate an index expression using the arguments passed and deal with any error encountered
     super::eval_index_expression(&args[0], &args[1]).or_else(|error| match error {
         // If the error is IndexOutOfBounds or KeyError, we return 'nil'
-        RuntimeError::IndexOutOfBounds(_) | RuntimeError::KeyError(_) =>  Ok(Object::Nil),
+        RuntimeError::IndexOutOfBounds(_) | RuntimeError::KeyError(_) => Ok(Object::Nil),
         // Otherwise, we forward the error
         _ => Err(error),
     })
@@ -182,14 +194,14 @@ fn builtin_map(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeErro
             args[0].clone(),
             vec![element.clone()],
             (0, 0), // This position will get thrown out anyway
-            env
+            env,
         );
         match call_result {
             Ok(v) => new_vector.push(v),
             Err(monkey_err) => match monkey_err.error {
                 ErrorType::Runtime(e) => return Err(e),
                 _ => unreachable!(),
-            }
+            },
         }
     }
     Ok(Object::Array(new_vector))
@@ -217,11 +229,16 @@ fn builtin_range(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeErro
     };
 
     if step <= 0 {
-        return Err(RuntimeError::Custom("Third argument to `range` must be positive".into()))
+        return Err(RuntimeError::Custom(
+            "Third argument to `range` must be positive".into(),
+        ));
     }
 
     Ok(Object::Array(
-        (start..end).step_by(step as usize).map(|i| { Object::Integer(i) }).collect()
+        (start..end)
+            .step_by(step as usize)
+            .map(Object::Integer)
+            .collect(),
     ))
 }
 
@@ -230,6 +247,9 @@ fn builtin_assert(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeErr
     if args[0].is_truthy() {
         Ok(Object::Nil)
     } else {
-        Err(RuntimeError::Custom(format!("Assertion failed on value {}", args[0])))
+        Err(RuntimeError::Custom(format!(
+            "Assertion failed on value {}",
+            args[0]
+        )))
     }
 }

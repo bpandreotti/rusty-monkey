@@ -1,9 +1,11 @@
-use super::*;
 use super::token::Token;
+use super::*;
 
 // Shortcut to create a `Token::Identifier` from a string literal
 macro_rules! iden {
-    ($x:expr) => { Token::Identifier($x.into()) }
+    ($x:expr) => {
+        Token::Identifier($x.into())
+    };
 }
 
 fn assert_lex(input: &str, expected: &[Token]) {
@@ -22,7 +24,7 @@ fn assert_lexer_error(input: &str, expected_error: LexerError) {
             Err(e) => {
                 match e.error {
                     ErrorType::Lexer(got) => assert_eq!(expected_error, got),
-                    _ => panic!("Wrong error type")
+                    _ => panic!("Wrong error type"),
                 }
                 return;
             }
@@ -187,7 +189,6 @@ fn test_large_program() {
         iden!("i"),
         CloseParen,
         OpenCurlyBrace,
-
         // Line 2
         Let,
         iden!("result"),
@@ -199,22 +200,17 @@ fn test_large_program() {
         Equals,
         Int(0),
         OpenCurlyBrace,
-
         // Line 3
         Str("fizz".into()),
-
         // Line 4
         CloseCurlyBrace,
         Else,
         OpenCurlyBrace,
-
         // Line 5
         Str("".into()),
-
         // Line 6
         CloseCurlyBrace,
         Semicolon,
-
         // Line 7
         Let,
         iden!("result"),
@@ -226,54 +222,43 @@ fn test_large_program() {
         Equals,
         Int(0),
         OpenCurlyBrace,
-
         // Line 8
         iden!("result"),
         Plus,
         Str("buzz".into()),
-
         // Line 9
         CloseCurlyBrace,
         Else,
         OpenCurlyBrace,
-
         // Line 10
         iden!("result"),
-
         // Line 11
         CloseCurlyBrace,
         Semicolon,
-
         // Line 12
         If,
         iden!("result"),
         NotEquals,
         Str("".into()),
         OpenCurlyBrace,
-
         // Line 13
         iden!("puts"),
         OpenParen,
         iden!("result"),
         CloseParen,
-
         // Line 14
         CloseCurlyBrace,
         Else,
         OpenCurlyBrace,
-
         // Line 15
         iden!("puts"),
         OpenParen,
         iden!("i"),
         CloseParen,
-
         // Line 16
         CloseCurlyBrace,
-        
         // Line 17
         CloseCurlyBrace,
-        
         // Line 18
         iden!("map"),
         OpenParen,
@@ -320,14 +305,14 @@ fn test_lexer_position() {
 fn test_lexer_errors() {
     assert_lexer_error(
         r#" "some string that doesn't end "#,
-        LexerError::UnexpectedEOF
+        LexerError::UnexpectedEOF,
     );
     assert_lexer_error(
         r#" "i don't know this guy: \w" "#,
-        LexerError::UnknownEscapeSequence('w')
+        LexerError::UnknownEscapeSequence('w'),
     );
     assert_lexer_error(
         r#" "whats up with this weird symbol:" & "#,
-        LexerError::IllegalChar('&')
+        LexerError::IllegalChar('&'),
     );
 }

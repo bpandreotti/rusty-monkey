@@ -19,15 +19,19 @@ impl fmt::Display for MonkeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let ErrorType::Io(e) = &self.error {
             // There's no point in printing the line and column nubmers for IO errors
-            return write!(f, "{} {}", "IO error:".red().bold(), e)
+            return write!(f, "{} {}", "IO error:".red().bold(), e);
         }
-        writeln!(f, "At line {}, column {}:", self.position.0, self.position.1)?;
+        writeln!(
+            f,
+            "At line {}, column {}:",
+            self.position.0, self.position.1
+        )?;
         write!(f, "    ")?; // Indentation
         match &self.error {
             ErrorType::Lexer(e) => write!(f, "{} {}", "Lexer error:".red().bold(), e.message()),
             ErrorType::Parser(e) => write!(f, "{} {}", "Parser error:".red().bold(), e.message()),
             ErrorType::Runtime(e) => write!(f, "{} {}", "Runtime error:".red().bold(), e.message()),
-            _ => unreachable!() // IO errors have already been handled in the special case above
+            _ => unreachable!(), // IO errors have already been handled in the special case above
         }
     }
 }
@@ -45,7 +49,7 @@ impl std::convert::From<io::Error> for MonkeyError {
 pub fn lexer_err(pos: (usize, usize), error: LexerError) -> MonkeyError {
     MonkeyError {
         position: pos,
-        error: ErrorType::Lexer(error)
+        error: ErrorType::Lexer(error),
     }
 }
 
@@ -53,7 +57,7 @@ pub fn lexer_err(pos: (usize, usize), error: LexerError) -> MonkeyError {
 pub fn parser_err(pos: (usize, usize), error: ParserError) -> MonkeyError {
     MonkeyError {
         position: pos,
-        error: ErrorType::Parser(error)
+        error: ErrorType::Parser(error),
     }
 }
 
@@ -61,7 +65,7 @@ pub fn parser_err(pos: (usize, usize), error: ParserError) -> MonkeyError {
 pub fn runtime_err(pos: (usize, usize), error: RuntimeError) -> MonkeyError {
     MonkeyError {
         position: pos,
-        error: ErrorType::Runtime(error)
+        error: ErrorType::Runtime(error),
     }
 }
 
@@ -96,9 +100,9 @@ pub enum ParserError {
     UnexpectedToken(Token, Token),
     UnexpectedTokenMultiple {
         possibilities: &'static [Token],
-        got: Token
+        got: Token,
     },
-    NoPrefixParseFn(Token),    
+    NoPrefixParseFn(Token),
 }
 
 impl ParserError {
@@ -173,8 +177,7 @@ impl RuntimeError {
             IdenNotFound(s) => format!("identifier not found: '{}'", s),
             WrongNumberOfArgs(expected, got) => format!(
                 "wrong number of arguments: expected {} arguments but {} were given",
-                expected,
-                got
+                expected, got
             ),
             IndexTypeError(obj) => format!("index must be integer, not '{}'", obj),
             IndexOutOfBounds(i) => format!("index out of bounds: {}", i),
@@ -183,23 +186,18 @@ impl RuntimeError {
             IndexingWrongType(obj) => format!("'{}' is not an array or hash object", obj),
             PrefixTypeError(tk, obj) => format!(
                 "unsuported operand type for prefix operator {}: '{}'",
-                tk,
-                obj
+                tk, obj
             ),
             InfixTypeError(left, tk, right) => format!(
                 "unsuported operand types for infix operator {}: '{}' and '{}'",
-                tk,
-                left,
-                right,
+                tk, left, right,
             ),
             NotCallable(obj) => format!("'{}' is not a function object or built-in function", obj),
             DivOrModByZero => "division or modulo by zero".to_string(),
             NegativeExponent => "negative exponent".to_string(),
-            TypeError(expected, got) => format!(
-                "type error: expected '{}', got '{}'",
-                expected,
-                got,
-            ),
+            TypeError(expected, got) => {
+                format!("type error: expected '{}', got '{}'", expected, got,)
+            }
             Custom(msg) => msg.clone(),
             // A `ReturnValue` that was not handled by `call_function_object` means that it was
             // located outside a function context.

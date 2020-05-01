@@ -28,11 +28,10 @@ impl SymbolTable {
         self.0.get(&name).unwrap()
     }
 
-    pub fn resolve(&self, name: &String) -> Option<Symbol> {
+    pub fn resolve(&self, name: &str) -> Option<Symbol> {
         self.0.get(name).cloned()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -42,9 +41,21 @@ mod tests {
     fn test_define_global() {
         let mut global = SymbolTable::new();
         let a = global.define("a".into());
-        assert_eq!(Symbol { scope: SymbolScope::Global, index: 0 }, *a);
+        assert_eq!(
+            Symbol {
+                scope: SymbolScope::Global,
+                index: 0
+            },
+            *a
+        );
         let b = global.define("b".into());
-        assert_eq!(Symbol { scope: SymbolScope::Global, index: 1 }, *b);        
+        assert_eq!(
+            Symbol {
+                scope: SymbolScope::Global,
+                index: 1
+            },
+            *b
+        );
     }
 
     #[test]
@@ -53,12 +64,18 @@ mod tests {
         global.define("a".into());
         global.define("b".into());
         assert_eq!(
-            Symbol { scope: SymbolScope::Global, index: 0 },
-            global.resolve(&"a".into()).unwrap()
+            Symbol {
+                scope: SymbolScope::Global,
+                index: 0
+            },
+            global.resolve("a").unwrap()
         );
         assert_eq!(
-            Symbol { scope: SymbolScope::Global, index: 1 },
-            global.resolve(&"b".into()).unwrap()
+            Symbol {
+                scope: SymbolScope::Global,
+                index: 1
+            },
+            global.resolve("b").unwrap()
         );
     }
 }
