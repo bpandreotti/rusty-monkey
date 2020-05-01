@@ -1,4 +1,4 @@
-use crate::object::Object;
+use crate::interpreter::object::Object;
 
 use std::convert::TryInto;
 use std::fmt;
@@ -120,7 +120,7 @@ impl OpCode {
 #[macro_export]
 macro_rules! make {
     ($op:expr $(,$rand:expr )*) => {
-        crate::code::make($op, &[ $( $rand ),*])
+        crate::compiler::code::make($op, &[ $( $rand ),*])
     };
 }
 
@@ -157,30 +157,4 @@ pub fn read_operands(op: OpCode, instructions: &[u8]) -> (Vec<usize>, usize) {
 
 pub fn read_u16(instructions: &[u8]) -> u16 {
     u16::from_be_bytes(instructions[..2].try_into().unwrap())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_make() {
-        assert_eq!(&[OpCode::OpConstant as u8, 255, 254], &*make!(OpCode::OpConstant, 65534));
-        assert_eq!(&[OpCode::OpAdd as u8], &*make!(OpCode::OpAdd));
-    }
-
-    #[test]
-    fn test_instruction_printing() {
-        let input = Instructions([
-            make!(OpCode::OpAdd),
-            make!(OpCode::OpConstant, 2),
-            make!(OpCode::OpConstant, 65535),
-        ].concat());
-        let expected = "\
-        0000 OpAdd\n\
-        0001 OpConstant 2\n\
-        0004 OpConstant 65535\n\
-        ";
-        assert_eq!(expected, format!("{}", input));
-    }
 }

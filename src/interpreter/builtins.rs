@@ -1,7 +1,6 @@
-use crate::environment::*;
 use crate::error::*;
-use crate::eval;
-use crate::object::*;
+use super::environment::EnvHandle;
+use super::object::*;
 
 use std::fmt;
 
@@ -106,7 +105,7 @@ fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError>
     assert_num_arguments(&args, 2)?;
 
     // Evaluate an index expression using the arguments passed and deal with any error encountered
-    eval::eval_index_expression(&args[0], &args[1]).or_else(|error| match error {
+    super::eval_index_expression(&args[0], &args[1]).or_else(|error| match error {
         // If the error is IndexOutOfBounds or KeyError, we return 'nil'
         RuntimeError::IndexOutOfBounds(_) | RuntimeError::KeyError(_) =>  Ok(Object::Nil),
         // Otherwise, we forward the error
@@ -166,7 +165,7 @@ fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeE
         .parse_program()
         .map_err(|e| RuntimeError::Custom(format!("Parser error: {}", e)))?;
     for statement in parsed_program {
-        eval::eval_statement(&statement, &env).map_err(|e| {
+        super::eval_statement(&statement, &env).map_err(|e| {
             RuntimeError::Custom(format!("Error while evaluating imported file: {}", e))
         })?;
     }
@@ -179,7 +178,7 @@ fn builtin_map(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeErro
 
     let mut new_vector = Vec::new();
     for element in array {
-        let call_result = eval::eval_call_expression(
+        let call_result = super::eval_call_expression(
             args[0].clone(),
             vec![element.clone()],
             (0, 0), // This position will get thrown out anyway

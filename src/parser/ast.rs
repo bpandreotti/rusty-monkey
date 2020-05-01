@@ -1,4 +1,4 @@
-use crate::token::*;
+use crate::lexer::token::Token;
 
 use std::fmt;
 
@@ -49,7 +49,7 @@ pub struct NodeStatement {
 }
 
 impl fmt::Debug for NodeStatement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.statement)
     }
 }

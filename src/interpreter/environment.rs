@@ -1,5 +1,5 @@
-use crate::builtins::*;
-use crate::object::Object;
+use super::builtins;
+use super::object::Object;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -39,6 +39,6 @@ impl Environment {
             // if that fails, try the outer environment (if it exists)
             .or_else(|| self.outer.as_ref().and_then(|e| e.borrow().get(key)))
             // and finally, try the built-in functions
-            .or_else(|| get_builtin(key))
+            .or_else(|| builtins::get_builtin(key))
     }
 }

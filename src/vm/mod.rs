@@ -1,6 +1,7 @@
-use crate::object::*;
-use crate::code::*;
-use crate::compiler;
+#[cfg(test)] mod tests;
+
+use crate::interpreter::object::*;
+use crate::compiler::code::*;
 use crate::error::*;
 
 use std::mem;
@@ -228,79 +229,5 @@ impl VM {
             _ => unreachable!(),
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils;
-
-    #[test]
-    fn test_integer_arithmetic() {
-        let input = [
-            "2 + 3",
-            "-3",
-        ];
-        let expected = [
-            Object::Integer(5),
-            Object::Integer(-3),
-        ];
-        test_utils::assert_vm_runs(&input, &expected);
-    }
-
-    #[test]
-    fn test_boolean_expressions() {
-        let input = [
-            "true",
-            "false",
-            "2 >= 3 == true",
-            "false != 1 < 2",
-            "!false",
-            "!(if false { 3 })"
-        ];
-        let expected = [
-            Object::Boolean(true),
-            Object::Boolean(false),
-            Object::Boolean(false),
-            Object::Boolean(true),
-            Object::Boolean(true),
-            Object::Boolean(true),
-        ];
-        test_utils::assert_vm_runs(&input, &expected);
-    }
-
-    #[test]
-    fn test_conditional_expressions() {
-        let input = [
-            "if true { 10 }",
-            "if true { 10 } else { 20 }",
-            "if false { 10 } else { 20 }",
-            "if 1 > 2 { 10 } else { 20 }",
-            "if 1 > 2 { 10 }",
-        ];
-        let expected = [
-            Object::Integer(10),
-            Object::Integer(10),
-            Object::Integer(20),
-            Object::Integer(20),
-            Object::Nil,
-        ];
-        test_utils::assert_vm_runs(&input, &expected);
-    }
-
-    #[test]
-    fn test_global_assignment() {
-        let input = [
-            "let one = 1; one",
-            "let one = 1; let two = 2; one + two",
-            "let one = 1; let two = one + one; one + two",
-        ];
-        let expected = [
-            Object::Integer(1),
-            Object::Integer(3),
-            Object::Integer(3),
-        ];
-        test_utils::assert_vm_runs(&input, &expected);
     }
 }

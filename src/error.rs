@@ -1,5 +1,5 @@
-use crate::object::*;
-use crate::token::Token;
+use crate::interpreter::object::*;
+use crate::lexer::token::Token;
 
 use colored::*;
 use std::fmt;

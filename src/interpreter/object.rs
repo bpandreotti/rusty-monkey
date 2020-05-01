@@ -1,6 +1,6 @@
-use crate::ast::NodeStatement;
-use crate::builtins::*;
-use crate::environment::*;
+use crate::parser::ast::NodeStatement;
+use super::builtins::BuiltinFn;
+use super::environment::EnvHandle;
 
 use std::collections::HashMap;
 use std::fmt;

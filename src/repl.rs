@@ -1,21 +1,20 @@
-use crate::compiler;
-use crate::environment::*;
+use crate::compiler::{self, symbol_table};
+use crate::interpreter::{self, environment, object};
 use crate::error::MonkeyResult;
-use crate::eval;
-use crate::lexer::Lexer;
-use crate::object;
-use crate::parser::Parser;
-use crate::symbol_table;
+use crate::parser;
 use crate::vm;
 
 use colored::*;
+use rustyline::{
+    error::ReadlineError,
+    validate::{ValidationContext, ValidationResult, Validator},
+    highlight::Highlighter,
+};
+use rustyline_derive::{Completer, Helper, Hinter};
+
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::cell::RefCell;
-use rustyline::error::ReadlineError;
-use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::highlight::Highlighter;
-use rustyline_derive::{Completer, Helper, Hinter};
 
 const PROMPT: &str = "monkey » ";
 
@@ -116,9 +115,9 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
     };
     let mut run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
         // @PERFORMANCE: I really shouldn't be cloning everything
-        let mut parser = Parser::new(Lexer::from_string(line)?)?;
+        let parsed = parser::parse(line)?;
         let mut comp = compiler::Compiler::with_state(constants.clone(), symbol_table.clone());
-        comp.compile_block(parser.parse_program()?)?;
+        comp.compile_block(parsed)?;
         constants = comp.constants.clone();
         symbol_table = comp.symbol_table.clone();
         let mut vm = vm::VM::with_globals(comp.bytecode(), globals.clone());
@@ -136,13 +135,12 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
 }
 
 fn start_interpreted(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::Error> {
-    let env = Rc::new(RefCell::new(Environment::empty()));
+    let env = Rc::new(RefCell::new(environment::Environment::empty()));
     let run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
-        let mut parser = Parser::new(Lexer::from_string(line)?)?;
-        parser.parse_program()?
-        .into_iter()
-        .map(|s| eval::eval_statement(&s, &env))
-        .collect()
+        parser::parse(line)?
+            .into_iter()
+            .map(|s| interpreter::eval_statement(&s, &env))
+            .collect()
     };
 
     loop {

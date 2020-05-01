@@ -1,17 +1,10 @@
-mod ast;
-mod builtins;
-#[macro_use] mod code;
 mod compiler;
-mod environment;
 mod error;
-mod eval;
+mod interpreter;
 mod lexer;
-mod object;
 mod parser;
 mod repl;
-mod symbol_table;
-mod test_utils;
-mod token;
+#[cfg(test)] mod test_utils;
 mod vm;
 
 use error::MonkeyError;
@@ -36,6 +29,6 @@ fn run_program_file(path: String) -> Result<(), MonkeyError> {
     let reader = BufReader::new(File::open(path)?);
     let lexer = lexer::Lexer::new(Box::new(reader))?;
     let parsed_program = parser::Parser::new(lexer)?.parse_program()?;
-    eval::run_program(parsed_program)?;
+    interpreter::run_program(parsed_program)?;
     Ok(())
 }

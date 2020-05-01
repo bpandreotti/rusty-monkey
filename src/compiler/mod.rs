@@ -1,9 +1,16 @@
-use crate::ast::*;
-use crate::code::*;
+#[macro_use]
+pub mod code;
+pub mod symbol_table;
+#[cfg(test)] mod tests;
+
+use crate::parser::ast::*;
 use crate::error::*;
-use crate::object::*;
-use crate::symbol_table::*;
-use crate::token::Token;
+// @PERFORMANCE: The compiler currently uses the same object representation as the interpreter.
+// This might not be ideal.
+use crate::interpreter::object::Object;
+use crate::lexer::token::Token;
+use code::*;
+use symbol_table::*;
 
 pub struct Compiler {
     instructions: Instructions,
@@ -171,146 +178,5 @@ impl Compiler {
             _ => todo!(),
         }
         Ok(())
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils;
-
-    #[test]
-    fn test_integer_arithmetic() {
-        test_utils::assert_compile("1 + 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpAdd),
-            ].concat())
-        );
-        test_utils::assert_compile("1; 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpPop),
-                make!(OpCode::OpConstant, 1),
-            ].concat())
-        );
-        test_utils::assert_compile("1 * 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpMul),
-            ].concat())
-        );
-        test_utils::assert_compile("-1",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpPrefixMinus),
-            ].concat())
-        );
-    }
-
-    #[test]
-    fn test_boolean_expressions() {
-        test_utils::assert_compile("true",
-            Instructions([
-                make!(OpCode::OpTrue),
-            ].concat())
-        );
-        test_utils::assert_compile("false",
-            Instructions([
-                make!(OpCode::OpFalse),
-            ].concat())
-        );
-        test_utils::assert_compile("1 > 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpGreaterThan),
-            ].concat())
-        );
-        test_utils::assert_compile("1 < 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpGreaterThan),
-            ].concat())
-        );
-        test_utils::assert_compile("1 == 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpEquals),
-            ].concat())
-        );
-        test_utils::assert_compile("1 != 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpNotEquals),
-            ].concat())
-        );
-        test_utils::assert_compile("!true",
-            Instructions([
-                make!(OpCode::OpTrue),
-                make!(OpCode::OpPrefixNot),
-            ].concat())
-        );
-    }
-
-    #[test]
-    fn test_conditionals() {
-        test_utils::assert_compile("if true { 10 }; 3333",
-            Instructions([
-                make!(OpCode::OpTrue),
-                make!(OpCode::OpJumpNotTruthy, 10),
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpJump, 11),
-                make!(OpCode::OpNil),
-                make!(OpCode::OpPop),
-                make!(OpCode::OpConstant, 1),
-            ].concat())
-        );
-        test_utils::assert_compile("if true { 10 } else { 20 }; 3333",
-            Instructions([
-                make!(OpCode::OpTrue),
-                make!(OpCode::OpJumpNotTruthy, 10),
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpJump, 13),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpPop),
-                make!(OpCode::OpConstant, 2),
-            ].concat())
-        );
-    }
-
-    #[test]
-    fn test_global_assignment() {
-        test_utils::assert_compile("let one = 1; let two = 2",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpSetGlobal, 1),
-                make!(OpCode::OpNil),
-            ].concat())
-        );
-        test_utils::assert_compile("let one = 1; one",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpGetGlobal, 0),
-            ].concat())
-        );
-        test_utils::assert_compile("let one = 1; let two = one; two",
-            Instructions([
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpGetGlobal, 0),
-                make!(OpCode::OpSetGlobal, 1),
-                make!(OpCode::OpGetGlobal, 1),
-            ].concat())
-        );
     }
 }
