@@ -11,8 +11,21 @@ pub fn parse_and_compile(program: &str) -> Result<code::Bytecode, MonkeyError> {
 }
 
 pub fn compare_objects(left: &object::Object, right: &object::Object) -> bool {
-    // Since `object::Object`s can't be compared directly, we format them to strings and compare
-    // those. This works on the assumption that two equal objects have the same `Debug`
-    // representation and vice-versa.
-    format!("{:?}", left) == format!("{:?}", right)
+    use object::Object::*;
+
+    // Nil, integer, boolean and string comparisons are done directly. Array comparison is done by
+    // recursively comparing each element. Hash comparison is done by formatting the hashes into
+    // strings, using the `Display` implementation for object. Function and built-in comparisons are
+    // unsupported, and always return false.
+    match (left, right) {
+        (Nil, Nil) => true,
+        (Integer(x), Integer(y)) => x == y,
+        (Boolean(p), Boolean(q)) => p == q,
+        (Str(r), Str(s)) => r == s,
+        (Array(a), Array(b)) => {
+            a.len() == b.len() && a.iter().zip(b).all(|(l, r)| compare_objects(l, r))
+        }
+        (Hash(_), Hash(_)) => format!("{}", left) == format!("{}", right),
+        _ => false,
+    }
 }
