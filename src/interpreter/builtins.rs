@@ -198,8 +198,8 @@ fn builtin_map(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeErro
         );
         match call_result {
             Ok(v) => new_vector.push(v),
-            Err(monkey_err) => match monkey_err.error {
-                ErrorType::Runtime(e) => return Err(e),
+            Err(monkey_err) => match monkey_err {
+                MonkeyError::Interpreter(_, e) => return Err(e),
                 _ => unreachable!(),
             },
         }

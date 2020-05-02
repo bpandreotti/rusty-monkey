@@ -30,7 +30,10 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             // Note: This clones the object
             match env.borrow().get(&s) {
                 Some(value) => Ok(value),
-                None => Err(runtime_err(expression.position, IdenNotFound(s.clone()))),
+                None => Err(MonkeyError::Interpreter(
+                    expression.position,
+                    IdenNotFound(s.clone()),
+                )),
             }
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
@@ -51,7 +54,10 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
                 let key = match HashableObject::from_object(obj) {
                     Some(v) => v,
                     None => {
-                        return Err(runtime_err(expression.position, HashKeyTypeError(obj_type)))
+                        return Err(MonkeyError::Interpreter(
+                            expression.position,
+                            HashKeyTypeError(obj_type),
+                        ))
                     }
                 };
 
@@ -62,13 +68,14 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
-            eval_prefix_expression(tk, &right_side).map_err(|e| runtime_err(expression.position, e))
+            eval_prefix_expression(tk, &right_side)
+                .map_err(|e| MonkeyError::Interpreter(expression.position, e))
         }
         Expression::InfixExpression(l, tk, r) => {
             let left_side = eval_expression(l, env)?;
             let right_side = eval_expression(r, env)?;
             eval_infix_expression(&left_side, tk, &right_side)
-                .map_err(|e| runtime_err(expression.position, e))
+                .map_err(|e| MonkeyError::Interpreter(expression.position, e))
         }
         Expression::IfExpression {
             condition,
@@ -108,7 +115,8 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
             let index = eval_expression(index, env)?;
-            eval_index_expression(&obj, &index).map_err(|e| runtime_err(expression.position, e))
+            eval_index_expression(&obj, &index)
+                .map_err(|e| MonkeyError::Interpreter(expression.position, e))
         }
         Expression::BlockExpression(block) => eval_block(block, env),
     }
@@ -119,7 +127,7 @@ pub fn eval_statement(statement: &NodeStatement, env: &EnvHandle) -> MonkeyResul
         Statement::ExpressionStatement(exp) => eval_expression(exp, env),
         Statement::Return(exp) => {
             let value = eval_expression(exp, env)?;
-            Err(runtime_err(
+            Err(MonkeyError::Interpreter(
                 statement.position,
                 RuntimeError::ReturnValue(Box::new(value)),
             ))
@@ -207,8 +215,13 @@ pub fn eval_call_expression(
 ) -> MonkeyResult<Object> {
     match obj {
         Object::Function(fo) => call_function_object(fo, args, call_position),
-        Object::Builtin(b) => b.0(args, env).map_err(|e| runtime_err(call_position, e)),
-        other => Err(runtime_err(call_position, NotCallable(other.type_str()))),
+        Object::Builtin(b) => {
+            b.0(args, env).map_err(|e| MonkeyError::Interpreter(call_position, e))
+        }
+        other => Err(MonkeyError::Interpreter(
+            call_position,
+            NotCallable(other.type_str()),
+        )),
     }
 }
 
@@ -218,7 +231,7 @@ fn call_function_object(
     call_pos: (usize, usize),
 ) -> MonkeyResult<Object> {
     if fo.parameters.len() != args.len() {
-        return Err(runtime_err(
+        return Err(MonkeyError::Interpreter(
             call_pos,
             WrongNumberOfArgs(fo.parameters.len(), args.len()),
         ));
@@ -229,7 +242,7 @@ fn call_function_object(
     }
     let result = eval_block(&fo.body, &Rc::new(RefCell::new(call_env)));
     result.or_else(|e| {
-        if let ErrorType::Runtime(ReturnValue(obj)) = e.error {
+        if let MonkeyError::Interpreter(_, ReturnValue(obj)) = e {
             Ok(*obj)
         } else {
             Err(e)

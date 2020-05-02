@@ -88,7 +88,7 @@ impl Parser {
             self.read_token()?;
             Ok(())
         } else {
-            Err(parser_err(
+            Err(MonkeyError::Parser(
                 self.position,
                 ParserError::UnexpectedToken(expected, self.peek_token.clone()),
             ))
@@ -104,7 +104,7 @@ impl Parser {
         } else if self.peek_token == Token::EOF {
             Ok(())
         } else {
-            Err(parser_err(
+            Err(MonkeyError::Parser(
                 self.position,
                 ParserError::UnexpectedToken(expected, self.peek_token.clone()),
             ))
@@ -117,7 +117,7 @@ impl Parser {
             .iter()
             .any(|tk| mem::discriminant(&self.peek_token) == mem::discriminant(tk));
         if !found {
-            Err(parser_err(
+            Err(MonkeyError::Parser(
                 self.position,
                 ParserError::UnexpectedTokenMultiple {
                     possibilities,
@@ -180,7 +180,7 @@ impl Parser {
             self.expect_token_or_eof(Token::Semicolon)?;
             Ok((identifier, value))
         } else {
-            Err(parser_err(
+            Err(MonkeyError::Parser(
                 self.position,
                 ParserError::UnexpectedToken(
                     Token::Identifier("".into()),
@@ -256,7 +256,7 @@ impl Parser {
         let prefix_parse_fn = match Parser::get_prefix_parse_function(&self.current_token) {
             Some(f) => f,
             None => {
-                return Err(parser_err(
+                return Err(MonkeyError::Parser(
                     self.position,
                     ParserError::NoPrefixParseFn(self.current_token.clone()),
                 ))

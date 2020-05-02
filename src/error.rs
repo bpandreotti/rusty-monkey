@@ -1,3 +1,4 @@
+use crate::compiler::code::OpCode;
 use crate::interpreter::object::*;
 use crate::lexer::token::Token;
 
@@ -6,75 +7,46 @@ use std::fmt;
 use std::io;
 
 pub type MonkeyResult<T> = Result<T, MonkeyError>;
+type Position = (usize, usize);
 
 #[derive(Debug)]
-pub struct MonkeyError {
-    pub position: (usize, usize),
-    pub error: ErrorType,
+pub enum MonkeyError {
+    Io(io::Error),
+    Lexer(Position, LexerError),
+    Parser(Position, ParserError),
+    Interpreter(Position, RuntimeError),
+    Vm(RuntimeError),
 }
 
 impl std::error::Error for MonkeyError {}
 
 impl fmt::Display for MonkeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let ErrorType::Io(e) = &self.error {
-            // There's no point in printing the line and column nubmers for IO errors
-            return write!(f, "{} {}", "IO error:".red().bold(), e);
-        }
-        writeln!(
-            f,
-            "At line {}, column {}:",
-            self.position.0, self.position.1
-        )?;
-        write!(f, "    ")?; // Indentation
-        match &self.error {
-            ErrorType::Lexer(e) => write!(f, "{} {}", "Lexer error:".red().bold(), e.message()),
-            ErrorType::Parser(e) => write!(f, "{} {}", "Parser error:".red().bold(), e.message()),
-            ErrorType::Runtime(e) => write!(f, "{} {}", "Runtime error:".red().bold(), e.message()),
-            _ => unreachable!(), // IO errors have already been handled in the special case above
+        let mut write_pos = |&(line, column)| writeln!(f, "At line {}, column {}:", line, column);
+
+        match self {
+            MonkeyError::Io(e) => write!(f, "{} {}", "IO error:".red().bold(), e),
+            MonkeyError::Lexer(pos, e) => {
+                write_pos(pos)?;
+                write!(f, "{} {}", "Lexer error:".red().bold(), e)
+            }
+            MonkeyError::Parser(pos, e) => {
+                write_pos(pos)?;
+                write!(f, "{} {}", "Parser error:".red().bold(), e)
+            }
+            MonkeyError::Interpreter(pos, e) => {
+                write_pos(pos)?;
+                write!(f, "{} {}", "Runtime error:".red().bold(), e)
+            }
+            MonkeyError::Vm(e) => write!(f, "{} {}", "Runtime error:".red().bold(), e),
         }
     }
 }
 
 impl std::convert::From<io::Error> for MonkeyError {
     fn from(error: io::Error) -> MonkeyError {
-        MonkeyError {
-            position: (0, 0), // If it's an IO error, the position doesn't really matter
-            error: ErrorType::Io(error),
-        }
+        MonkeyError::Io(error)
     }
-}
-
-// Helper function to build a MonkeyError with a LexerError inside
-pub fn lexer_err(pos: (usize, usize), error: LexerError) -> MonkeyError {
-    MonkeyError {
-        position: pos,
-        error: ErrorType::Lexer(error),
-    }
-}
-
-// Helper function to build a MonkeyError with a ParserError inside
-pub fn parser_err(pos: (usize, usize), error: ParserError) -> MonkeyError {
-    MonkeyError {
-        position: pos,
-        error: ErrorType::Parser(error),
-    }
-}
-
-// Helper function to build a MonkeyError with a RuntimeError inside
-pub fn runtime_err(pos: (usize, usize), error: RuntimeError) -> MonkeyError {
-    MonkeyError {
-        position: pos,
-        error: ErrorType::Runtime(error),
-    }
-}
-
-#[derive(Debug)]
-pub enum ErrorType {
-    Io(io::Error),
-    Lexer(LexerError),
-    Parser(ParserError),
-    Runtime(RuntimeError),
 }
 
 #[derive(Debug, PartialEq)]
@@ -84,13 +56,13 @@ pub enum LexerError {
     IllegalChar(char),
 }
 
-impl LexerError {
-    pub fn message(&self) -> String {
+impl fmt::Display for LexerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use LexerError::*;
         match self {
-            UnexpectedEOF => "Unexpected EOF".into(),
-            UnknownEscapeSequence(ch) => format!("Unknown escape sequence: \\{}", ch),
-            IllegalChar(ch) => format!("Illegal character: \\{}", ch),
+            UnexpectedEOF => write!(f, "Unexpected EOF"),
+            UnknownEscapeSequence(ch) => write!(f, "Unknown escape sequence: \\{}", ch),
+            IllegalChar(ch) => write!(f, "Illegal character: \\{}", ch),
         }
     }
 }
@@ -105,23 +77,28 @@ pub enum ParserError {
     NoPrefixParseFn(Token),
 }
 
-impl ParserError {
-    pub fn message(&self) -> String {
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use ParserError::*;
         match self {
-            UnexpectedToken(expected, got) => format!("expected {} token, got {}", expected, got),
+            UnexpectedToken(expected, got) => write!(f, "expected {} token, got {}", expected, got),
             UnexpectedTokenMultiple { possibilities, got } => {
-                let mut list = String::new();
                 let len = possibilities.len();
                 // If there is only one possibility, you really shouldn't be using this variant
                 assert!(len > 1);
+                write!(f, "expected ")?;
                 for tk in 0..len - 2 {
-                    list += &format!("{}, ", tk);
+                    write!(f, "{}, ", tk)?;
                 }
-                list += &format!("{} or {}", possibilities[len - 2], possibilities[len - 1]);
-                format!("expected {} token, got {}", list, got)
+                write!(
+                    f,
+                    "{} or {} token, got {}",
+                    possibilities[len - 2],
+                    possibilities[len - 1],
+                    got
+                )
             }
-            NoPrefixParseFn(tk) => format!("no prefix parse function found for token: {}", tk),
+            NoPrefixParseFn(tk) => write!(f, "no prefix parse function found for token: {}", tk),
         }
     }
 }
@@ -157,6 +134,9 @@ pub enum RuntimeError {
     // Custom error
     Custom(String),
 
+    StackOverflow,
+    StackUnderflow,
+
     // This error is created whenever the interpreter encounters a return statement. We model
     // returning values this way to take advantage of the error forwarding already present in the
     // evaluator. When the interpreter encounters a runtime error, be it this one or any other,
@@ -170,38 +150,47 @@ pub enum RuntimeError {
     ReturnValue(Box<Object>),
 }
 
-impl RuntimeError {
-    pub fn message(&self) -> String {
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use RuntimeError::*;
         match self {
-            IdenNotFound(s) => format!("identifier not found: '{}'", s),
-            WrongNumberOfArgs(expected, got) => format!(
+            IdenNotFound(s) => write!(f, "identifier not found: '{}'", s),
+            WrongNumberOfArgs(expected, got) => write!(
+                f,
                 "wrong number of arguments: expected {} arguments but {} were given",
                 expected, got
             ),
-            IndexTypeError(obj) => format!("index must be integer, not '{}'", obj),
-            IndexOutOfBounds(i) => format!("index out of bounds: {}", i),
-            HashKeyTypeError(obj) => format!("hash key must be hashable type, not '{}'", obj),
-            KeyError(obj) => format!("hash key error: entry for {} not found", obj),
-            IndexingWrongType(obj) => format!("'{}' is not an array or hash object", obj),
-            PrefixTypeError(tk, obj) => format!(
+            IndexTypeError(obj) => write!(f, "index must be integer, not '{}'", obj),
+            IndexOutOfBounds(i) => write!(f, "index out of bounds: {}", i),
+            HashKeyTypeError(obj) => write!(f, "hash key must be hashable type, not '{}'", obj),
+            KeyError(obj) => write!(f, "hash key error: entry for {} not found", obj),
+            IndexingWrongType(obj) => write!(f, "'{}' is not an array or hash object", obj),
+            PrefixTypeError(tk, obj) => write!(
+                f,
                 "unsuported operand type for prefix operator {}: '{}'",
                 tk, obj
             ),
-            InfixTypeError(left, tk, right) => format!(
+            InfixTypeError(left, tk, right) => write!(
+                f,
                 "unsuported operand types for infix operator {}: '{}' and '{}'",
                 tk, left, right,
             ),
-            NotCallable(obj) => format!("'{}' is not a function object or built-in function", obj),
-            DivOrModByZero => "division or modulo by zero".to_string(),
-            NegativeExponent => "negative exponent".to_string(),
-            TypeError(expected, got) => {
-                format!("type error: expected '{}', got '{}'", expected, got,)
+            NotCallable(obj) => {
+                write!(f, "'{}' is not a function object or built-in function", obj)
             }
-            Custom(msg) => msg.clone(),
+            DivOrModByZero => write!(f, "division or modulo by zero"),
+            NegativeExponent => write!(f, "negative exponent"),
+            TypeError(expected, got) => {
+                write!(f, "type error: expected '{}', got '{}'", expected, got)
+            }
+            Custom(msg) => write!(f, "{}", msg),
+            
+            StackOverflow => write!(f, "stack overflow"),
+            StackUnderflow => write!(f, "stack underflow"),
+
             // A `ReturnValue` that was not handled by `call_function_object` means that it was
             // located outside a function context.
-            ReturnValue(_) => "`return` outside of function context".to_string(),
+            ReturnValue(_) => write!(f, "`return` outside of function context"),
         }
     }
 }

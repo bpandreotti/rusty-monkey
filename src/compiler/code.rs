@@ -1,4 +1,5 @@
 use crate::interpreter::object::Object;
+use crate::lexer::token;
 
 use std::convert::TryInto;
 use std::fmt;
@@ -122,6 +123,24 @@ impl OpCode {
             0x13 => OpCode::OpGetGlobal,
             0x14 => OpCode::OpSetGlobal,
             _ => panic!("byte does not represent valid opcode"),
+        }
+    }
+
+    pub fn equivalent_token(&self) -> Option<token::Token> {
+        match self {
+            OpCode::OpAdd => Some(token::Token::Plus),
+            OpCode::OpSub => Some(token::Token::Minus),
+            OpCode::OpMul => Some(token::Token::Asterisk),
+            OpCode::OpDiv => Some(token::Token::Slash),
+            OpCode::OpExponent => Some(token::Token::Exponent),
+            OpCode::OpModulo => Some(token::Token::Modulo),
+            OpCode::OpEquals => Some(token::Token::Equals),
+            OpCode::OpNotEquals => Some(token::Token::NotEquals),
+            OpCode::OpGreaterThan => Some(token::Token::GreaterThan),
+            OpCode::OpGreaterEq => Some(token::Token::GreaterEq),
+            OpCode::OpPrefixMinus => Some(token::Token::Minus),
+            OpCode::OpPrefixNot => Some(token::Token::Bang),
+            _ => None,
         }
     }
 }

@@ -22,8 +22,8 @@ fn assert_lexer_error(input: &str, expected_error: LexerError) {
         match lex.next_token() {
             Ok(Token::EOF) => panic!("No lexer errors encountered"),
             Err(e) => {
-                match e.error {
-                    ErrorType::Lexer(got) => assert_eq!(expected_error, got),
+                match e {
+                    MonkeyError::Lexer(_, got) => assert_eq!(expected_error, got),
                     _ => panic!("Wrong error type"),
                 }
                 return;

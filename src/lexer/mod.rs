@@ -160,7 +160,12 @@ impl Lexer {
             // digit, in which case it will be interpreted as a number
             Some(c) if c.is_alphanumeric() || c == '_' => return self.read_identifier(),
 
-            Some(c) => return Err(lexer_err(self.current_position, LexerError::IllegalChar(c))),
+            Some(c) => {
+                return Err(MonkeyError::Lexer(
+                    self.current_position,
+                    LexerError::IllegalChar(c),
+                ))
+            }
             None => return Ok(Token::EOF),
         };
         self.read_char()?;
@@ -210,18 +215,26 @@ impl Lexer {
                         Some('r') => result.push('\r'),
                         Some('"') => result.push('"'),
                         Some(c) => {
-                            return Err(lexer_err(
+                            return Err(MonkeyError::Lexer(
                                 self.current_position,
                                 LexerError::UnknownEscapeSequence(c),
                             ))
                         }
                         None => {
-                            return Err(lexer_err(self.current_position, LexerError::UnexpectedEOF))
+                            return Err(MonkeyError::Lexer(
+                                self.current_position,
+                                LexerError::UnexpectedEOF,
+                            ))
                         }
                     }
                 }
                 Some(c) => result.push(c),
-                None => return Err(lexer_err(self.current_position, LexerError::UnexpectedEOF)),
+                None => {
+                    return Err(MonkeyError::Lexer(
+                        self.current_position,
+                        LexerError::UnexpectedEOF,
+                    ))
+                }
             }
         }
         Ok(Token::Str(result))

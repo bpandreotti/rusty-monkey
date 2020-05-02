@@ -20,8 +20,8 @@ fn assert_runtime_error(input: &str, expected_errors: &[&str]) {
     let env = Rc::new(RefCell::new(environment::Environment::empty()));
     for (statement, &error) in parsed.iter().zip(expected_errors) {
         let got = eval_statement(statement, &env).expect_err("No runtime error encountered");
-        match got.error {
-            ErrorType::Runtime(e) => assert_eq!(e.message(), error),
+        match got {
+            MonkeyError::Interpreter(_, e) => assert_eq!(format!("{}", e), error),
             _ => panic!("Wrong error type"),
         }
     }

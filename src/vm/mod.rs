@@ -2,8 +2,9 @@
 mod tests;
 
 use crate::compiler::code::*;
-use crate::error::*;
+use crate::error::{MonkeyError, MonkeyResult, RuntimeError::*};
 use crate::interpreter::object::*;
+use crate::lexer::token::Token;
 
 use std::mem;
 
@@ -55,7 +56,7 @@ impl VM {
         unsafe { mem::transmute::<_, [Object; STACK_SIZE]>(stack) }
     }
 
-    pub fn run(&mut self) -> Result<(), MonkeyError> {
+    pub fn run(&mut self) -> MonkeyResult<()> {
         use OpCode::*;
         let mut pc = 0;
         while pc < self.instructions.0.len() {
@@ -67,7 +68,8 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 OpPop => {
-                    self.pop()?;
+                    self.pop().unwrap();
+                    // self.pop().ok_or(); // @DEBUG
                 }
                 OpAdd | OpSub | OpMul | OpDiv | OpExponent | OpModulo | OpEquals | OpNotEquals
                 | OpGreaterThan | OpGreaterEq => self.execute_binary_operation(op)?,
@@ -104,17 +106,17 @@ impl VM {
         Ok(())
     }
 
-    pub fn stack_top(&self) -> Option<&Object> {
+    pub fn stack_top(&self) -> MonkeyResult<&Object> {
         if self.sp == 0 {
-            None
+            Err(MonkeyError::Vm(StackOverflow))
         } else {
-            Some(&self.stack[self.sp - 1])
+            Ok(&self.stack[self.sp - 1])
         }
     }
 
-    fn push(&mut self, obj: Object) -> Result<(), MonkeyError> {
+    fn push(&mut self, obj: Object) -> MonkeyResult<()> {
         if self.sp >= STACK_SIZE {
-            panic!("stack overflow"); // @TODO: Add proper errors
+            return Err(MonkeyError::Vm(StackOverflow));
         } else {
             self.stack[self.sp] = obj;
             self.sp += 1;
@@ -122,16 +124,16 @@ impl VM {
         }
     }
 
-    fn pop(&mut self) -> Result<&Object, MonkeyError> {
+    fn pop(&mut self) -> MonkeyResult<&Object> {
         if self.sp == 0 {
-            panic!("stack underflow");
+            Err(MonkeyError::Vm(StackUnderflow))
         } else {
             self.sp -= 1;
             Ok(&self.stack[self.sp])
         }
     }
 
-    fn execute_binary_operation(&mut self, op: OpCode) -> Result<(), MonkeyError> {
+    fn execute_binary_operation(&mut self, op: OpCode) -> MonkeyResult<()> {
         // I'm matching on right and then on left (instead of matching both at the same time)
         // because, to please the borrow checker, I need to copy over the value inside the right
         // object before I get the left object with `self.pop`. I could just clone the whole
@@ -143,7 +145,11 @@ impl VM {
                 if let Object::Integer(l) = *left {
                     self.execute_integer_operation(op, l, r)
                 } else {
-                    panic!("type error") // @TODO: Add proper errors
+                    return Err(MonkeyError::Vm(InfixTypeError(
+                        left.type_str(),
+                        op.equivalent_token().unwrap(),
+                        "int",
+                    )));
                 }
             }
             Object::Boolean(r) => {
@@ -151,7 +157,11 @@ impl VM {
                 if let Object::Boolean(l) = *left {
                     self.execute_bool_operation(op, l, r)
                 } else {
-                    panic!("type error") // @TODO: Add proper errors
+                    return Err(MonkeyError::Vm(InfixTypeError(
+                        left.type_str(),
+                        op.equivalent_token().unwrap(),
+                        "bool",
+                    )));
                 }
             }
             _ => todo!(),
@@ -164,9 +174,11 @@ impl VM {
             OpCode::OpAdd => Object::Integer(left + right),
             OpCode::OpSub => Object::Integer(left - right),
             OpCode::OpMul => Object::Integer(left * right),
+            OpCode::OpDiv if right == 0 => return Err(MonkeyError::Vm(DivOrModByZero)),
             OpCode::OpDiv => Object::Integer(left / right),
-            // @TODO: Make sure exponent is positive
+            OpCode::OpExponent if right < 0 => return Err(MonkeyError::Vm(NegativeExponent)),
             OpCode::OpExponent => Object::Integer(left.pow(right as u32)),
+            OpCode::OpModulo if right == 0 => return Err(MonkeyError::Vm(DivOrModByZero)),
             OpCode::OpModulo => Object::Integer(left % right),
 
             // Comparison operators
@@ -184,20 +196,23 @@ impl VM {
         let result = match op {
             OpCode::OpEquals => Object::Boolean(left == right),
             OpCode::OpNotEquals => Object::Boolean(left != right),
-            _ => panic!("type error"), // @TODO: Add proper errors
+            _ => return Err(MonkeyError::Vm(InfixTypeError("bool", Token::Plus, "bool"))),
         };
         self.push(result)?;
         Ok(())
     }
 
-    fn execute_prefix_operation(&mut self, op: OpCode) -> Result<(), MonkeyError> {
+    fn execute_prefix_operation(&mut self, op: OpCode) -> MonkeyResult<()> {
         let right = self.pop()?;
         match op {
             OpCode::OpPrefixMinus => {
                 if let Object::Integer(i) = *right {
                     self.push(Object::Integer(-i))?;
                 } else {
-                    panic!("type error") // @TODO: Add proper errors
+                    return Err(MonkeyError::Vm(PrefixTypeError(
+                        Token::Minus,
+                        right.type_str(),
+                    )));
                 }
             }
             OpCode::OpPrefixNot => {
