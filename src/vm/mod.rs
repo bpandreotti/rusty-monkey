@@ -34,14 +34,10 @@ impl VM {
         }
     }
 
-    pub fn with_globals(bytecode: Bytecode, globals: Box<[Object]>) -> VM {
-        VM {
-            constants: bytecode.constants,
-            instructions: bytecode.instructions,
-            stack: VM::initialize_new_stack(),
-            sp: 0,
-            globals,
-        }
+    /// Resets the VM bytecode, without changing the current globals. Used in the REPL.
+    pub fn reset_bytecode(&mut self, new_bytecode: Bytecode) {
+        self.constants = new_bytecode.constants;
+        self.instructions = new_bytecode.instructions;
     }
 
     fn initialize_new_stack() -> [Object; STACK_SIZE] {
@@ -113,14 +109,6 @@ impl VM {
             None
         } else {
             Some(&self.stack[self.sp - 1])
-        }
-    }
-
-    pub fn last_popped(&self) -> &Object {
-        if self.sp >= STACK_SIZE {
-            panic!("stack overflow"); // @TODO: Add proper errors
-        } else {
-            &self.stack[self.sp]
         }
     }
 

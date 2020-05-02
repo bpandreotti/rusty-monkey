@@ -34,6 +34,15 @@ pub struct Bytecode {
     pub constants: Vec<Object>,
 }
 
+impl Bytecode {
+    pub fn empty() -> Bytecode {
+        Bytecode {
+            instructions: Instructions(Vec::new()),
+            constants: Vec::new(),
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum OpCode {

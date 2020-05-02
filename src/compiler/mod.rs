@@ -28,11 +28,14 @@ impl Compiler {
         }
     }
 
-    pub fn with_state(constants: Vec<Object>, symbol_table: SymbolTable) -> Compiler {
-        Compiler {
-            instructions: Instructions(Vec::new()),
+    /// Resets the instructions of the compiler, without changing the constants, and returns a
+    /// `Bytecode` containing the old instructions and a clone of the constants. Used in the REPL.
+    pub fn reset_instructions(&mut self) -> Bytecode {
+        let instructions = std::mem::replace(&mut self.instructions, Instructions(Vec::new()));
+        let constants = self.constants.clone();
+        Bytecode {
+            instructions,
             constants,
-            symbol_table,
         }
     }
 

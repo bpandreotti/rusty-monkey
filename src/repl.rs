@@ -1,4 +1,4 @@
-use crate::compiler::{self, symbol_table};
+use crate::compiler::{self, code};
 use crate::error::MonkeyResult;
 use crate::interpreter::{self, environment, object};
 use crate::parser;
@@ -120,24 +120,15 @@ pub fn start(compiled: bool) -> Result<(), std::io::Error> {
 }
 
 fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::Error> {
-    // @WIP
-    let mut constants = Vec::new();
-    let mut symbol_table = symbol_table::SymbolTable::new();
-    let mut globals = {
-        let mut v = Vec::with_capacity(vm::GLOBALS_SIZE);
-        v.resize(vm::GLOBALS_SIZE, object::Object::Nil);
-        v.into_boxed_slice()
-    };
+    let mut comp = compiler::Compiler::new();
+    let mut vm = vm::VM::new(code::Bytecode::empty());
+
     let mut run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
-        // @PERFORMANCE: I really shouldn't be cloning everything
         let parsed = parser::parse(line)?;
-        let mut comp = compiler::Compiler::with_state(constants.clone(), symbol_table.clone());
         comp.compile_block(parsed)?;
-        constants = comp.constants.clone();
-        symbol_table = comp.symbol_table.clone();
-        let mut vm = vm::VM::with_globals(comp.bytecode(), globals.clone());
+        let new_bytecode = comp.reset_instructions();
+        vm.reset_bytecode(new_bytecode);
         vm.run()?;
-        globals = vm.globals.clone();
         Ok(vec![vm.stack_top().unwrap().clone()]) // @TODO: Add proper errors
     };
 
