@@ -156,6 +156,11 @@ impl Compiler {
             Expression::Boolean(false) => {
                 self.emit(OpCode::OpFalse, &[]);
             }
+            Expression::StringLiteral(s) => {
+                let obj = Object::Str(s);
+                let constant_index = self.add_constant(obj);
+                self.emit(OpCode::OpConstant, &[constant_index]);
+            }
             Expression::Nil => {
                 self.emit(OpCode::OpNil, &[]);
             }

@@ -1,4 +1,3 @@
-use crate::compiler::code::OpCode;
 use crate::interpreter::object::*;
 use crate::lexer::token::Token;
 

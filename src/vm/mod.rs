@@ -6,15 +6,13 @@ use crate::error::{MonkeyError, MonkeyResult, RuntimeError::*};
 use crate::interpreter::object::*;
 use crate::lexer::token::Token;
 
-use std::mem;
-
 const STACK_SIZE: usize = 2048;
 pub const GLOBALS_SIZE: usize = 65536;
 
 pub struct VM {
     constants: Vec<Object>,
     instructions: Instructions,
-    stack: [Object; STACK_SIZE], // @PERFORMANCE: Maybe using a Vec here would be fine
+    stack: Vec<Object>,
     sp: usize,
     pub globals: Box<[Object]>,
 }
@@ -29,7 +27,7 @@ impl VM {
         VM {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
-            stack: VM::initialize_new_stack(),
+            stack: Vec::with_capacity(STACK_SIZE),
             sp: 0,
             globals,
         }
@@ -39,21 +37,6 @@ impl VM {
     pub fn reset_bytecode(&mut self, new_bytecode: Bytecode) {
         self.constants = new_bytecode.constants;
         self.instructions = new_bytecode.instructions;
-    }
-
-    fn initialize_new_stack() -> [Object; STACK_SIZE] {
-        // Since `Object` does not implement `Copy`, we can't just initialize an array of objects
-        // like we would normally. In this case, I would like to be able to just do
-        // "[Object::Nil; STACK_SIZE]". Instead, I have to do this unsafe witchcraft.
-        // Safety: We're creating an unitialized array of `MaybeUninit`, and this type doesn't need
-        // any initialization, so this is safe.
-        let mut stack: [mem::MaybeUninit<Object>; STACK_SIZE] =
-            unsafe { mem::MaybeUninit::uninit().assume_init() };
-        for item in &mut stack[..] {
-            *item = mem::MaybeUninit::new(Object::Nil);
-        }
-        // Safety: Everything is initialized, so we can safely transmute here.
-        unsafe { mem::transmute::<_, [Object; STACK_SIZE]>(stack) }
     }
 
     pub fn run(&mut self) -> MonkeyResult<()> {
@@ -68,8 +51,7 @@ impl VM {
                     self.push(self.constants[constant_index].clone())?;
                 }
                 OpPop => {
-                    self.pop().unwrap();
-                    // self.pop().ok_or(); // @DEBUG
+                    self.pop()?;
                 }
                 OpAdd | OpSub | OpMul | OpDiv | OpExponent | OpModulo | OpEquals | OpNotEquals
                 | OpGreaterThan | OpGreaterEq => self.execute_binary_operation(op)?,
@@ -81,7 +63,7 @@ impl VM {
                     pc += 2;
 
                     // @PERFORMANCE: Using `is_truthy` might be slow
-                    if !Object::is_truthy(self.pop()?) {
+                    if !Object::is_truthy(&self.pop()?) {
                         pc = pos - 1;
                     }
                 }
@@ -118,53 +100,35 @@ impl VM {
         if self.sp >= STACK_SIZE {
             return Err(MonkeyError::Vm(StackOverflow));
         } else {
-            self.stack[self.sp] = obj;
+            self.stack.push(obj);
             self.sp += 1;
             Ok(())
         }
     }
 
-    fn pop(&mut self) -> MonkeyResult<&Object> {
+    fn pop(&mut self) -> MonkeyResult<Object> {
         if self.sp == 0 {
             Err(MonkeyError::Vm(StackUnderflow))
         } else {
             self.sp -= 1;
-            Ok(&self.stack[self.sp])
+            Ok(self.stack.pop().unwrap())
         }
     }
 
-    fn execute_binary_operation(&mut self, op: OpCode) -> MonkeyResult<()> {
-        // I'm matching on right and then on left (instead of matching both at the same time)
-        // because, to please the borrow checker, I need to copy over the value inside the right
-        // object before I get the left object with `self.pop`. I could just clone the whole
-        // objects, but that would be much slower. Maybe there's a simpler way to do this.
+    fn execute_binary_operation(&mut self, operation: OpCode) -> MonkeyResult<()> {
+        use Object::*;
+
         let right = self.pop()?;
-        match *right {
-            Object::Integer(r) => {
-                let left = self.pop()?;
-                if let Object::Integer(l) = *left {
-                    self.execute_integer_operation(op, l, r)
-                } else {
-                    return Err(MonkeyError::Vm(InfixTypeError(
-                        left.type_str(),
-                        op.equivalent_token().unwrap(),
-                        "int",
-                    )));
-                }
-            }
-            Object::Boolean(r) => {
-                let left = self.pop()?;
-                if let Object::Boolean(l) = *left {
-                    self.execute_bool_operation(op, l, r)
-                } else {
-                    return Err(MonkeyError::Vm(InfixTypeError(
-                        left.type_str(),
-                        op.equivalent_token().unwrap(),
-                        "bool",
-                    )));
-                }
-            }
-            _ => todo!(),
+        let left = self.pop()?;
+        match (left, operation, right) {
+            (Integer(l), op, Integer(r)) => self.execute_integer_operation(op, l, r),
+            (Boolean(l), op , Boolean(r)) => self.execute_bool_operation(op, l, r),
+            (Str(l), OpCode::OpAdd, Str(r)) => self.execute_str_concat(&l, &r),
+            (l, op, r) => Err(MonkeyError::Vm(InfixTypeError(
+                l.type_str(),
+                op.equivalent_token().unwrap(),
+                r.type_str(),
+            ))),
         }
     }
 
@@ -196,17 +160,27 @@ impl VM {
         let result = match op {
             OpCode::OpEquals => Object::Boolean(left == right),
             OpCode::OpNotEquals => Object::Boolean(left != right),
-            _ => return Err(MonkeyError::Vm(InfixTypeError("bool", Token::Plus, "bool"))),
+            _ => {
+                return Err(MonkeyError::Vm(InfixTypeError(
+                    "bool",
+                    op.equivalent_token().unwrap(),
+                    "bool",
+                )))
+            }
         };
         self.push(result)?;
         Ok(())
+    }
+
+    fn execute_str_concat(&mut self, left: &str, right: &str) -> MonkeyResult<()> {
+        self.push(Object::Str(left.to_string() + right))
     }
 
     fn execute_prefix_operation(&mut self, op: OpCode) -> MonkeyResult<()> {
         let right = self.pop()?;
         match op {
             OpCode::OpPrefixMinus => {
-                if let Object::Integer(i) = *right {
+                if let Object::Integer(i) = right {
                     self.push(Object::Integer(-i))?;
                 } else {
                     return Err(MonkeyError::Vm(PrefixTypeError(

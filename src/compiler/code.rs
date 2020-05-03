@@ -60,7 +60,7 @@ pub enum OpCode {
     OpEquals,
     OpNotEquals,
     OpGreaterThan,
-    OpGreaterEq, // @TODO: Maybe this should be implemented in terms of "!" and "<"?
+    OpGreaterEq, // @PERFORMANCE: Maybe this should be implemented in terms of "!" and "<"?
     OpPrefixMinus,
     OpPrefixNot,
     OpJumpNotTruthy,

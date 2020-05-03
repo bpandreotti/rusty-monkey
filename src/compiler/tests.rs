@@ -204,3 +204,22 @@ fn test_global_assignment() {
         ),
     );
 }
+
+#[test]
+fn test_strings() {
+    assert_compile(
+        "\"monkey\"",
+        Instructions([make!(OpCode::OpConstant, 0)].concat()),
+    );
+    assert_compile(
+        "\"mon\" + \"key\"",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpAdd),
+            ]
+            .concat(),
+        ),
+    );
+}

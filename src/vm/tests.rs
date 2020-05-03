@@ -68,3 +68,18 @@ fn test_global_assignment() {
     let expected = [Object::Integer(1), Object::Integer(3), Object::Integer(3)];
     assert_vm_runs(&input, &expected);
 }
+
+#[test]
+fn test_strings() {
+    let input = [
+        r#""monkey""#,
+        r#""mon" + "key""#,
+        r#""mon" + "key" + "banana""#,
+    ];
+    let expected = [
+        Object::Str("monkey".into()),
+        Object::Str("monkey".into()),
+        Object::Str("monkeybanana".into()),
+    ];
+    assert_vm_runs(&input, &expected);
+}
