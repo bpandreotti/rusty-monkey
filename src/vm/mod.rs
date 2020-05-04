@@ -6,6 +6,8 @@ use crate::error::{MonkeyError, MonkeyResult, RuntimeError::*};
 use crate::interpreter::object::*;
 use crate::lexer::token::Token;
 
+use std::collections::HashMap;
+
 const STACK_SIZE: usize = 2048;
 pub const GLOBALS_SIZE: usize = 65536;
 
@@ -89,7 +91,21 @@ impl VM {
                     self.sp -= num_elements;
                     self.push(Object::Array(arr))?;
                 }
-                OpHash => todo!(),
+                OpHash => {
+                    let num_elements = read_u16(&self.instructions.0[pc + 1..]) as usize;
+                    pc += 2;
+                    let entries = self.stack.split_off(self.sp - (2 * num_elements));
+                    let mut map = HashMap::new();
+                    for i in 0..num_elements {
+                        let key = &entries[i * 2];
+                        let value = &entries[i * 2 + 1];
+                        let hashable = HashableObject::from_object(key.clone())
+                            .ok_or_else(|| MonkeyError::Vm(HashKeyTypeError(key.type_str())))?;
+                        map.insert(hashable, value.clone());
+                    }
+                    self.sp -= num_elements * 2;
+                    self.push(Object::Hash(map))?;
+                },
             }
             pc += 1;
         }

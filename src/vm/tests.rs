@@ -102,3 +102,33 @@ fn test_arrays() {
     ];
     assert_vm_runs(&input, &expected);
 }
+
+#[test]
+fn test_hashes() {
+    macro_rules! map {
+        ($($key:expr => $value:expr),*) => {
+            {
+                let mut _map = HashMap::new();
+                $(_map.insert($key, $value);)*
+                _map
+            }
+        };
+    }
+    let input = [
+        "#{}",
+        "#{ 1: 2, 2: 3 }",
+        "#{ 1 + 1: 2 * 2, 3 + 3: 4 * 4 }",
+    ];
+    let expected = [
+        Object::Hash(map! {}),
+        Object::Hash(map! {
+            HashableObject::Integer(1) => Object::Integer(2),
+            HashableObject::Integer(2) => Object::Integer(3)
+        }),
+        Object::Hash(map! {
+            HashableObject::Integer(2) => Object::Integer(4),
+            HashableObject::Integer(6) => Object::Integer(16)
+        }),
+    ];
+    assert_vm_runs(&input, &expected)
+}
