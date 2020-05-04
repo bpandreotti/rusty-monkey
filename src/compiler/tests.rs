@@ -223,3 +223,38 @@ fn test_strings() {
         ),
     );
 }
+
+#[test]
+fn test_arrays() {
+    assert_compile("[]", Instructions([make!(OpCode::OpArray, 0)].concat()));
+    assert_compile(
+        "[1, 2, 3]",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpConstant, 2),
+                make!(OpCode::OpArray, 3),
+            ]
+            .concat(),
+        ),
+    );
+    assert_compile(
+        "[1 + 2, 3 - 4, 5 * 6]",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpAdd),
+                make!(OpCode::OpConstant, 2),
+                make!(OpCode::OpConstant, 3),
+                make!(OpCode::OpSub),
+                make!(OpCode::OpConstant, 4),
+                make!(OpCode::OpConstant, 5),
+                make!(OpCode::OpMul),
+                make!(OpCode::OpArray, 3),
+            ]
+            .concat(),
+        ),
+    );
+}

@@ -68,6 +68,7 @@ pub enum OpCode {
     OpNil,
     OpGetGlobal,
     OpSetGlobal,
+    OpArray,
 }
 
 impl OpCode {
@@ -94,6 +95,7 @@ impl OpCode {
             OpCode::OpNil => &[],
             OpCode::OpGetGlobal => &[2],
             OpCode::OpSetGlobal => &[2],
+            OpCode::OpArray => &[2],
         }
     }
 
@@ -122,11 +124,12 @@ impl OpCode {
             0x12 => OpCode::OpNil,
             0x13 => OpCode::OpGetGlobal,
             0x14 => OpCode::OpSetGlobal,
+            0x15 => OpCode::OpArray,
             _ => panic!("byte does not represent valid opcode"),
         }
     }
 
-    pub fn equivalent_token(&self) -> Option<token::Token> {
+    pub fn equivalent_token(self) -> Option<token::Token> {
         match self {
             OpCode::OpAdd => Some(token::Token::Plus),
             OpCode::OpSub => Some(token::Token::Minus),

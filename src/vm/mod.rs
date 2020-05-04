@@ -82,6 +82,7 @@ impl VM {
                     pc += 2;
                     self.push(self.globals[index].clone())?;
                 }
+                OpArray => todo!(),
             }
             pc += 1;
         }
@@ -90,7 +91,7 @@ impl VM {
 
     pub fn stack_top(&self) -> MonkeyResult<&Object> {
         if self.sp == 0 {
-            Err(MonkeyError::Vm(StackOverflow))
+            Err(MonkeyError::Vm(StackUnderflow))
         } else {
             Ok(&self.stack[self.sp - 1])
         }
@@ -98,7 +99,7 @@ impl VM {
 
     fn push(&mut self, obj: Object) -> MonkeyResult<()> {
         if self.sp >= STACK_SIZE {
-            return Err(MonkeyError::Vm(StackOverflow));
+            Err(MonkeyError::Vm(StackOverflow))
         } else {
             self.stack.push(obj);
             self.sp += 1;

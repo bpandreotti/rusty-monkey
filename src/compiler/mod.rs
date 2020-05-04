@@ -161,6 +161,16 @@ impl Compiler {
                 let constant_index = self.add_constant(obj);
                 self.emit(OpCode::OpConstant, &[constant_index]);
             }
+            Expression::ArrayLiteral(v) => {
+                let length = v.len();
+                if length > 65536 {
+                    panic!("Array literal too big!") // @TODO: Add proper errors
+                }
+                for expression in v {
+                    self.compile_expression(expression)?;
+                }
+                self.emit(OpCode::OpArray, &[length]);
+            }
             Expression::Nil => {
                 self.emit(OpCode::OpNil, &[]);
             }
