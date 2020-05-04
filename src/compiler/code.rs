@@ -69,6 +69,7 @@ pub enum OpCode {
     OpGetGlobal,
     OpSetGlobal,
     OpArray,
+    OpHash,
 }
 
 impl OpCode {
@@ -96,6 +97,7 @@ impl OpCode {
             OpCode::OpGetGlobal => &[2],
             OpCode::OpSetGlobal => &[2],
             OpCode::OpArray => &[2],
+            OpCode::OpHash => &[2],
         }
     }
 
@@ -125,6 +127,7 @@ impl OpCode {
             0x13 => OpCode::OpGetGlobal,
             0x14 => OpCode::OpSetGlobal,
             0x15 => OpCode::OpArray,
+            0x16 => OpCode::OpHash,
             _ => panic!("byte does not represent valid opcode"),
         }
     }

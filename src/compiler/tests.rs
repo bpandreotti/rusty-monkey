@@ -258,3 +258,38 @@ fn test_arrays() {
         ),
     );
 }
+
+#[test]
+fn test_hashes() {
+    assert_compile("#{}", Instructions([make!(OpCode::OpHash, 0)].concat()));
+    assert_compile(
+        "#{ 1: 2, 3: 4 }",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpConstant, 2),
+                make!(OpCode::OpConstant, 3),
+                make!(OpCode::OpHash, 2),
+            ]
+            .concat(),
+        ),
+    );
+    assert_compile(
+        "#{ 1: 2 + 3, 4: 5 * 6 }",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpConstant, 2),
+                make!(OpCode::OpAdd),
+                make!(OpCode::OpConstant, 3),
+                make!(OpCode::OpConstant, 4),
+                make!(OpCode::OpConstant, 5),
+                make!(OpCode::OpMul),
+                make!(OpCode::OpHash, 2),
+            ]
+            .concat(),
+        ),
+    );
+}

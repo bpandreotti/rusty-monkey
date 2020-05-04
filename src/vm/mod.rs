@@ -88,7 +88,8 @@ impl VM {
                     let arr = self.stack.split_off(self.sp - num_elements);
                     self.sp -= num_elements;
                     self.push(Object::Array(arr))?;
-                },
+                }
+                OpHash => todo!(),
             }
             pc += 1;
         }
@@ -129,7 +130,7 @@ impl VM {
         let left = self.pop()?;
         match (left, operation, right) {
             (Integer(l), op, Integer(r)) => self.execute_integer_operation(op, l, r),
-            (Boolean(l), op , Boolean(r)) => self.execute_bool_operation(op, l, r),
+            (Boolean(l), op, Boolean(r)) => self.execute_bool_operation(op, l, r),
             (Str(l), OpCode::OpAdd, Str(r)) => self.execute_str_concat(&l, &r),
             (l, op, r) => Err(MonkeyError::Vm(InfixTypeError(
                 l.type_str(),

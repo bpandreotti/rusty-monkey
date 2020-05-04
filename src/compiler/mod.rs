@@ -171,6 +171,17 @@ impl Compiler {
                 }
                 self.emit(OpCode::OpArray, &[length]);
             }
+            Expression::HashLiteral(v) => {
+                let length = v.len();
+                if length > 65536 {
+                    panic!("Hash literal too big!") // @TODO: Add proper errors
+                }
+                for (key, value) in v {
+                    self.compile_expression(key)?;
+                    self.compile_expression(value)?;
+                }
+                self.emit(OpCode::OpHash, &[length]);
+            }
             Expression::Nil => {
                 self.emit(OpCode::OpNil, &[]);
             }
