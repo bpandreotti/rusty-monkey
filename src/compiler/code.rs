@@ -3,6 +3,7 @@ use crate::lexer::token;
 
 use std::convert::TryInto;
 use std::fmt;
+use std::mem;
 
 #[derive(PartialEq)]
 pub struct Instructions(pub Vec<u8>);
@@ -102,34 +103,11 @@ impl OpCode {
     }
 
     pub fn from_byte(byte: u8) -> OpCode {
-        // @TODO: Write a macro to automatically implement this
-        // @PERFORMANCE: mem::transmute would be faster, but horribly unsafe
-        match byte {
-            0x00 => OpCode::OpConstant,
-            0x01 => OpCode::OpPop,
-            0x02 => OpCode::OpAdd,
-            0x03 => OpCode::OpSub,
-            0x04 => OpCode::OpMul,
-            0x05 => OpCode::OpDiv,
-            0x06 => OpCode::OpExponent,
-            0x07 => OpCode::OpModulo,
-            0x08 => OpCode::OpTrue,
-            0x09 => OpCode::OpFalse,
-            0x0a => OpCode::OpEquals,
-            0x0b => OpCode::OpNotEquals,
-            0x0c => OpCode::OpGreaterThan,
-            0x0d => OpCode::OpGreaterEq,
-            0x0e => OpCode::OpPrefixMinus,
-            0x0f => OpCode::OpPrefixNot,
-            0x10 => OpCode::OpJumpNotTruthy,
-            0x11 => OpCode::OpJump,
-            0x12 => OpCode::OpNil,
-            0x13 => OpCode::OpGetGlobal,
-            0x14 => OpCode::OpSetGlobal,
-            0x15 => OpCode::OpArray,
-            0x16 => OpCode::OpHash,
-            _ => panic!("byte does not represent valid opcode"),
-        }
+        // Safety: `OpCode` is #[repr(u8)], so as long as `byte` represents a valid enum
+        // variant, this transmute will be safe. We make sure of that by asserting that `byte`
+        // is no greater than the last variant.
+        assert!(byte <= (OpCode::OpHash as u8), "byte does not represent valid opcode");
+        unsafe { mem::transmute(byte) }
     }
 
     pub fn equivalent_token(self) -> Option<token::Token> {
