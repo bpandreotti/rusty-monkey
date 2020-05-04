@@ -83,3 +83,22 @@ fn test_strings() {
     ];
     assert_vm_runs(&input, &expected);
 }
+
+#[test]
+fn test_arrays() {
+    let input = ["[]", "[1, 2, 3]", "[1 + 2, 3 - 4, 5 * 6]"];
+    let expected = [
+        Object::Array(vec![]),
+        Object::Array(vec![
+            Object::Integer(1),
+            Object::Integer(2),
+            Object::Integer(3),
+        ]),
+        Object::Array(vec![
+            Object::Integer(3),
+            Object::Integer(-1),
+            Object::Integer(30),
+        ]),
+    ];
+    assert_vm_runs(&input, &expected);
+}

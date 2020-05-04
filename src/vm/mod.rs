@@ -82,7 +82,13 @@ impl VM {
                     pc += 2;
                     self.push(self.globals[index].clone())?;
                 }
-                OpArray => todo!(),
+                OpArray => {
+                    let num_elements = read_u16(&self.instructions.0[pc + 1..]) as usize;
+                    pc += 2;
+                    let arr = self.stack.split_off(self.sp - num_elements);
+                    self.sp -= num_elements;
+                    self.push(Object::Array(arr))?;
+                },
             }
             pc += 1;
         }
