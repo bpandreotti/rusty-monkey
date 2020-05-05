@@ -11,7 +11,7 @@ fn assert_eval(input: &str, expected: &[object::Object]) {
     // Eval program statements and compare with expected
     for (statement, exp) in parsed.into_iter().zip(expected) {
         let got = eval_statement(&statement, &env).expect("Runtime error during test");
-        assert!(test_utils::compare_objects(exp, &got));
+        assert!(test_utils::compare_interpreter_objects(exp, &got));
     }
 }
 

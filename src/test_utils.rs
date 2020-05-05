@@ -1,7 +1,8 @@
 use crate::compiler::{self, code};
 use crate::error::*;
-use crate::interpreter::object;
+use crate::interpreter;
 use crate::parser;
+use crate::vm;
 
 pub fn parse_and_compile(program: &str) -> Result<code::Bytecode, MonkeyError> {
     let parsed = parser::parse(program.into())?;
@@ -10,8 +11,11 @@ pub fn parse_and_compile(program: &str) -> Result<code::Bytecode, MonkeyError> {
     Ok(comp.bytecode())
 }
 
-pub fn compare_objects(left: &object::Object, right: &object::Object) -> bool {
-    use object::Object::*;
+pub fn compare_interpreter_objects(
+    left: &interpreter::object::Object,
+    right: &interpreter::object::Object,
+) -> bool {
+    use interpreter::object::Object::*;
 
     // Nil, integer, boolean and string comparisons are done directly. Array comparison is done by
     // recursively comparing each element. Hash comparison is done by formatting the hashes into
@@ -23,7 +27,26 @@ pub fn compare_objects(left: &object::Object, right: &object::Object) -> bool {
         (Boolean(p), Boolean(q)) => p == q,
         (Str(r), Str(s)) => r == s,
         (Array(a), Array(b)) => {
-            a.len() == b.len() && a.iter().zip(b).all(|(l, r)| compare_objects(l, r))
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(l, r)| compare_interpreter_objects(l, r))
+        }
+        (Hash(_), Hash(_)) => format!("{}", left) == format!("{}", right),
+        _ => false,
+    }
+}
+
+pub fn compare_vm_objects(left: &vm::object::Object, right: &vm::object::Object) -> bool {
+    use vm::object::Object::*;
+    // Same thing as the previous function, but for VM objects
+    match (left, right) {
+        (Nil, Nil) => true,
+        (Integer(x), Integer(y)) => x == y,
+        (Boolean(p), Boolean(q)) => p == q,
+        (Str(r), Str(s)) => r == s,
+        (Array(a), Array(b)) => {
+            a.len() == b.len() && a.iter().zip(b).all(|(l, r)| compare_vm_objects(l, r))
         }
         (Hash(_), Hash(_)) => format!("{}", left) == format!("{}", right),
         _ => false,

@@ -6,6 +6,7 @@ pub mod object;
 mod tests;
 
 use crate::error::*;
+use crate::hashable::HashableObject;
 use crate::lexer::token::Token;
 use crate::parser::ast::*;
 use environment::*;
@@ -51,7 +52,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
             for (key, val) in v {
                 let obj = eval_expression(key, env)?;
                 let obj_type = obj.type_str();
-                let key = match HashableObject::from_object(obj) {
+                let key = match HashableObject::from_interpreter_object(obj) {
                     Some(v) => v,
                     None => {
                         return Err(MonkeyError::Interpreter(
@@ -263,7 +264,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
         (Object::Array(_), other) => Err(IndexTypeError(other.type_str())),
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
-            let key = HashableObject::from_object(key.clone())
+            let key = HashableObject::from_interpreter_object(key.clone())
                 .ok_or_else(|| HashKeyTypeError(key_type))?;
             let value = map.get(&key).ok_or_else(|| KeyError(key))?;
             Ok(value.clone())

@@ -1,17 +1,7 @@
-use super::builtins::BuiltinFn;
-use super::environment::EnvHandle;
 use crate::hashable::HashableObject;
-use crate::parser::ast::NodeStatement;
 
 use std::collections::HashMap;
 use std::fmt;
-
-#[derive(Debug, Clone)]
-pub struct FunctionObject {
-    pub environment: EnvHandle,
-    pub parameters: Vec<String>,
-    pub body: Vec<NodeStatement>,
-}
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -20,8 +10,6 @@ pub enum Object {
     Str(String),
     Array(Vec<Object>),
     Hash(HashMap<HashableObject, Object>),
-    Function(FunctionObject),
-    Builtin(BuiltinFn),
     Nil,
 }
 
@@ -57,8 +45,6 @@ impl fmt::Display for Object {
                 write!(f, "}}")
             }
             Object::Nil => write!(f, "nil"),
-            Object::Function(_) => write!(f, "<function>"),
-            Object::Builtin(_) => write!(f, "<built-in function>"),
         }
     }
 }
@@ -72,8 +58,6 @@ impl Object {
             Object::Array(_) => "array",
             Object::Hash(_) => "hash",
             Object::Nil => "nil",
-            Object::Function(_) => "function",
-            Object::Builtin(_) => "function",
         }
     }
 
@@ -81,17 +65,6 @@ impl Object {
         match self {
             Object::Boolean(false) | Object::Nil | Object::Integer(0) => false,
             _ => true,
-        }
-    }
-
-    pub fn are_equal(left: &Object, right: &Object) -> Option<bool> {
-        // Function object, array, and hash comparisons are unsupported
-        match (left, right) {
-            (Object::Integer(l), Object::Integer(r)) => Some(l == r),
-            (Object::Boolean(l), Object::Boolean(r)) => Some(l == r),
-            (Object::Str(l), Object::Str(r)) => Some(l == r),
-            (Object::Nil, Object::Nil) => Some(true),
-            _ => None,
         }
     }
 }

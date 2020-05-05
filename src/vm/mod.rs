@@ -1,10 +1,12 @@
+pub mod object;
 #[cfg(test)]
 mod tests;
 
 use crate::compiler::code::*;
 use crate::error::{MonkeyError, MonkeyResult, RuntimeError::*};
-use crate::interpreter::object::*;
+use crate::hashable::HashableObject;
 use crate::lexer::token::Token;
+use object::*;
 
 use std::collections::HashMap;
 
@@ -99,7 +101,7 @@ impl VM {
                     for i in 0..num_elements {
                         let key = &entries[i * 2];
                         let value = &entries[i * 2 + 1];
-                        let hashable = HashableObject::from_object(key.clone())
+                        let hashable = HashableObject::from_vm_object(key.clone())
                             .ok_or_else(|| MonkeyError::Vm(HashKeyTypeError(key.type_str())))?;
                         map.insert(hashable, value.clone());
                     }
@@ -240,7 +242,7 @@ impl VM {
             (Object::Array(_), other) => Err(IndexTypeError(other.type_str())),
             (Object::Hash(map), key) => {
                 let key_type = key.type_str();
-                let key = HashableObject::from_object(key.clone())
+                let key = HashableObject::from_vm_object(key.clone())
                     .ok_or(MonkeyError::Vm(HashKeyTypeError(key_type)))?;
                 let value = map.get(&key).ok_or(MonkeyError::Vm(KeyError(key)))?;
                 Ok(value.clone())

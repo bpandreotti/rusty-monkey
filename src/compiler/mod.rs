@@ -6,9 +6,7 @@ mod tests;
 
 use crate::error::*;
 use crate::parser::ast::*;
-// @PERFORMANCE: The compiler currently uses the same object representation as the interpreter.
-// This might not be ideal.
-use crate::interpreter::object::Object;
+use crate::vm::object::Object;
 use crate::lexer::token::Token;
 use code::*;
 use symbol_table::*;

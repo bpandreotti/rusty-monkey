@@ -7,7 +7,7 @@ fn assert_vm_runs(input: &[&str], expected: &[Object]) {
             test_utils::parse_and_compile(program).expect("Parser or compiler error during test");
         let mut vm = VM::new(bytecode);
         vm.run().unwrap();
-        assert!(test_utils::compare_objects(exp, vm.stack_top().unwrap()));
+        assert!(test_utils::compare_vm_objects(exp, vm.stack_top().unwrap()));
     }
 }
 

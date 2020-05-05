@@ -1,5 +1,6 @@
 mod compiler;
 mod error;
+mod hashable;
 mod interpreter;
 mod lexer;
 mod parser;

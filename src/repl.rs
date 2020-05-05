@@ -1,6 +1,6 @@
 use crate::compiler::{self, code};
 use crate::error::MonkeyResult;
-use crate::interpreter::{self, environment, object};
+use crate::interpreter::{self, environment};
 use crate::parser;
 use crate::vm;
 
@@ -123,7 +123,7 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
     let mut comp = compiler::Compiler::new();
     let mut vm = vm::VM::new(code::Bytecode::empty());
 
-    let mut run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
+    let mut run_line = |line: String| -> MonkeyResult<Vec<vm::object::Object>> {
         let parsed = parser::parse(line)?;
         comp.compile_block(parsed)?;
         let new_bytecode = comp.reset_instructions();
@@ -142,7 +142,7 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
 
 fn start_interpreted(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::Error> {
     let env = Rc::new(RefCell::new(environment::Environment::empty()));
-    let run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
+    let run_line = |line: String| -> MonkeyResult<Vec<interpreter::object::Object>> {
         parser::parse(line)?
             .into_iter()
             .map(|s| interpreter::eval_statement(&s, &env))
@@ -171,7 +171,7 @@ fn read_line(rl: &mut rustyline::Editor<ReplHelper>) -> Option<String> {
     None
 }
 
-fn print_results(results: MonkeyResult<Vec<object::Object>>) {
+fn print_results<T: std::fmt::Display>(results: MonkeyResult<Vec<T>>) {
     match results {
         Ok(values) => {
             for v in values {
