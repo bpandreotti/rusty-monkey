@@ -105,7 +105,12 @@ impl VM {
                     }
                     self.sp -= num_elements * 2;
                     self.push(Object::Hash(map))?;
-                },
+                }
+                OpIndex => {
+                    let index = self.pop()?;
+                    let obj = self.pop()?;
+                    self.execute_index_operation(obj, index)?;
+                }
             }
             pc += 1;
         }
@@ -221,5 +226,37 @@ impl VM {
             _ => unreachable!(),
         }
         Ok(())
+    }
+
+    fn execute_index_operation(&mut self, obj: Object, index: Object) -> MonkeyResult<()> {
+        let result = match (obj, index) {
+            (Object::Array(vector), Object::Integer(i)) => {
+                if i < 0 || i >= vector.len() as i64 {
+                    Err(IndexOutOfBounds(i))
+                } else {
+                    Ok(vector.into_iter().nth(i as usize).unwrap())
+                }
+            }
+            (Object::Array(_), other) => Err(IndexTypeError(other.type_str())),
+            (Object::Hash(map), key) => {
+                let key_type = key.type_str();
+                let key = HashableObject::from_object(key.clone())
+                    .ok_or(MonkeyError::Vm(HashKeyTypeError(key_type)))?;
+                let value = map.get(&key).ok_or(MonkeyError::Vm(KeyError(key)))?;
+                Ok(value.clone())
+            }
+            (Object::Str(s), Object::Integer(i)) => {
+                let chars = s.chars().collect::<Vec<_>>();
+                if i < 0 || i >= chars.len() as i64 {
+                    Err(IndexOutOfBounds(i))
+                } else {
+                    Ok(Object::Str(chars[i as usize].to_string()))
+                }
+            }
+            (Object::Str(_), other) => Err(IndexTypeError(other.type_str())),
+            (other, _) => Err(IndexingWrongType(other.type_str())),
+        };
+        let result = result.map_err(MonkeyError::Vm)?;
+        self.push(result)
     }
 }

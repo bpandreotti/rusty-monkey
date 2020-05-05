@@ -293,3 +293,38 @@ fn test_hashes() {
         ),
     );
 }
+
+#[test]
+fn test_index_expressions() {
+    assert_compile(
+        "[1, 2, 3][1 + 1]",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpConstant, 2),
+                make!(OpCode::OpArray, 3),
+                make!(OpCode::OpConstant, 3),
+                make!(OpCode::OpConstant, 4),
+                make!(OpCode::OpAdd),
+                make!(OpCode::OpIndex),
+            ]
+            .concat(),
+        ),
+    );
+    assert_compile(
+        "#{ 1: 2 }[2 - 1]",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 0),
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpHash, 1),
+                make!(OpCode::OpConstant, 2),
+                make!(OpCode::OpConstant, 3),
+                make!(OpCode::OpSub),
+                make!(OpCode::OpIndex),
+            ]
+            .concat(),
+        ),
+    );
+}

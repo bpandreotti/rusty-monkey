@@ -132,3 +132,22 @@ fn test_hashes() {
     ];
     assert_vm_runs(&input, &expected)
 }
+
+#[test]
+fn test_index_expressions() {
+    let input = [
+        "[1, 2, 3][1]",
+        "[1, 2, 3][0 + 2]",
+        "[[1, 1, 1]][0][0]",
+        "#{ 1: 1, 2: 2 }[1]",
+        "#{ 1: 1, 2: 2 }[2]",
+    ];
+    let expected = [
+        Object::Integer(2),
+        Object::Integer(3),
+        Object::Integer(1),
+        Object::Integer(1),
+        Object::Integer(2),
+    ];
+    assert_vm_runs(&input, &expected);
+}

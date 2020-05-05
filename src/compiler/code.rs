@@ -71,6 +71,7 @@ pub enum OpCode {
     OpSetGlobal,
     OpArray,
     OpHash,
+    OpIndex,
 }
 
 impl OpCode {
@@ -99,6 +100,7 @@ impl OpCode {
             OpCode::OpSetGlobal => &[2],
             OpCode::OpArray => &[2],
             OpCode::OpHash => &[2],
+            OpCode::OpIndex => &[],
         }
     }
 
@@ -106,7 +108,7 @@ impl OpCode {
         // Safety: `OpCode` is #[repr(u8)], so as long as `byte` represents a valid enum
         // variant, this transmute will be safe. We make sure of that by asserting that `byte`
         // is no greater than the last variant.
-        assert!(byte <= (OpCode::OpHash as u8), "byte does not represent valid opcode");
+        assert!(byte <= (OpCode::OpIndex as u8), "byte does not represent valid opcode");
         unsafe { mem::transmute(byte) }
     }
 

@@ -215,6 +215,11 @@ impl Compiler {
                 let index = self.symbol_table.resolve(&name).unwrap().index;
                 self.emit(OpCode::OpGetGlobal, &[index]);
             }
+            Expression::IndexExpression(obj, index) => {
+                self.compile_expression(*obj)?;
+                self.compile_expression(*index)?;
+                self.emit(OpCode::OpIndex, &[]);
+            }
             _ => todo!(),
         }
         Ok(())
