@@ -1,3 +1,4 @@
+use crate::compiler::code;
 use crate::hashable::HashableObject;
 
 use std::collections::HashMap;
@@ -11,6 +12,7 @@ pub enum Object {
     Array(Vec<Object>),
     Hash(HashMap<HashableObject, Object>),
     Nil,
+    CompiledFunction(code::Instructions)
 }
 
 impl fmt::Display for Object {
@@ -45,6 +47,7 @@ impl fmt::Display for Object {
                 write!(f, "}}")
             }
             Object::Nil => write!(f, "nil"),
+            Object::CompiledFunction(_) => write!(f, "<function>"),
         }
     }
 }
@@ -58,6 +61,7 @@ impl Object {
             Object::Array(_) => "array",
             Object::Hash(_) => "hash",
             Object::Nil => "nil",
+            Object::CompiledFunction(_) => "function",
         }
     }
 

@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::mem;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Instructions(pub Vec<u8>);
 
 impl fmt::Display for Instructions {
@@ -72,6 +72,8 @@ pub enum OpCode {
     OpArray,
     OpHash,
     OpIndex,
+    OpCall,
+    OpReturn,
 }
 
 impl OpCode {
@@ -101,6 +103,8 @@ impl OpCode {
             OpCode::OpArray => &[2],
             OpCode::OpHash => &[2],
             OpCode::OpIndex => &[],
+            OpCode::OpCall => &[],
+            OpCode::OpReturn => &[],
         }
     }
 
@@ -108,7 +112,7 @@ impl OpCode {
         // Safety: `OpCode` is #[repr(u8)], so as long as `byte` represents a valid enum
         // variant, this transmute will be safe. We make sure of that by asserting that `byte`
         // is no greater than the last variant.
-        assert!(byte <= (OpCode::OpIndex as u8), "byte does not represent valid opcode");
+        assert!(byte <= (OpCode::OpReturn as u8), "byte does not represent valid opcode");
         unsafe { mem::transmute(byte) }
     }
 

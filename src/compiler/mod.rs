@@ -5,22 +5,29 @@ pub mod symbol_table;
 mod tests;
 
 use crate::error::*;
+use crate::lexer::token::Token;
 use crate::parser::ast::*;
 use crate::vm::object::Object;
-use crate::lexer::token::Token;
 use code::*;
 use symbol_table::*;
 
-pub struct Compiler {
+pub struct CompilationScope {
     instructions: Instructions,
+}
+
+pub struct Compiler {
+    scopes: Vec<CompilationScope>,
     pub constants: Vec<Object>,
     pub symbol_table: SymbolTable,
 }
 
 impl Compiler {
     pub fn new() -> Compiler {
-        Compiler {
+        let root_scope = CompilationScope {
             instructions: Instructions(Vec::new()),
+        };
+        Compiler {
+            scopes: vec![root_scope],
             constants: Vec::new(),
             symbol_table: SymbolTable::new(),
         }
@@ -29,7 +36,7 @@ impl Compiler {
     /// Resets the instructions of the compiler, without changing the constants, and returns a
     /// `Bytecode` containing the old instructions and a clone of the constants. Used in the REPL.
     pub fn reset_instructions(&mut self) -> Bytecode {
-        let instructions = std::mem::replace(&mut self.instructions, Instructions(Vec::new()));
+        let instructions = std::mem::replace(self.current_instructions(), Instructions(Vec::new()));
         let constants = self.constants.clone();
         Bytecode {
             instructions,
@@ -37,11 +44,17 @@ impl Compiler {
         }
     }
 
-    pub fn bytecode(self) -> Bytecode {
+    pub fn bytecode(mut self) -> Bytecode {
+        let top_scope_instructions = self.scopes.pop().map(|scope| scope.instructions);
         Bytecode {
-            instructions: self.instructions,
+            instructions: top_scope_instructions.unwrap_or_else(|| Instructions(Vec::new())),
             constants: self.constants,
         }
+    }
+
+    fn current_instructions(&mut self) -> &mut Instructions {
+        // This function panics if the compilation scopes stack is empty
+        &mut self.scopes.last_mut().expect("No compilation scope in stack").instructions
     }
 
     fn add_constant(&mut self, obj: Object) -> usize {
@@ -55,20 +68,20 @@ impl Compiler {
     }
 
     fn add_instruction(&mut self, instruction: &[u8]) -> usize {
-        let new_instruction_pos = self.instructions.0.len();
-        self.instructions.0.extend_from_slice(instruction);
+        let new_instruction_pos = self.current_instructions().0.len();
+        self.current_instructions().0.extend_from_slice(instruction);
         new_instruction_pos
     }
 
     fn change_operand(&mut self, op_pos: usize, new_operand: usize) {
-        let op_code = OpCode::from_byte(self.instructions.0[op_pos]);
+        let op_code = OpCode::from_byte(self.current_instructions().0[op_pos]);
         let new_instruction = make!(op_code, new_operand);
         self.replace_instruction(op_pos, &new_instruction)
     }
 
     fn replace_instruction(&mut self, pos: usize, new_instruction: &[u8]) {
         for (i, b) in new_instruction.iter().enumerate() {
-            self.instructions.0[pos + i] = *b;
+            self.current_instructions().0[pos + i] = *b;
         }
     }
 
@@ -199,13 +212,13 @@ impl Compiler {
                 let jump_pos = self.emit(OpCode::OpJump, &[9999]);
 
                 // Modify the OpJumpNotTruthy instruction
-                let after_consequence = self.instructions.0.len();
+                let after_consequence = self.current_instructions().0.len();
                 self.change_operand(jump_not_truthy_pos, after_consequence);
 
                 self.compile_block(alternative)?;
 
                 // Modify the OpJump instruction
-                let after_alternative = self.instructions.0.len();
+                let after_alternative = self.current_instructions().0.len();
                 self.change_operand(jump_pos, after_alternative);
             }
             Expression::Identifier(name) => {

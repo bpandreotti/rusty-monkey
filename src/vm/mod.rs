@@ -113,6 +113,7 @@ impl VM {
                     let obj = self.pop()?;
                     self.execute_index_operation(obj, index)?;
                 }
+                _ => todo!(),
             }
             pc += 1;
         }
