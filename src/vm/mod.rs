@@ -27,7 +27,6 @@ impl VM {
         let mut globals = Vec::with_capacity(GLOBALS_SIZE);
         globals.resize(GLOBALS_SIZE, Object::Nil);
         let globals = globals.into_boxed_slice();
-
         VM {
             constants: bytecode.constants,
             instructions: bytecode.instructions,

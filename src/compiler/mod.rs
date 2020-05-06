@@ -54,7 +54,22 @@ impl Compiler {
 
     fn current_instructions(&mut self) -> &mut Instructions {
         // This function panics if the compilation scopes stack is empty
-        &mut self.scopes.last_mut().expect("No compilation scope in stack").instructions
+        &mut self
+            .scopes
+            .last_mut()
+            .expect("No compilation scope in stack")
+            .instructions
+    }
+
+    fn enter_scope(&mut self) {
+        let empty_scope = CompilationScope {
+            instructions: Instructions(Vec::new()),
+        };
+        self.scopes.push(empty_scope);
+    }
+
+    fn pop_scope(&mut self) -> CompilationScope {
+        self.scopes.pop().expect("No compilation scope in stack")
     }
 
     fn add_constant(&mut self, obj: Object) -> usize {
@@ -105,7 +120,6 @@ impl Compiler {
                 if !last {
                     self.emit(OpCode::OpPop, &[]);
                 }
-                Ok(())
             }
             Statement::Let(let_statement) => {
                 let (name, exp) = *let_statement;
@@ -117,10 +131,13 @@ impl Compiler {
                 if last {
                     self.emit(OpCode::OpNil, &[]);
                 }
-                Ok(())
             }
-            _ => todo!(),
-        }
+            Statement::Return(value) => {
+                self.compile_expression(*value)?;
+                self.emit(OpCode::OpReturn, &[]);
+            }
+        };
+        Ok(())
     }
 
     fn compile_expression(&mut self, expression: NodeExpression) -> MonkeyResult<()> {
@@ -230,6 +247,14 @@ impl Compiler {
                 self.compile_expression(*obj)?;
                 self.compile_expression(*index)?;
                 self.emit(OpCode::OpIndex, &[]);
+            }
+            // For now, we don't care about parameters, just the body of the function
+            Expression::FunctionLiteral { body, .. } => {
+                self.enter_scope();
+                self.compile_block(body)?;
+                let instructions = self.pop_scope().instructions;
+                let compiled_fn = self.add_constant(Object::CompiledFunction(instructions));
+                self.emit(OpCode::OpConstant, &[compiled_fn]);
             }
             _ => todo!(),
         }
