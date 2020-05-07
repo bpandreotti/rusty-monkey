@@ -49,6 +49,7 @@ pub fn compare_vm_objects(left: &vm::object::Object, right: &vm::object::Object)
             a.len() == b.len() && a.iter().zip(b).all(|(l, r)| compare_vm_objects(l, r))
         }
         (Hash(_), Hash(_)) => format!("{}", left) == format!("{}", right),
+        (CompiledFunction(f), CompiledFunction(g)) => f.0 == g.0,
         _ => false,
     }
 }
