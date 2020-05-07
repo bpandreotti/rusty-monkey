@@ -152,9 +152,6 @@ impl VM {
                             frame_stack.top_mut().pc += 1;
                             let new_frame = Frame { instructions, pc: 0 };
                             frame_stack.push(new_frame);
-                            dbg!(frame_stack.top().pc);
-                            dbg!(frame_stack.top().instructions.0.len());
-
                             continue;
                         }
                         other => return Err(MonkeyError::Vm(NotCallable(other.type_str()))),
