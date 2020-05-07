@@ -14,6 +14,7 @@ pub enum MonkeyError {
     Io(io::Error),
     Lexer(Position, LexerError),
     Parser(Position, ParserError),
+    Compiler(Position, CompilerError),
     Interpreter(Position, RuntimeError),
     Vm(RuntimeError),
 }
@@ -33,6 +34,10 @@ impl fmt::Display for MonkeyError {
             MonkeyError::Parser(pos, e) => {
                 write_pos(pos)?;
                 write!(f, "{} {}", "Parser error:".red().bold(), e)
+            }
+            MonkeyError::Compiler(pos, e) => {
+                write_pos(pos)?;
+                write!(f, "{} {}", "Compiler error:".red().bold(), e)
             }
             MonkeyError::Interpreter(pos, e) => {
                 write_pos(pos)?;
@@ -99,6 +104,24 @@ impl fmt::Display for ParserError {
                 )
             }
             NoPrefixParseFn(tk) => write!(f, "no prefix parse function found for token: {}", tk),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CompilerError {
+    InvalidReturn,
+    IdenNotFound(String),
+    LiteralTooBig,
+}
+
+impl fmt::Display for CompilerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use CompilerError::*;
+        match self {
+            InvalidReturn => write!(f, "`return` outside of function context"),
+            IdenNotFound(s) => write!(f, "identifier not found: '{}'", s),
+            LiteralTooBig => write!(f, "array or hash literal too big"),
         }
     }
 }

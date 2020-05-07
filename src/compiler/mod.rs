@@ -4,7 +4,7 @@ pub mod symbol_table;
 #[cfg(test)]
 mod tests;
 
-use crate::error::*;
+use crate::error::{CompilerError::*, MonkeyError, MonkeyResult};
 use crate::lexer::token::Token;
 use crate::parser::ast::*;
 use crate::vm::object::Object;
@@ -135,7 +135,7 @@ impl Compiler {
             Statement::Return(value) => {
                 // If we are at the root compilation scope, we are not in a function context
                 if self.scopes.len() == 1 {
-                    panic!("`return` outside of function context") // @TODO: Add proper errors
+                    return Err(MonkeyError::Compiler(statement.position, InvalidReturn));
                 }
                 self.compile_expression(*value)?;
                 self.emit(OpCode::OpReturn, &[]);
@@ -196,7 +196,7 @@ impl Compiler {
             Expression::ArrayLiteral(v) => {
                 let length = v.len();
                 if length > 65536 {
-                    panic!("Array literal too big!") // @TODO: Add proper errors
+                    return Err(MonkeyError::Compiler(expression.position, LiteralTooBig));
                 }
                 for expression in v {
                     self.compile_expression(expression)?;
@@ -206,7 +206,7 @@ impl Compiler {
             Expression::HashLiteral(v) => {
                 let length = v.len();
                 if length > 65536 {
-                    panic!("Hash literal too big!") // @TODO: Add proper errors
+                    return Err(MonkeyError::Compiler(expression.position, LiteralTooBig));
                 }
                 for (key, value) in v {
                     self.compile_expression(key)?;
@@ -243,8 +243,14 @@ impl Compiler {
                 self.change_operand(jump_pos, after_alternative);
             }
             Expression::Identifier(name) => {
-                // @TODO: Add proper erros
-                let index = self.symbol_table.resolve(&name).unwrap().index;
+                let index = self
+                    .symbol_table
+                    .resolve(&name)
+                    .ok_or(MonkeyError::Compiler(
+                        expression.position,
+                        IdenNotFound(name),
+                    ))?
+                    .index;
                 self.emit(OpCode::OpGetGlobal, &[index]);
             }
             Expression::IndexExpression(obj, index) => {

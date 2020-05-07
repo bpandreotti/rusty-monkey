@@ -1,4 +1,3 @@
-// @TODO: Add tests for function literals
 use super::*;
 use crate::test_utils;
 
