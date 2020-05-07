@@ -5,8 +5,8 @@ fn assert_vm_runs(input: &[&str], expected: &[Object]) {
     for (program, exp) in input.iter().zip(expected) {
         let bytecode =
             test_utils::parse_and_compile(program).expect("Parser or compiler error during test");
-        let mut vm = VM::new(bytecode);
-        vm.run().unwrap();
+        let mut vm = VM::new();
+        vm.run(bytecode).unwrap();
         assert!(test_utils::compare_vm_objects(exp, vm.stack_top().unwrap()));
     }
 }
@@ -114,11 +114,7 @@ fn test_hashes() {
             }
         };
     }
-    let input = [
-        "#{}",
-        "#{ 1: 2, 2: 3 }",
-        "#{ 1 + 1: 2 * 2, 3 + 3: 4 * 4 }",
-    ];
+    let input = ["#{}", "#{ 1: 2, 2: 3 }", "#{ 1 + 1: 2 * 2, 3 + 3: 4 * 4 }"];
     let expected = [
         Object::Hash(map! {}),
         Object::Hash(map! {
@@ -150,4 +146,32 @@ fn test_index_expressions() {
         Object::Integer(2),
     ];
     assert_vm_runs(&input, &expected);
+}
+
+#[test]
+fn test_function_calls() {
+    let input = [
+        "let foo = fn() { 5 + 10; }; foo()",
+        "let foo = fn() { return 5 + 10; }; foo()",
+    ];
+    let expected = [Object::Integer(15), Object::Integer(15)];
+    assert_vm_runs(&input, &expected);
+}
+
+// The way return statements currently work in the VM, they just pop the current Frame off of the
+// frame stack, but leave the objects stack untouched. This means that if a function returns while
+//  it's using the stack to execute an operation, those values will remain on the stack.
+#[test]
+fn test_stack_cleaning_after_call() {
+    let input = "
+        let foo = fn() {
+            5 + (if true { return 2; })
+        };
+        foo();
+    ";
+    let bytecode =
+        test_utils::parse_and_compile(input).expect("Parser or compiler error during test");
+    let mut vm = VM::new();
+    vm.run(bytecode).unwrap();
+    assert_eq!(vm.stack.len(), 1);
 }

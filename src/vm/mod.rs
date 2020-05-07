@@ -13,45 +13,83 @@ use std::collections::HashMap;
 const STACK_SIZE: usize = 2048;
 pub const GLOBALS_SIZE: usize = 65536;
 
-pub struct VM {
-    constants: Vec<Object>,
+struct Frame {
     instructions: Instructions,
+    pc: usize,
+}
+
+struct FrameStack(Vec<Frame>);
+
+impl FrameStack {
+    fn top(&self) -> &Frame {
+        self.0.last().expect("No frames in frame stack")
+    }
+
+    fn top_mut(&mut self) -> &mut Frame {
+        self.0.last_mut().expect("No frames in frame stack")
+    }
+
+    fn push(&mut self, frame: Frame) {
+        self.0.push(frame);
+    }
+
+    fn pop(&mut self) {
+        self.0.pop();
+    }
+
+    // Reads a u16 from the top frame, and incremets its program counter
+    fn read_u16_from_top(&mut self) -> usize {
+        let value = read_u16(&self.top().instructions.0[self.top().pc + 1..]) as usize;
+        self.top_mut().pc += 2;
+        value
+    }
+}
+
+pub struct VM {
     stack: Vec<Object>,
     sp: usize,
     pub globals: Box<[Object]>,
 }
 
 impl VM {
-    pub fn new(bytecode: Bytecode) -> VM {
+    pub fn new() -> VM {
         // @PERFORMANCE: Maybe we shouldn't allocate all the memory for the globals upfront.
         let mut globals = Vec::with_capacity(GLOBALS_SIZE);
         globals.resize(GLOBALS_SIZE, Object::Nil);
         let globals = globals.into_boxed_slice();
+
         VM {
-            constants: bytecode.constants,
-            instructions: bytecode.instructions,
             stack: Vec::with_capacity(STACK_SIZE),
             sp: 0,
             globals,
         }
     }
 
-    /// Resets the VM bytecode, without changing the current globals. Used in the REPL.
-    pub fn reset_bytecode(&mut self, new_bytecode: Bytecode) {
-        self.constants = new_bytecode.constants;
-        self.instructions = new_bytecode.instructions;
-    }
-
-    pub fn run(&mut self) -> MonkeyResult<()> {
-        use OpCode::*;
-        let mut pc = 0;
-        while pc < self.instructions.0.len() {
-            let op = OpCode::from_byte(self.instructions.0[pc]);
+    pub fn run(&mut self, bytecode: Bytecode) -> MonkeyResult<()> {
+        // We can't store the frames in the VM struct because we need to borrow both `self` and the
+        // current frame mutably at the same time. If the frames were part of `self`, that would
+        // mean two mutable references to `self`.
+        let mut frame_stack = FrameStack({
+            let root_frame = Frame {
+                instructions: bytecode.instructions,
+                pc: 0,
+            };
+            vec![root_frame]
+        });
+        let constants = bytecode.constants;
+        
+        while !frame_stack.0.is_empty() {
+            // If we reached the end of the current frame, pop it off and restart
+            if frame_stack.top().pc >= frame_stack.top().instructions.0.len() {
+                frame_stack.pop();
+                continue;
+            }
+            use OpCode::*;
+            let op = OpCode::from_byte(frame_stack.top().instructions.0[frame_stack.top().pc]);
             match op {
                 OpConstant => {
-                    let constant_index = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc += 2;
-                    self.push(self.constants[constant_index].clone())?;
+                    let constant_index = frame_stack.read_u16_from_top();
+                    self.push(constants[constant_index].clone())?;
                 }
                 OpPop => {
                     self.pop()?;
@@ -62,39 +100,34 @@ impl VM {
                 OpFalse => self.push(Object::Boolean(false))?,
                 OpPrefixMinus | OpPrefixNot => self.execute_prefix_operation(op)?,
                 OpJumpNotTruthy => {
-                    let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc += 2;
+                    let pos = frame_stack.read_u16_from_top();
 
                     // @PERFORMANCE: Using `is_truthy` might be slow
                     if !Object::is_truthy(&self.pop()?) {
-                        pc = pos - 1;
+                        frame_stack.top_mut().pc = pos - 1;
                     }
                 }
                 OpJump => {
-                    let pos = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc = pos - 1;
+                    let pos = frame_stack.read_u16_from_top();
+                    frame_stack.top_mut().pc = pos - 1;
                 }
                 OpNil => self.push(Object::Nil)?,
                 OpSetGlobal => {
-                    let index = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc += 2;
+                    let index = frame_stack.read_u16_from_top();
                     self.globals[index] = self.pop()?.clone();
                 }
                 OpGetGlobal => {
-                    let index = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc += 2;
+                    let index = frame_stack.read_u16_from_top();
                     self.push(self.globals[index].clone())?;
                 }
                 OpArray => {
-                    let num_elements = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc += 2;
+                    let num_elements = frame_stack.read_u16_from_top();
                     let arr = self.stack.split_off(self.sp - num_elements);
                     self.sp -= num_elements;
                     self.push(Object::Array(arr))?;
                 }
                 OpHash => {
-                    let num_elements = read_u16(&self.instructions.0[pc + 1..]) as usize;
-                    pc += 2;
+                    let num_elements = frame_stack.read_u16_from_top();
                     let entries = self.stack.split_off(self.sp - (2 * num_elements));
                     let mut map = HashMap::new();
                     for i in 0..num_elements {
@@ -112,9 +145,29 @@ impl VM {
                     let obj = self.pop()?;
                     self.execute_index_operation(obj, index)?;
                 }
-                _ => todo!(),
+                OpCall => {
+                    let func = self.pop()?;
+                    match func {
+                        Object::CompiledFunction(instructions) => {
+                            frame_stack.top_mut().pc += 1;
+                            let new_frame = Frame { instructions, pc: 0 };
+                            frame_stack.push(new_frame);
+                            dbg!(frame_stack.top().pc);
+                            dbg!(frame_stack.top().instructions.0.len());
+
+                            continue;
+                        }
+                        other => return Err(MonkeyError::Vm(NotCallable(other.type_str()))),
+                    }
+                }
+                OpReturn => {
+                    // @TODO: Clean stack after returning. For more information, see
+                    // `tests::test_stack_cleaning_after_call`
+                    frame_stack.pop();
+                }
             }
-            pc += 1;
+            
+            frame_stack.top_mut().pc += 1;            
         }
         Ok(())
     }

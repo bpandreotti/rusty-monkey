@@ -1,4 +1,4 @@
-use crate::compiler::{self, code};
+use crate::compiler;
 use crate::error::MonkeyResult;
 use crate::interpreter::{self, environment};
 use crate::parser;
@@ -121,14 +121,13 @@ pub fn start(compiled: bool) -> Result<(), std::io::Error> {
 
 fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::Error> {
     let mut comp = compiler::Compiler::new();
-    let mut vm = vm::VM::new(code::Bytecode::empty());
+    let mut vm = vm::VM::new();
 
     let mut run_line = |line: String| -> MonkeyResult<Vec<vm::object::Object>> {
         let parsed = parser::parse(line)?;
         comp.compile_block(parsed)?;
         let new_bytecode = comp.reset_instructions();
-        vm.reset_bytecode(new_bytecode);
-        vm.run()?;
+        vm.run(new_bytecode)?;
         Ok(vec![vm.stack_top()?.clone()])
     };
 

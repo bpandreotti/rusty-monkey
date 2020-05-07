@@ -329,3 +329,22 @@ fn test_index_expressions() {
         ),
     );
 }
+
+#[test]
+fn test_function_calls() {
+    assert_compile(
+        "fn() { 24 }()",
+        Instructions([make!(OpCode::OpConstant, 1), make!(OpCode::OpCall)].concat()),
+    );
+    assert_compile(
+        "let foo = fn() { 24 }; foo()",
+        Instructions(
+            [
+                make!(OpCode::OpConstant, 1),
+                make!(OpCode::OpSetGlobal, 0),
+                make!(OpCode::OpGetGlobal, 0),
+                make!(OpCode::OpCall)
+            ].concat()
+        ),
+    );
+}

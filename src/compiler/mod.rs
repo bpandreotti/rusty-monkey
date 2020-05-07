@@ -133,6 +133,10 @@ impl Compiler {
                 }
             }
             Statement::Return(value) => {
+                // If we are at the root compilation scope, we are not in a function context
+                if self.scopes.len() == 1 {
+                    panic!("`return` outside of function context") // @TODO: Add proper errors
+                }
                 self.compile_expression(*value)?;
                 self.emit(OpCode::OpReturn, &[]);
             }
@@ -255,6 +259,10 @@ impl Compiler {
                 let instructions = self.pop_scope().instructions;
                 let compiled_fn = self.add_constant(Object::CompiledFunction(instructions));
                 self.emit(OpCode::OpConstant, &[compiled_fn]);
+            }
+            Expression::CallExpression { function, .. } => {
+                self.compile_expression(*function)?;
+                self.emit(OpCode::OpCall, &[]);
             }
             _ => todo!(),
         }
