@@ -3,6 +3,7 @@ use std::collections::HashMap;
 #[derive(PartialEq, Debug, Clone)]
 pub enum SymbolScope {
     Global,
+    Local,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -12,24 +13,44 @@ pub struct Symbol {
 }
 
 #[derive(Clone)]
-pub struct SymbolTable(HashMap<String, Symbol>);
+pub struct SymbolTable {
+    pub outer: Option<Box<SymbolTable>>,
+    store: HashMap<String, Symbol>,
+}
 
 impl SymbolTable {
     pub fn new() -> SymbolTable {
-        SymbolTable(HashMap::new())
+        SymbolTable {
+            outer: None,
+            store: HashMap::new(),
+        }
+    }
+
+    pub fn from_outer(outer: Box<SymbolTable>) -> SymbolTable {
+        SymbolTable {
+            outer: Some(outer),
+            store: HashMap::new(),
+        }
     }
 
     pub fn define(&mut self, name: String) -> &Symbol {
         let symbol = Symbol {
-            scope: SymbolScope::Global,
-            index: self.0.len(),
+            scope: if self.outer.is_none() {
+                SymbolScope::Global
+            } else {
+                SymbolScope::Local
+            },
+            index: self.store.len(),
         };
-        self.0.insert(name.clone(), symbol);
-        self.0.get(&name).unwrap()
+        self.store.insert(name.clone(), symbol);
+        self.store.get(&name).unwrap()
     }
 
     pub fn resolve(&self, name: &str) -> Option<Symbol> {
-        self.0.get(name).cloned()
+        self.store
+            .get(name)
+            .cloned()
+            .or_else(|| self.outer.as_ref().and_then(|outer| outer.resolve(name)))
     }
 }
 

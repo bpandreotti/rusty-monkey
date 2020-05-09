@@ -18,7 +18,7 @@ pub struct CompilationScope {
 pub struct Compiler {
     scopes: Vec<CompilationScope>,
     pub constants: Vec<Object>,
-    pub symbol_table: SymbolTable,
+    pub symbol_table: Option<SymbolTable>,
 }
 
 impl Compiler {
@@ -29,7 +29,7 @@ impl Compiler {
         Compiler {
             scopes: vec![root_scope],
             constants: Vec::new(),
-            symbol_table: SymbolTable::new(),
+            symbol_table: Some(SymbolTable::new()),
         }
     }
 
@@ -65,10 +65,18 @@ impl Compiler {
         let empty_scope = CompilationScope {
             instructions: Instructions(Vec::new()),
         };
+        let old_table = std::mem::replace(&mut self.symbol_table, None);
+        let new_table = SymbolTable::from_outer(Box::new(old_table.expect("No symbol table")));
+        self.symbol_table = Some(new_table);
         self.scopes.push(empty_scope);
     }
 
     fn pop_scope(&mut self) -> CompilationScope {
+        let old_table = std::mem::replace(&mut self.symbol_table, None);
+        self.symbol_table = old_table
+            .expect("No symbol table")
+            .outer
+            .map(|outer| *outer);
         self.scopes.pop().expect("No compilation scope in stack")
     }
 
@@ -124,9 +132,17 @@ impl Compiler {
             Statement::Let(let_statement) => {
                 let (name, exp) = *let_statement;
                 self.compile_expression(exp)?;
-                let symbol = self.symbol_table.define(name);
+                let symbol = self
+                    .symbol_table
+                    .as_mut()
+                    .expect("No symbol table")
+                    .define(name);
+                let op = match symbol.scope {
+                    SymbolScope::Global => OpCode::OpSetGlobal,
+                    SymbolScope::Local => OpCode::OpSetLocal,
+                };
                 let index = symbol.index;
-                self.emit(OpCode::OpSetGlobal, &[index]);
+                self.emit(op, &[index]);
                 // If the "let" statement is the last in the block, it evaluates to `nil`
                 if last {
                     self.emit(OpCode::OpNil, &[]);
@@ -243,15 +259,20 @@ impl Compiler {
                 self.change_operand(jump_pos, after_alternative);
             }
             Expression::Identifier(name) => {
-                let index = self
+                let symbol = self
                     .symbol_table
+                    .as_ref()
+                    .expect("No symbol table")
                     .resolve(&name)
                     .ok_or(MonkeyError::Compiler(
                         expression.position,
                         IdenNotFound(name),
-                    ))?
-                    .index;
-                self.emit(OpCode::OpGetGlobal, &[index]);
+                    ))?;
+                let op = match symbol.scope {
+                    SymbolScope::Global => OpCode::OpGetGlobal,
+                    SymbolScope::Local => OpCode::OpGetLocal,
+                };
+                self.emit(op, &[symbol.index]);
             }
             Expression::IndexExpression(obj, index) => {
                 self.compile_expression(*obj)?;
