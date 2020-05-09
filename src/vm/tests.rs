@@ -153,14 +153,26 @@ fn test_function_calls() {
     let input = [
         "let foo = fn() { 5 + 10; }; foo()",
         "let foo = fn() { return 5 + 10; }; foo()",
+        "
+            let one = fn() { 1 };
+            let two = fn() { 1 + one() };
+            let three = fn() { two() + one() };
+            (one() + three()) * two();
+        ",
+        "let nothing = fn() {}; nothing()"
     ];
-    let expected = [Object::Integer(15), Object::Integer(15)];
+    let expected = [
+        Object::Integer(15),
+        Object::Integer(15),
+        Object::Integer(8),
+        Object::Nil,
+    ];
     assert_vm_runs(&input, &expected);
 }
 
 // The way return statements currently work in the VM, they just pop the current Frame off of the
 // frame stack, but leave the objects stack untouched. This means that if a function returns while
-//  it's using the stack to execute an operation, those values will remain on the stack.
+// it's using the stack to execute an operation, those values will remain on the stack.
 #[test]
 fn test_stack_cleaning_after_call() {
     let input = "

@@ -1,6 +1,14 @@
 use super::*;
 use crate::test_utils;
 
+macro_rules! instructions {
+    ($( ($( $operands:expr ),* ) ),* $(,)?) => {
+        Instructions(
+            [ $( make!( $( $operands ),* ) ),* ].concat()
+        )
+    };
+}
+
 fn assert_compile(
     input: &str,
     expected_constants: Vec<Object>,
@@ -20,19 +28,20 @@ fn test_make() {
         &[OpCode::OpConstant as u8, 255, 254],
         &*make!(OpCode::OpConstant, 65534)
     );
+    assert_eq!(
+        &[OpCode::OpGetLocal as u8, 255],
+        &*make!(OpCode::OpGetLocal, 255)
+    );
     assert_eq!(&[OpCode::OpAdd as u8], &*make!(OpCode::OpAdd));
 }
 
 #[test]
 fn test_instruction_printing() {
-    let input = Instructions(
-        [
-            make!(OpCode::OpAdd),
-            make!(OpCode::OpConstant, 2),
-            make!(OpCode::OpConstant, 65535),
-        ]
-        .concat(),
-    );
+    let input = instructions! {
+        (OpCode::OpAdd),
+        (OpCode::OpConstant, 2),
+        (OpCode::OpConstant, 65535),
+    };
     let expected = "\
     0000 OpAdd\n\
     0001 OpConstant 2\n\
@@ -46,110 +55,84 @@ fn test_integer_arithmetic() {
     assert_compile(
         "1 + 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpAdd),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpAdd),
+        },
     );
     assert_compile(
         "1; 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpPop),
-                make!(OpCode::OpConstant, 1),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpPop),
+            (OpCode::OpConstant, 1),
+        },
     );
     assert_compile(
         "1 * 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpMul),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpMul),
+        },
     );
     assert_compile(
         "-1",
         vec![Object::Integer(1)],
-        Instructions([make!(OpCode::OpConstant, 0), make!(OpCode::OpPrefixMinus)].concat()),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpPrefixMinus)
+        },
     );
 }
 
 #[test]
 fn test_boolean_expressions() {
-    assert_compile(
-        "true",
-        vec![],
-        Instructions([make!(OpCode::OpTrue)].concat()),
-    );
-    assert_compile(
-        "false",
-        vec![],
-        Instructions([make!(OpCode::OpFalse)].concat()),
-    );
+    assert_compile("true", vec![], instructions! { (OpCode::OpTrue) });
+    assert_compile("false", vec![], instructions! { (OpCode::OpFalse) });
     assert_compile(
         "1 > 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpGreaterThan),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpGreaterThan),
+        },
     );
     assert_compile(
         "1 < 2",
         vec![Object::Integer(2), Object::Integer(1)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpGreaterThan),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpGreaterThan),
+        },
     );
     assert_compile(
         "1 == 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpEquals),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpEquals),
+        },
     );
     assert_compile(
         "1 != 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpNotEquals),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpNotEquals),
+        },
     );
     assert_compile(
         "!true",
         vec![],
-        Instructions([make!(OpCode::OpTrue), make!(OpCode::OpPrefixNot)].concat()),
+        instructions! { (OpCode::OpTrue), (OpCode::OpPrefixNot) },
     );
 }
 
@@ -158,18 +141,15 @@ fn test_conditionals() {
     assert_compile(
         "if true { 10 }; 3333",
         vec![Object::Integer(10), Object::Integer(3333)],
-        Instructions(
-            [
-                make!(OpCode::OpTrue),
-                make!(OpCode::OpJumpNotTruthy, 10),
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpJump, 11),
-                make!(OpCode::OpNil),
-                make!(OpCode::OpPop),
-                make!(OpCode::OpConstant, 1),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpTrue),
+            (OpCode::OpJumpNotTruthy, 10),
+            (OpCode::OpConstant, 0),
+            (OpCode::OpJump, 11),
+            (OpCode::OpNil),
+            (OpCode::OpPop),
+            (OpCode::OpConstant, 1),
+        },
     );
     assert_compile(
         "if true { 10 } else { 20 }; 3333",
@@ -178,18 +158,15 @@ fn test_conditionals() {
             Object::Integer(20),
             Object::Integer(3333),
         ],
-        Instructions(
-            [
-                make!(OpCode::OpTrue),
-                make!(OpCode::OpJumpNotTruthy, 10),
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpJump, 13),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpPop),
-                make!(OpCode::OpConstant, 2),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpTrue),
+            (OpCode::OpJumpNotTruthy, 10),
+            (OpCode::OpConstant, 0),
+            (OpCode::OpJump, 13),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpPop),
+            (OpCode::OpConstant, 2),
+        },
     );
 }
 
@@ -198,42 +175,33 @@ fn test_global_assignment() {
     assert_compile(
         "let one = 1; let two = 2",
         vec![Object::Integer(1), Object::Integer(2)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpSetGlobal, 1),
-                make!(OpCode::OpNil),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpSetGlobal, 1),
+            (OpCode::OpNil),
+        },
     );
     assert_compile(
         "let one = 1; one",
         vec![Object::Integer(1)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpGetGlobal, 0),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpGetGlobal, 0),
+        },
     );
     assert_compile(
         "let one = 1; let two = one; two",
         vec![Object::Integer(1)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpGetGlobal, 0),
-                make!(OpCode::OpSetGlobal, 1),
-                make!(OpCode::OpGetGlobal, 1),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpGetGlobal, 0),
+            (OpCode::OpSetGlobal, 1),
+            (OpCode::OpGetGlobal, 1),
+        },
     );
 }
 
@@ -247,14 +215,11 @@ fn test_strings() {
     assert_compile(
         "\"mon\" + \"key\"",
         vec![],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpAdd),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpAdd),
+        },
     );
 }
 
@@ -268,15 +233,12 @@ fn test_arrays() {
     assert_compile(
         "[1, 2, 3]",
         vec![Object::Integer(1), Object::Integer(2), Object::Integer(3)],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpConstant, 2),
-                make!(OpCode::OpArray, 3),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpArray, 3),
+        },
     );
     assert_compile(
         "[1 + 2, 3 - 4, 5 * 6]",
@@ -288,31 +250,24 @@ fn test_arrays() {
             Object::Integer(5),
             Object::Integer(6),
         ],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpAdd),
-                make!(OpCode::OpConstant, 2),
-                make!(OpCode::OpConstant, 3),
-                make!(OpCode::OpSub),
-                make!(OpCode::OpConstant, 4),
-                make!(OpCode::OpConstant, 5),
-                make!(OpCode::OpMul),
-                make!(OpCode::OpArray, 3),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpAdd),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpConstant, 3),
+            (OpCode::OpSub),
+            (OpCode::OpConstant, 4),
+            (OpCode::OpConstant, 5),
+            (OpCode::OpMul),
+            (OpCode::OpArray, 3),
+        },
     );
 }
 
 #[test]
 fn test_hashes() {
-    assert_compile(
-        "#{}",
-        vec![],
-        Instructions([make!(OpCode::OpHash, 0)].concat()),
-    );
+    assert_compile("#{}", vec![], instructions! { (OpCode::OpHash, 0) });
     assert_compile(
         "#{ 1: 2, 3: 4 }",
         vec![
@@ -321,16 +276,13 @@ fn test_hashes() {
             Object::Integer(3),
             Object::Integer(4),
         ],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpConstant, 2),
-                make!(OpCode::OpConstant, 3),
-                make!(OpCode::OpHash, 2),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpConstant, 3),
+            (OpCode::OpHash, 2),
+        },
     );
     assert_compile(
         "#{ 1: 2 + 3, 4: 5 * 6 }",
@@ -342,20 +294,17 @@ fn test_hashes() {
             Object::Integer(5),
             Object::Integer(6),
         ],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpConstant, 2),
-                make!(OpCode::OpAdd),
-                make!(OpCode::OpConstant, 3),
-                make!(OpCode::OpConstant, 4),
-                make!(OpCode::OpConstant, 5),
-                make!(OpCode::OpMul),
-                make!(OpCode::OpHash, 2),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpAdd),
+            (OpCode::OpConstant, 3),
+            (OpCode::OpConstant, 4),
+            (OpCode::OpConstant, 5),
+            (OpCode::OpMul),
+            (OpCode::OpHash, 2),
+        },
     );
 }
 
@@ -370,19 +319,16 @@ fn test_index_expressions() {
             Object::Integer(1),
             Object::Integer(1),
         ],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpConstant, 2),
-                make!(OpCode::OpArray, 3),
-                make!(OpCode::OpConstant, 3),
-                make!(OpCode::OpConstant, 4),
-                make!(OpCode::OpAdd),
-                make!(OpCode::OpIndex),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpArray, 3),
+            (OpCode::OpConstant, 3),
+            (OpCode::OpConstant, 4),
+            (OpCode::OpAdd),
+            (OpCode::OpIndex),
+        },
     );
     assert_compile(
         "#{ 1: 2 }[2 - 1]",
@@ -392,64 +338,79 @@ fn test_index_expressions() {
             Object::Integer(2),
             Object::Integer(1),
         ],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 0),
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpHash, 1),
-                make!(OpCode::OpConstant, 2),
-                make!(OpCode::OpConstant, 3),
-                make!(OpCode::OpSub),
-                make!(OpCode::OpIndex),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpHash, 1),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpConstant, 3),
+            (OpCode::OpSub),
+            (OpCode::OpIndex),
+        },
     );
 }
 
 #[test]
 fn test_function_literals() {
-    let expected_func = Object::CompiledFunction(Instructions(
-        [
-            make!(OpCode::OpConstant, 0),
-            make!(OpCode::OpConstant, 1),
-            make!(OpCode::OpAdd),
-            make!(OpCode::OpReturn),
-        ]
-        .concat(),
-    ));
+    let expected_func = Object::CompiledFunction(instructions! {
+        (OpCode::OpConstant, 0),
+        (OpCode::OpConstant, 1),
+        (OpCode::OpAdd),
+        (OpCode::OpReturn),
+    });
     assert_compile(
         "fn() { return 5 + 10; }",
         vec![Object::Integer(5), Object::Integer(10), expected_func],
-        Instructions(make!(OpCode::OpConstant, 2).into()),
+        instructions! { (OpCode::OpConstant, 2) },
     );
-    let expected_func = Object::CompiledFunction(Instructions(make!(OpCode::OpConstant, 0).into()));
+    let expected_func = Object::CompiledFunction(instructions! { (OpCode::OpConstant, 0) });
     assert_compile(
         "fn() { 1 }",
         vec![Object::Integer(1), expected_func],
-        Instructions(make!(OpCode::OpConstant, 1).into()),
+        instructions! { (OpCode::OpConstant, 1) },
     );
 }
 
 #[test]
 fn test_function_calls() {
-    let expected_func = Object::CompiledFunction(Instructions(make!(OpCode::OpConstant, 0).into()));
+    let expected_func = Object::CompiledFunction(instructions! { (OpCode::OpConstant, 0) });
     assert_compile(
         "fn() { 24 }()",
         vec![Object::Integer(24), expected_func.clone()],
-        Instructions([make!(OpCode::OpConstant, 1), make!(OpCode::OpCall)].concat()),
+        instructions! { (OpCode::OpConstant, 1), (OpCode::OpCall) },
     );
     assert_compile(
         "let foo = fn() { 24 }; foo()",
         vec![Object::Integer(24), expected_func],
-        Instructions(
-            [
-                make!(OpCode::OpConstant, 1),
-                make!(OpCode::OpSetGlobal, 0),
-                make!(OpCode::OpGetGlobal, 0),
-                make!(OpCode::OpCall),
-            ]
-            .concat(),
-        ),
+        instructions! {
+            (OpCode::OpConstant, 1),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpGetGlobal, 0),
+            (OpCode::OpCall),
+        },
+    );
+}
+
+#[test]
+fn test_binding_scopes() {
+    let expected_func = Object::CompiledFunction(instructions! { (OpCode::OpGetGlobal, 0) });
+    assert_compile(
+        "let num = 55; fn() { num }",
+        vec![Object::Integer(55), expected_func],
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpConstant, 1),
+        },
+    );
+    let expected_func = Object::CompiledFunction(instructions! {
+        (OpCode::OpConstant, 0),
+        (OpCode::OpSetLocal, 0),
+        (OpCode::OpGetLocal, 0),
+    });
+    assert_compile(
+        "fn() { let num = 55; num }",
+        vec![Object::Integer(55), expected_func],
+        instructions! { (OpCode::OpConstant, 1) },
     );
 }

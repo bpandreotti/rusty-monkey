@@ -162,6 +162,7 @@ impl VM {
                     // `tests::test_stack_cleaning_after_call`
                     frame_stack.pop();
                 }
+                _ => todo!(),
             }
             
             frame_stack.top_mut().pc += 1;            

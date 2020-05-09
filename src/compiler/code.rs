@@ -65,6 +65,8 @@ pub enum OpCode {
     OpIndex,
     OpCall,
     OpReturn,
+    OpGetLocal,
+    OpSetLocal,
 }
 
 impl OpCode {
@@ -96,6 +98,8 @@ impl OpCode {
             OpCode::OpIndex => &[],
             OpCode::OpCall => &[],
             OpCode::OpReturn => &[],
+            OpCode::OpGetLocal => &[1],
+            OpCode::OpSetLocal => &[1],
         }
     }
 
@@ -103,7 +107,7 @@ impl OpCode {
         // Safety: `OpCode` is #[repr(u8)], so as long as `byte` represents a valid enum
         // variant, this transmute will be safe. We make sure of that by asserting that `byte`
         // is no greater than the last variant.
-        assert!(byte <= (OpCode::OpReturn as u8), "byte does not represent valid opcode");
+        assert!(byte <= (OpCode::OpSetLocal as u8), "byte does not represent valid opcode");
         unsafe { mem::transmute(byte) }
     }
 
@@ -140,6 +144,7 @@ pub fn make(op: OpCode, operands: &[usize]) -> Box<[u8]> {
     instruction.push(op as u8);
     for (&operand, width) in operands.iter().zip(op.operand_widths()) {
         match width {
+            1 => instruction.push(operand as u8),
             2 => instruction.extend_from_slice(&(operand as u16).to_be_bytes()),
             _ => panic!("unsupported operand width"),
         }
@@ -153,6 +158,7 @@ pub fn read_operands(op: OpCode, instructions: &[u8]) -> (Vec<usize>, usize) {
     let mut offset = 0;
     for width in op.operand_widths() {
         match width {
+            1 => operands.push(instructions[offset] as usize),
             2 => {
                 let operand = read_u16(&instructions[offset..]) as usize;
                 operands.push(operand);
