@@ -52,6 +52,10 @@ impl SymbolTable {
             .cloned()
             .or_else(|| self.outer.as_ref().and_then(|outer| outer.resolve(name)))
     }
+
+    pub fn num_definitions(&self) -> usize {
+        self.store.len()
+    }
 }
 
 #[cfg(test)]

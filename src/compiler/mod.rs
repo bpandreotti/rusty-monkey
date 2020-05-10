@@ -283,8 +283,14 @@ impl Compiler {
             Expression::FunctionLiteral { body, .. } => {
                 self.enter_scope();
                 self.compile_block(body)?;
+                let num_locals = self
+                    .symbol_table
+                    .as_ref()
+                    .expect("No symbol table")
+                    .num_definitions();
                 let instructions = self.pop_scope().instructions;
-                let compiled_fn = self.add_constant(Object::CompiledFunction(instructions));
+                let compiled_fn =
+                    self.add_constant(Object::CompiledFunction(instructions, num_locals as u8));
                 self.emit(OpCode::OpConstant, &[compiled_fn]);
             }
             Expression::CallExpression { function, .. } => {

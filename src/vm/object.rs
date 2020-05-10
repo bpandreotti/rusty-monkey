@@ -12,7 +12,7 @@ pub enum Object {
     Array(Vec<Object>),
     Hash(HashMap<HashableObject, Object>),
     Nil,
-    CompiledFunction(code::Instructions)
+    CompiledFunction(code::Instructions, u8),
 }
 
 impl fmt::Display for Object {
@@ -47,7 +47,7 @@ impl fmt::Display for Object {
                 write!(f, "}}")
             }
             Object::Nil => write!(f, "nil"),
-            Object::CompiledFunction(_) => write!(f, "<function>"),
+            Object::CompiledFunction { .. } => write!(f, "<function>"),
         }
     }
 }
@@ -61,7 +61,7 @@ impl Object {
             Object::Array(_) => "array",
             Object::Hash(_) => "hash",
             Object::Nil => "nil",
-            Object::CompiledFunction(_) => "function",
+            Object::CompiledFunction { .. } => "function",
         }
     }
 

@@ -159,7 +159,7 @@ fn test_function_calls() {
             let three = fn() { two() + one() };
             (one() + three()) * two();
         ",
-        "let nothing = fn() {}; nothing()"
+        "let nothing = fn() {}; nothing()",
     ];
     let expected = [
         Object::Integer(15),
@@ -170,9 +170,6 @@ fn test_function_calls() {
     assert_vm_runs(&input, &expected);
 }
 
-// The way return statements currently work in the VM, they just pop the current Frame off of the
-// frame stack, but leave the objects stack untouched. This means that if a function returns while
-// it's using the stack to execute an operation, those values will remain on the stack.
 #[test]
 fn test_stack_cleaning_after_call() {
     let input = "
@@ -186,4 +183,36 @@ fn test_stack_cleaning_after_call() {
     let mut vm = VM::new();
     vm.run(bytecode).unwrap();
     assert_eq!(vm.stack.len(), 1);
+}
+
+#[test]
+fn test_local_bindings() {
+    let input = [
+        "let one = fn() { let one = 1; one }; one()",
+        "let one_and_two = fn() { let one = 1; let two = 2; one + two; }; one_and_two();",
+        "let one_and_two = fn() { let one = 1; let two = 2; one + two; };
+        let three_and_four = fn() { let three = 3; let four = 4; three + four; };
+        one_and_two() + three_and_four();",
+        "let first_foobar = fn() { let foobar = 50; foobar; };
+        let second_foobar = fn() { let foobar = 100; foobar; };
+        first_foobar() + second_foobar();",
+        "let global_seed = 50;
+        let minus_one = fn() {
+            let num = 1;
+            global_seed - num;
+        };
+        let minus_two = fn() {
+            let num = 2;
+            global_seed - num;
+        };
+        minus_one() + minus_two();",
+    ];
+    let expected = [
+        Object::Integer(1),
+        Object::Integer(3),
+        Object::Integer(10),
+        Object::Integer(150),
+        Object::Integer(97),
+    ];
+    assert_vm_runs(&input, &expected);
 }

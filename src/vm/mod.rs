@@ -16,6 +16,7 @@ pub const GLOBALS_SIZE: usize = 65536;
 struct Frame {
     instructions: Instructions,
     pc: usize,
+    base_pointer: usize,
 }
 
 struct FrameStack(Vec<Frame>);
@@ -38,9 +39,15 @@ impl FrameStack {
     }
 
     // Reads a u16 from the top frame, and incremets its program counter
-    fn read_u16_from_top(&mut self) -> usize {
-        let value = read_u16(&self.top().instructions.0[self.top().pc + 1..]) as usize;
+    fn read_u16_from_top(&mut self) -> u16 {
+        let value = read_u16(&self.top().instructions.0[self.top().pc + 1..]);
         self.top_mut().pc += 2;
+        value
+    }
+
+    fn read_u8_from_top(&mut self) -> u8 {
+        let value = self.top().instructions.0[self.top().pc + 1];
+        self.top_mut().pc += 1;
         value
     }
 }
@@ -73,22 +80,29 @@ impl VM {
             let root_frame = Frame {
                 instructions: bytecode.instructions,
                 pc: 0,
+                base_pointer: 0,
             };
             vec![root_frame]
         });
         let constants = bytecode.constants;
-        
+
         while !frame_stack.0.is_empty() {
-            // If we reached the end of the current frame, pop it off and restart
+            // If we reached the end of the current frame, pop it off and restart. This happens on
+            // implicit returns
+            // @TODO: Make implicit returns emit an OpReturn instruction, to avoid this duplication
             if frame_stack.top().pc >= frame_stack.top().instructions.0.len() {
+                let returned_value = self.pop()?;
+                self.sp = frame_stack.top().base_pointer;
+                self.stack.truncate(self.sp);
                 frame_stack.pop();
+                self.push(returned_value)?;
                 continue;
             }
             use OpCode::*;
             let op = OpCode::from_byte(frame_stack.top().instructions.0[frame_stack.top().pc]);
             match op {
                 OpConstant => {
-                    let constant_index = frame_stack.read_u16_from_top();
+                    let constant_index = frame_stack.read_u16_from_top() as usize;
                     self.push(constants[constant_index].clone())?;
                 }
                 OpPop => {
@@ -100,7 +114,7 @@ impl VM {
                 OpFalse => self.push(Object::Boolean(false))?,
                 OpPrefixMinus | OpPrefixNot => self.execute_prefix_operation(op)?,
                 OpJumpNotTruthy => {
-                    let pos = frame_stack.read_u16_from_top();
+                    let pos = frame_stack.read_u16_from_top() as usize;
 
                     // @PERFORMANCE: Using `is_truthy` might be slow
                     if !Object::is_truthy(&self.pop()?) {
@@ -108,26 +122,36 @@ impl VM {
                     }
                 }
                 OpJump => {
-                    let pos = frame_stack.read_u16_from_top();
+                    let pos = frame_stack.read_u16_from_top() as usize;
                     frame_stack.top_mut().pc = pos - 1;
                 }
                 OpNil => self.push(Object::Nil)?,
                 OpSetGlobal => {
-                    let index = frame_stack.read_u16_from_top();
+                    let index = frame_stack.read_u16_from_top() as usize;
                     self.globals[index] = self.pop()?.clone();
                 }
                 OpGetGlobal => {
-                    let index = frame_stack.read_u16_from_top();
+                    let index = frame_stack.read_u16_from_top() as usize;
+                    // @PERFORMANCE: This clone may be slow
                     self.push(self.globals[index].clone())?;
                 }
+                OpSetLocal => {
+                    let index = frame_stack.read_u8_from_top() as usize;
+                    self.stack[frame_stack.top().base_pointer + index] = self.pop()?;
+                }
+                OpGetLocal => {
+                    let index = frame_stack.read_u8_from_top() as usize;
+                    // @PERFORMANCE: This clone may be slow
+                    self.push(self.stack[frame_stack.top().base_pointer + index].clone())?
+                }
                 OpArray => {
-                    let num_elements = frame_stack.read_u16_from_top();
+                    let num_elements = frame_stack.read_u16_from_top() as usize;
                     let arr = self.stack.split_off(self.sp - num_elements);
                     self.sp -= num_elements;
                     self.push(Object::Array(arr))?;
                 }
                 OpHash => {
-                    let num_elements = frame_stack.read_u16_from_top();
+                    let num_elements = frame_stack.read_u16_from_top() as usize;
                     let entries = self.stack.split_off(self.sp - (2 * num_elements));
                     let mut map = HashMap::new();
                     for i in 0..num_elements {
@@ -147,25 +171,35 @@ impl VM {
                 }
                 OpCall => {
                     let func = self.pop()?;
-                    match func {
-                        Object::CompiledFunction(instructions) => {
-                            frame_stack.top_mut().pc += 1;
-                            let new_frame = Frame { instructions, pc: 0 };
-                            frame_stack.push(new_frame);
-                            continue;
-                        }
-                        other => return Err(MonkeyError::Vm(NotCallable(other.type_str()))),
+                    if let Object::CompiledFunction(instructions, num_locals) = func {
+                        frame_stack.top_mut().pc += 1;
+                        let new_frame = Frame {
+                            instructions,
+                            pc: 0,
+                            base_pointer: self.sp,
+                        };
+                        frame_stack.push(new_frame);
+                        self.sp += num_locals as usize;
+                        // @PERFORMANCE: This resize is slow, because it has to copy over
+                        // `Object::Nil`. It would be faster to use `Vec::resize`, but that method
+                        // is unsafe. I'm fairly certain that it would be fine (safety wise) in
+                        // these circumstances, but just to be sure I'm using `resize` for now.
+                        self.stack.resize(self.sp, Object::Nil);
+                        continue; // This is to skip the pc increment
+                    } else {
+                        return Err(MonkeyError::Vm(NotCallable(func.type_str())));
                     }
                 }
                 OpReturn => {
-                    // @TODO: Clean stack after returning. For more information, see
-                    // `tests::test_stack_cleaning_after_call`
+                    let returned_value = self.pop()?;
+                    self.sp = frame_stack.top().base_pointer;
+                    self.stack.truncate(self.sp);
                     frame_stack.pop();
+                    self.push(returned_value)?;
                 }
-                _ => todo!(),
             }
-            
-            frame_stack.top_mut().pc += 1;            
+
+            frame_stack.top_mut().pc += 1;
         }
         Ok(())
     }
