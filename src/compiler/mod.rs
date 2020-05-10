@@ -283,6 +283,12 @@ impl Compiler {
             Expression::FunctionLiteral { body, .. } => {
                 self.enter_scope();
                 self.compile_block(body)?;
+                // If the last instruction emitted was not a return instruction, emit one. It's safe
+                // to `.unwrap` here because every block is guaranteed to emit at least one
+                // instruction.
+                if *self.current_instructions().0.last().unwrap() != OpCode::OpReturn as u8 {
+                    self.emit(OpCode::OpReturn, &[]);
+                }
                 let num_locals = self
                     .symbol_table
                     .as_ref()

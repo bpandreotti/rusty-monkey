@@ -86,18 +86,19 @@ impl VM {
         });
         let constants = bytecode.constants;
 
-        while !frame_stack.0.is_empty() {
-            // If we reached the end of the current frame, pop it off and restart. This happens on
-            // implicit returns
-            // @TODO: Make implicit returns emit an OpReturn instruction, to avoid this duplication
+        loop {
+            // If we reach the end of the instructions and we are at the root frame, this is the
+            // end of the program and we break the loop. Otherwise, if we are not in the root frame,
+            // we reached the end of a function and there was no `OpReturn` instruction at the end,
+            // so we panic.
             if frame_stack.top().pc >= frame_stack.top().instructions.0.len() {
-                let returned_value = self.pop()?;
-                self.sp = frame_stack.top().base_pointer;
-                self.stack.truncate(self.sp);
-                frame_stack.pop();
-                self.push(returned_value)?;
-                continue;
+                if frame_stack.0.len() == 1 {
+                    break; // End of program
+                } else {
+                    panic!("Reached end of instructions in non-root frame")
+                }
             }
+
             use OpCode::*;
             let op = OpCode::from_byte(frame_stack.top().instructions.0[frame_stack.top().pc]);
             match op {

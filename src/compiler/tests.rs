@@ -366,7 +366,13 @@ fn test_function_literals() {
         vec![Object::Integer(5), Object::Integer(10), expected_func],
         instructions! { (OpCode::OpConstant, 2) },
     );
-    let expected_func = Object::CompiledFunction(instructions! { (OpCode::OpConstant, 0) }, 0);
+    let expected_func = Object::CompiledFunction(
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpReturn),
+        },
+        0,
+    );
     assert_compile(
         "fn() { 1 }",
         vec![Object::Integer(1), expected_func],
@@ -376,7 +382,13 @@ fn test_function_literals() {
 
 #[test]
 fn test_function_calls() {
-    let expected_func = Object::CompiledFunction(instructions! { (OpCode::OpConstant, 0) }, 0);
+    let expected_func = Object::CompiledFunction(
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpReturn),
+        },
+        0,
+    );
     assert_compile(
         "fn() { 24 }()",
         vec![Object::Integer(24), expected_func.clone()],
@@ -396,7 +408,13 @@ fn test_function_calls() {
 
 #[test]
 fn test_binding_scopes() {
-    let expected_func = Object::CompiledFunction(instructions! { (OpCode::OpGetGlobal, 0) }, 0);
+    let expected_func = Object::CompiledFunction(
+        instructions! {
+            (OpCode::OpGetGlobal, 0),
+            (OpCode::OpReturn),
+        },
+        0,
+    );
     assert_compile(
         "let num = 55; fn() { num }",
         vec![Object::Integer(55), expected_func],
@@ -411,6 +429,7 @@ fn test_binding_scopes() {
             (OpCode::OpConstant, 0),
             (OpCode::OpSetLocal, 0),
             (OpCode::OpGetLocal, 0),
+            (OpCode::OpReturn),
         },
         1,
     );
