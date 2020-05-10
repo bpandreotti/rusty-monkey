@@ -196,6 +196,7 @@ impl VM {
                     self.stack.truncate(self.sp);
                     frame_stack.pop();
                     self.push(returned_value)?;
+                    continue;
                 }
             }
 
