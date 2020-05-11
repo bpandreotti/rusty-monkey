@@ -171,6 +171,7 @@ impl VM {
                     self.execute_index_operation(obj, index)?;
                 }
                 OpCall => {
+                    let _num_args = frame_stack.read_u8_from_top() as usize;
                     let func = self.pop()?;
                     if let Object::CompiledFunction(instructions, num_locals) = func {
                         frame_stack.top_mut().pc += 1;

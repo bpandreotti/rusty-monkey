@@ -96,7 +96,7 @@ impl OpCode {
             OpCode::OpArray => &[2],
             OpCode::OpHash => &[2],
             OpCode::OpIndex => &[],
-            OpCode::OpCall => &[],
+            OpCode::OpCall => &[1],
             OpCode::OpReturn => &[],
             OpCode::OpGetLocal => &[1],
             OpCode::OpSetLocal => &[1],

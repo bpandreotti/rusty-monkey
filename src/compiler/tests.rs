@@ -17,7 +17,12 @@ fn assert_compile(
     let bytecode =
         test_utils::parse_and_compile(input).expect("Parser or compiler error during test");
     for (exp, got) in expected_constants.iter().zip(bytecode.constants) {
-        assert!(test_utils::compare_vm_objects(exp, &got));
+        assert!(
+            test_utils::compare_vm_objects(exp, &got),
+            "expected: {:?}, got: {:?}",
+            exp,
+            got
+        );
     }
     assert_eq!(expected_instructions, bytecode.instructions);
 }
@@ -392,7 +397,7 @@ fn test_function_calls() {
     assert_compile(
         "fn() { 24 }()",
         vec![Object::Integer(24), expected_func.clone()],
-        instructions! { (OpCode::OpConstant, 1), (OpCode::OpCall) },
+        instructions! { (OpCode::OpConstant, 1), (OpCode::OpCall, 0) },
     );
     assert_compile(
         "let foo = fn() { 24 }; foo()",
@@ -401,7 +406,53 @@ fn test_function_calls() {
             (OpCode::OpConstant, 1),
             (OpCode::OpSetGlobal, 0),
             (OpCode::OpGetGlobal, 0),
-            (OpCode::OpCall),
+            (OpCode::OpCall, 0),
+        },
+    );
+
+    let expected_func = Object::CompiledFunction(
+        instructions! { (OpCode::OpGetLocal, 0), (OpCode::OpReturn) },
+        1,
+    );
+    assert_compile(
+        "let one_arg = fn(x) { x }; one_arg(0)",
+        vec![expected_func, Object::Integer(0)],
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpGetGlobal, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpCall, 1),
+        },
+    );
+
+    let expected_func = Object::CompiledFunction(
+        instructions! {
+           (OpCode::OpGetLocal, 0),
+           (OpCode::OpPop),
+           (OpCode::OpGetLocal, 1),
+           (OpCode::OpPop),
+           (OpCode::OpGetLocal, 2),
+           (OpCode::OpReturn),
+        },
+        3,
+    );
+    assert_compile(
+        "let many_arg = fn(x, y, z) { x; y; z }; many_arg(24, 25, 26)",
+        vec![
+            expected_func,
+            Object::Integer(24),
+            Object::Integer(25),
+            Object::Integer(26),
+        ],
+        instructions! {
+            (OpCode::OpConstant, 0),
+            (OpCode::OpSetGlobal, 0),
+            (OpCode::OpGetGlobal, 0),
+            (OpCode::OpConstant, 1),
+            (OpCode::OpConstant, 2),
+            (OpCode::OpConstant, 3),
+            (OpCode::OpCall, 3),
         },
     );
 }

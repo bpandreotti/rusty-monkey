@@ -279,9 +279,14 @@ impl Compiler {
                 self.compile_expression(*index)?;
                 self.emit(OpCode::OpIndex, &[]);
             }
-            // For now, we don't care about parameters, just the body of the function
-            Expression::FunctionLiteral { body, .. } => {
+            Expression::FunctionLiteral { body, parameters } => {
                 self.enter_scope();
+                for param in parameters {
+                    self.symbol_table
+                        .as_mut()
+                        .expect("No symbol table")
+                        .define(param);
+                }
                 self.compile_block(body)?;
                 // If the last instruction emitted was not a return instruction, emit one. It's safe
                 // to `.unwrap` here because every block is guaranteed to emit at least one
@@ -299,9 +304,16 @@ impl Compiler {
                     self.add_constant(Object::CompiledFunction(instructions, num_locals as u8));
                 self.emit(OpCode::OpConstant, &[compiled_fn]);
             }
-            Expression::CallExpression { function, .. } => {
+            Expression::CallExpression {
+                function,
+                arguments,
+            } => {
+                let num_args = arguments.len();
                 self.compile_expression(*function)?;
-                self.emit(OpCode::OpCall, &[]);
+                for arg in arguments {
+                    self.compile_expression(arg)?;
+                }
+                self.emit(OpCode::OpCall, &[num_args]);
             }
             _ => todo!(),
         }
