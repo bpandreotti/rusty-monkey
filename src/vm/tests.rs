@@ -216,3 +216,16 @@ fn test_local_bindings() {
     ];
     assert_vm_runs(&input, &expected);
 }
+
+#[test]
+fn test_function_arguments() {
+    let input = [
+        "let id = fn(x) { x }; id(4)",
+        "let sum = fn(a, b) { a + b }; sum(1, 2)",
+    ];
+    let expected = [
+        Object::Integer(4),
+        Object::Integer(3),
+    ];
+    assert_vm_runs(&input, &expected);
+}

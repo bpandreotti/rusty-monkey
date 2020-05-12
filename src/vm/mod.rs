@@ -171,14 +171,18 @@ impl VM {
                     self.execute_index_operation(obj, index)?;
                 }
                 OpCall => {
-                    let _num_args = frame_stack.read_u8_from_top() as usize;
-                    let func = self.pop()?;
+                    let num_args = frame_stack.read_u8_from_top() as usize;
+                    // @PERFORMANCE: This `remove` might be slow. Specifically, it's O(num_args).
+                    // Using `swap_remove` would be faster, but it would leave an object in the
+                    // stack that would have to be popped off later.
+                    let func = self.stack.remove(self.sp - 1 - num_args);
+                    self.sp -= 1;
                     if let Object::CompiledFunction(instructions, num_locals) = func {
                         frame_stack.top_mut().pc += 1;
                         let new_frame = Frame {
                             instructions,
                             pc: 0,
-                            base_pointer: self.sp,
+                            base_pointer: self.sp - num_args,
                         };
                         frame_stack.push(new_frame);
                         self.sp += num_locals as usize;
