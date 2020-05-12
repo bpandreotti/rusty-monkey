@@ -12,7 +12,12 @@ pub enum Object {
     Array(Vec<Object>),
     Hash(HashMap<HashableObject, Object>),
     Nil,
-    CompiledFunction(code::Instructions, u8),
+    // @TODO: Extract this into a separate struct
+    CompiledFunction {
+        instructions: code::Instructions,
+        num_locals: u8,
+        num_params: u8,
+    }
 }
 
 impl fmt::Display for Object {

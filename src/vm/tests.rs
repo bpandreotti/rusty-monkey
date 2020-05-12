@@ -222,10 +222,20 @@ fn test_function_arguments() {
     let input = [
         "let id = fn(x) { x }; id(4)",
         "let sum = fn(a, b) { a + b }; sum(1, 2)",
+        "let global_num = 10;
+        let sum = fn(a, b) {
+            let c = a + b;
+            c + global_num;
+        };
+        let outer = fn() {
+            sum(1, 2) + sum(3, 4) + global_num;
+        };
+        outer() + global_num;",
     ];
     let expected = [
         Object::Integer(4),
         Object::Integer(3),
+        Object::Integer(50),
     ];
     assert_vm_runs(&input, &expected);
 }

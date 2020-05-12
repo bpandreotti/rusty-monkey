@@ -281,6 +281,7 @@ impl Compiler {
             }
             Expression::FunctionLiteral { body, parameters } => {
                 self.enter_scope();
+                let num_params = parameters.len() as u8;
                 for param in parameters {
                     self.symbol_table
                         .as_mut()
@@ -298,10 +299,13 @@ impl Compiler {
                     .symbol_table
                     .as_ref()
                     .expect("No symbol table")
-                    .num_definitions();
+                    .num_definitions() as u8;
                 let instructions = self.pop_scope().instructions;
-                let compiled_fn =
-                    self.add_constant(Object::CompiledFunction(instructions, num_locals as u8));
+                let compiled_fn = self.add_constant(Object::CompiledFunction {
+                    instructions,
+                    num_locals,
+                    num_params,
+                });
                 self.emit(OpCode::OpConstant, &[compiled_fn]);
             }
             Expression::CallExpression {

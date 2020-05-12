@@ -50,9 +50,21 @@ pub fn compare_vm_objects(left: &vm::object::Object, right: &vm::object::Object)
         }
         (Hash(_), Hash(_)) => format!("{}", left) == format!("{}", right),
         (
-            CompiledFunction(instructions_1, num_locals_1),
-            CompiledFunction(instructions_2, num_locals_2),
-        ) => instructions_1 == instructions_2 && num_locals_1 == num_locals_2,
+            CompiledFunction {
+                instructions: a_instructions,
+                num_locals: a_num_locals,
+                num_params: a_num_params,
+            },
+            CompiledFunction {
+                instructions: b_instructions,
+                num_locals: b_num_locals,
+                num_params: b_num_params,
+            },
+        ) => {
+            a_instructions == b_instructions
+                && a_num_locals == b_num_locals
+                && a_num_params == b_num_params
+        }
         _ => false,
     }
 }

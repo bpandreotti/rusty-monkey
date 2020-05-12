@@ -170,6 +170,7 @@ impl VM {
                     let obj = self.pop()?;
                     self.execute_index_operation(obj, index)?;
                 }
+                // @TODO: Extract this functionality into a method
                 OpCall => {
                     let num_args = frame_stack.read_u8_from_top() as usize;
                     // @PERFORMANCE: This `remove` might be slow. Specifically, it's O(num_args).
@@ -177,7 +178,18 @@ impl VM {
                     // stack that would have to be popped off later.
                     let func = self.stack.remove(self.sp - 1 - num_args);
                     self.sp -= 1;
-                    if let Object::CompiledFunction(instructions, num_locals) = func {
+                    if let Object::CompiledFunction {
+                        instructions,
+                        num_locals,
+                        num_params,
+                    } = func
+                    {
+                        if num_params as usize != num_args {
+                            return Err(MonkeyError::Vm(WrongNumberOfArgs(
+                                num_params as usize,
+                                num_args,
+                            )));
+                        }
                         frame_stack.top_mut().pc += 1;
                         let new_frame = Frame {
                             instructions,
