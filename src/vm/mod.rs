@@ -170,43 +170,9 @@ impl VM {
                     let obj = self.pop()?;
                     self.execute_index_operation(obj, index)?;
                 }
-                // @TODO: Extract this functionality into a method
                 OpCall => {
-                    let num_args = frame_stack.read_u8_from_top() as usize;
-                    // @PERFORMANCE: This `remove` might be slow. Specifically, it's O(num_args).
-                    // Using `swap_remove` would be faster, but it would leave an object in the
-                    // stack that would have to be popped off later.
-                    let func = self.stack.remove(self.sp - 1 - num_args);
-                    self.sp -= 1;
-                    if let Object::CompiledFunction {
-                        instructions,
-                        num_locals,
-                        num_params,
-                    } = func
-                    {
-                        if num_params as usize != num_args {
-                            return Err(MonkeyError::Vm(WrongNumberOfArgs(
-                                num_params as usize,
-                                num_args,
-                            )));
-                        }
-                        frame_stack.top_mut().pc += 1;
-                        let new_frame = Frame {
-                            instructions,
-                            pc: 0,
-                            base_pointer: self.sp - num_args,
-                        };
-                        frame_stack.push(new_frame);
-                        self.sp += num_locals as usize;
-                        // @PERFORMANCE: This resize is slow, because it has to copy over
-                        // `Object::Nil`. It would be faster to use `Vec::resize`, but that method
-                        // is unsafe. I'm fairly certain that it would be fine (safety wise) in
-                        // these circumstances, but just to be sure I'm using `resize` for now.
-                        self.stack.resize(self.sp, Object::Nil);
-                        continue; // This is to skip the pc increment
-                    } else {
-                        return Err(MonkeyError::Vm(NotCallable(func.type_str())));
-                    }
+                    self.execute_function_call(&mut frame_stack)?;
+                    continue; // Skip the pc increment
                 }
                 OpReturn => {
                     let returned_value = self.pop()?;
@@ -364,5 +330,43 @@ impl VM {
         };
         let result = result.map_err(MonkeyError::Vm)?;
         self.push(result)
+    }
+
+    fn execute_function_call(&mut self, frame_stack: &mut FrameStack) -> MonkeyResult<()> {
+        let num_args = frame_stack.read_u8_from_top() as usize;
+        // @PERFORMANCE: This `remove` might be slow. Specifically, it's O(num_args). Using
+        // `swap_remove` would be faster, but it would leave an object in the stack that would have
+        // to be popped off later.
+        let func = self.stack.remove(self.sp - 1 - num_args);
+        self.sp -= 1;
+        if let Object::CompiledFunction {
+            instructions,
+            num_locals,
+            num_params,
+        } = func
+        {
+            if num_params as usize != num_args {
+                return Err(MonkeyError::Vm(WrongNumberOfArgs(
+                    num_params as usize,
+                    num_args,
+                )));
+            }
+            frame_stack.top_mut().pc += 1;
+            let new_frame = Frame {
+                instructions,
+                pc: 0,
+                base_pointer: self.sp - num_args,
+            };
+            frame_stack.push(new_frame);
+            self.sp += num_locals as usize;
+            // @PERFORMANCE: This resize is slow, because it has to copy over `Object::Nil`. It
+            // would be faster to use `Vec::resize`, but that method is unsafe. I'm fairly certain
+            // that it would be fine (safety wise) in these circumstances, but just to be sure I'm
+            // using `resize` for now.
+            self.stack.resize(self.sp, Object::Nil);
+            Ok(())
+        } else {
+            Err(MonkeyError::Vm(NotCallable(func.type_str())))
+        }
     }
 }
