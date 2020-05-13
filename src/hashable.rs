@@ -1,4 +1,3 @@
-use crate::interpreter::object as interpreter;
 use crate::vm::object as vm;
 
 use std::fmt;
@@ -21,15 +20,6 @@ impl fmt::Display for HashableObject {
 }
 
 impl HashableObject {
-    pub fn from_interpreter_object(obj: interpreter::Object) -> Option<HashableObject> {
-        match obj {
-            interpreter::Object::Str(s) => Some(HashableObject::Str(s)),
-            interpreter::Object::Integer(i) => Some(HashableObject::Integer(i)),
-            interpreter::Object::Boolean(b) => Some(HashableObject::Boolean(b)),
-            _ => None,
-        }
-    }
-
     pub fn from_vm_object(obj: vm::Object) -> Option<HashableObject> {
         match obj {
             vm::Object::Str(s) => Some(HashableObject::Str(s)),

@@ -1,20 +1,26 @@
 // @WIP
 use crate::compiler::code;
-use crate::interpreter::environment;
+use crate::interpreter::{builtins::BuiltinFn, environment};
 use crate::parser::ast;
 use std::collections::HashMap;
 use std::fmt;
 
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Object {
     Nil,
     Integer(i64),
     Boolean(bool),
     Str(Box<String>),
+    // @PERFORMANCE: We use `Box<Vec<_>>` instead of just `Vec<_>` because we want the object
+    // representation to be as small as possible. Currently the size of `Object` is 16 bytes -- if
+    // we used just `Vec<_>` it would be 32.
+    #[allow(clippy::box_vec)]
     Array(Box<Vec<Object>>),
     Hash(Box<HashMap<HashableObject, Object>>),
     CompiledFunc(Box<CompiledFunction>),
     InterpreterFunc(Box<InterpreterFunctionObject>),
+    Builtin(BuiltinFn),
 }
 
 impl fmt::Display for Object {
@@ -50,6 +56,7 @@ impl fmt::Display for Object {
                 write!(f, "}}")
             }
             Object::CompiledFunc(_) | Object::InterpreterFunc(_) => write!(f, "<function>"),
+            Object::Builtin(_) => write!(f, "<built-in function>"),
         }
     }
 }
@@ -63,7 +70,7 @@ impl Object {
             Object::Str(_) => "string",
             Object::Array(_) => "array",
             Object::Hash(_) => "hash",
-            Object::CompiledFunc(_) | Object::InterpreterFunc(_) => "function",
+            Object::CompiledFunc(_) | Object::InterpreterFunc(_) | Object::Builtin(_) => "function",
         }
     }
 
@@ -74,7 +81,7 @@ impl Object {
         }
     }
 
-    pub fn cmp(left: &Object, right: &Object) -> Option<bool> {
+    pub fn eq(left: &Object, right: &Object) -> Option<bool> {
         // Function, array, and hash comparisons are unsupported
         match (left, right) {
             (Object::Nil, Object::Nil) => Some(true),
@@ -86,13 +93,14 @@ impl Object {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompiledFunction {
     pub instructions: code::Instructions,
     pub num_locals: u8,
     pub num_params: u8,
 }
 
+#[derive(Debug, Clone)]
 pub struct InterpreterFunctionObject {
     pub environment: environment::EnvHandle,
     pub parameters: Vec<String>,

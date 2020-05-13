@@ -1,6 +1,7 @@
 use crate::compiler;
 use crate::error::MonkeyResult;
 use crate::interpreter::{self, environment};
+use crate::object;
 use crate::parser;
 use crate::vm;
 
@@ -141,7 +142,7 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
 
 fn start_interpreted(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::Error> {
     let env = Rc::new(RefCell::new(environment::Environment::empty()));
-    let run_line = |line: String| -> MonkeyResult<Vec<interpreter::object::Object>> {
+    let run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
         parser::parse(line)?
             .into_iter()
             .map(|s| interpreter::eval_statement(&s, &env))

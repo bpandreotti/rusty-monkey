@@ -1,5 +1,4 @@
-use crate::hashable::HashableObject;
-use crate::interpreter::object::*;
+use crate::object::*;
 use crate::lexer::token::Token;
 
 use colored::*;

@@ -1,16 +1,14 @@
 // @TODO: Document this module
-mod builtins;
+pub mod builtins;
 pub mod environment;
-pub mod object;
 #[cfg(test)]
 mod tests;
 
 use crate::error::*;
-use crate::hashable::HashableObject;
 use crate::lexer::token::Token;
+use crate::object::*;
 use crate::parser::ast::*;
 use environment::*;
-use object::*;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -39,20 +37,20 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         }
         Expression::IntLiteral(i) => Ok(Object::Integer(*i)),
         Expression::Boolean(b) => Ok(Object::Boolean(*b)),
-        Expression::StringLiteral(s) => Ok(Object::Str(s.clone())),
+        Expression::StringLiteral(s) => Ok(Object::Str(Box::new(s.clone()))),
         Expression::ArrayLiteral(v) => {
             let mut elements = Vec::with_capacity(v.len());
             for exp in v {
                 elements.push(eval_expression(exp, env)?);
             }
-            Ok(Object::Array(elements))
+            Ok(Object::Array(Box::new(elements)))
         }
         Expression::HashLiteral(v) => {
             let mut map = HashMap::new();
             for (key, val) in v {
                 let obj = eval_expression(key, env)?;
                 let obj_type = obj.type_str();
-                let key = match HashableObject::from_interpreter_object(obj) {
+                let key = match HashableObject::from_object(obj) {
                     Some(v) => v,
                     None => {
                         return Err(MonkeyError::Interpreter(
@@ -65,7 +63,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
                 let val = eval_expression(val, env)?;
                 map.insert(key, val);
             }
-            Ok(Object::Hash(map))
+            Ok(Object::Hash(Box::new(map)))
         }
         Expression::PrefixExpression(tk, e) => {
             let right_side = eval_expression(e, env)?;
@@ -92,12 +90,12 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
         }
         Expression::Nil => Ok(Object::Nil),
         Expression::FunctionLiteral { parameters, body } => {
-            let fo = FunctionObject {
+            let fo = InterpreterFunctionObject {
                 environment: Rc::clone(env),
                 parameters: parameters.clone(),
                 body: body.clone(),
             };
-            Ok(Object::Function(fo))
+            Ok(Object::InterpreterFunc(Box::new(fo)))
         }
         Expression::CallExpression {
             function,
@@ -166,12 +164,16 @@ fn eval_infix_expression(
 ) -> Result<Object, RuntimeError> {
     match (left, operator, right) {
         // Equality operators
-        (l, Token::Equals, r) => Ok(Object::Boolean(Object::are_equal(l, r).unwrap_or(false))),
-        (l, Token::NotEquals, r) => Ok(Object::Boolean(!Object::are_equal(l, r).unwrap_or(false))),
+        (l, Token::Equals, r) => Ok(Object::Boolean(Object::eq(l, r).unwrap_or(false))),
+        (l, Token::NotEquals, r) => Ok(Object::Boolean(!Object::eq(l, r).unwrap_or(false))),
         // int `anything` int
         (Object::Integer(l), op, Object::Integer(r)) => eval_int_infix_expression(op, *l, *r),
         // String concatenation
-        (Object::Str(l), Token::Plus, Object::Str(r)) => Ok(Object::Str(l.clone() + r)),
+        (Object::Str(l), Token::Plus, Object::Str(r)) => {
+            let l = (**l).clone();
+            let r = &**r;
+            Ok(Object::Str(Box::new(l + r)))
+        }
 
         _ => Err(InfixTypeError(
             left.type_str(),
@@ -215,7 +217,7 @@ pub fn eval_call_expression(
     env: &EnvHandle,               // Some built-ins, like "import" need the caller environment
 ) -> MonkeyResult<Object> {
     match obj {
-        Object::Function(fo) => call_function_object(fo, args, call_position),
+        Object::InterpreterFunc(fo) => call_function_object(*fo, args, call_position),
         Object::Builtin(b) => {
             b.0(args, env).map_err(|e| MonkeyError::Interpreter(call_position, e))
         }
@@ -227,7 +229,7 @@ pub fn eval_call_expression(
 }
 
 fn call_function_object(
-    fo: FunctionObject,
+    fo: InterpreterFunctionObject,
     args: Vec<Object>,
     call_pos: (usize, usize),
 ) -> MonkeyResult<Object> {
@@ -264,7 +266,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
         (Object::Array(_), other) => Err(IndexTypeError(other.type_str())),
         (Object::Hash(map), key) => {
             let key_type = key.type_str();
-            let key = HashableObject::from_interpreter_object(key.clone())
+            let key = HashableObject::from_object(key.clone())
                 .ok_or_else(|| HashKeyTypeError(key_type))?;
             let value = map.get(&key).ok_or_else(|| KeyError(key))?;
             Ok(value.clone())
@@ -274,7 +276,7 @@ pub fn eval_index_expression(object: &Object, index: &Object) -> Result<Object, 
             if *i < 0 || *i >= chars.len() as i64 {
                 Err(IndexOutOfBounds(*i))
             } else {
-                Ok(Object::Str(chars[*i as usize].to_string()))
+                Ok(Object::Str(Box::new(chars[*i as usize].to_string())))
             }
         }
         (Object::Str(_), other) => Err(IndexTypeError(other.type_str())),

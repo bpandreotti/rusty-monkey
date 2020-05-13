@@ -314,7 +314,7 @@ impl VM {
                 let key_type = key.type_str();
                 let key = HashableObject::from_vm_object(key.clone())
                     .ok_or(MonkeyError::Vm(HashKeyTypeError(key_type)))?;
-                let value = map.get(&key).ok_or(MonkeyError::Vm(KeyError(key)))?;
+                let value = map.get(&key).ok_or(MonkeyError::Vm(Custom("WIP".into())))?; // @TODO
                 Ok(value.clone())
             }
             (Object::Str(s), Object::Integer(i)) => {
