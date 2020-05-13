@@ -3,6 +3,7 @@ mod error;
 mod hashable;
 mod interpreter;
 mod lexer;
+mod object;
 mod parser;
 mod repl;
 #[cfg(test)]
