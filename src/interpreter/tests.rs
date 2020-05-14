@@ -1,6 +1,6 @@
 use super::*;
-use crate::parser;
 use crate::object;
+use crate::parser;
 use Object::*;
 
 fn assert_eval(input: &str, expected: &[object::Object]) {
@@ -117,11 +117,11 @@ fn test_string_operations() {
         "foobar"[5];
     "#;
     let expected = [
-        Object::Str(Box::new("abc".into())),
-        Object::Str(Box::new("abc".into())),
-        Object::Str(Box::new("abcdef".into())),
-        Object::Str(Box::new("f".into())),
-        Object::Str(Box::new("r".into())),
+        Object::from("abc"),
+        Object::from("abc"),
+        Object::from("abcdef"),
+        Object::from("f"),
+        Object::from("r"),
     ];
     assert_eval(input, &expected);
 }
@@ -325,9 +325,12 @@ fn test_arrays() {
         arr[2][2];
     ";
     let expected = [
-        Array(Box::new(Vec::new())),
-        Array(Box::new(vec![Integer(0), Nil, Boolean(false)])),
-        Array(Box::new(vec![Integer(0), Array(Box::new(vec![Integer(1)]))])),
+        monkey_array![],
+        monkey_array![Integer(0), Nil, Boolean(false)],
+        monkey_array![
+            Integer(0),
+            monkey_array![Integer(1)],
+        ],
         Nil,
         Integer(5),
         Nil,
@@ -338,15 +341,6 @@ fn test_arrays() {
 
 #[test]
 fn test_hashes() {
-    macro_rules! map {
-        ($($key:expr => $value:expr),*) => {
-            Box::new({
-                let mut _map = HashMap::new();
-                $(_map.insert($key, $value);)*
-                _map
-            })
-        };
-    }
     let input = r#"
         #{};
         #{"a": true, "b": [], "c": 3};
@@ -362,22 +356,24 @@ fn test_hashes() {
         h[false];
     "#;
     let expected = [
-        Hash(map! {}),
-        Hash(map! {
-            HashableObject::Str(Box::new("a".into())) => Object::Boolean(true),
-            HashableObject::Str(Box::new("b".into())) => Object::Array(Box::new(Vec::new())),
-            HashableObject::Str(Box::new("c".into())) => Object::Integer(3)
-        }),
-        Hash(map! { HashableObject::Str(Box::new("nested".into())) =>  Hash(map! {}) }),
+        monkey_hash! {},
+        monkey_hash! {
+            HashableObject::from("a") => Object::Boolean(true),
+            HashableObject::from("b") => monkey_array![],
+            HashableObject::from("c") => Object::Integer(3)
+        },
+        monkey_hash! {
+            HashableObject::from("nested") => monkey_hash! {}
+        },
         Nil,
-        Hash(map! {
-            HashableObject::Str(Box::new("something".into())) => Object::Nil,
+        monkey_hash! {
+            HashableObject::from("something") => Object::Nil,
             HashableObject::Integer(3) => Object::Integer(4),
-            HashableObject::Boolean(false) => Object::Str(Box::new("indeed".into()))
-        }),
+            HashableObject::Boolean(false) => Object::from("indeed")
+        },
         Object::Nil,
         Object::Integer(4),
-        Object::Str(Box::new("indeed".into())),
+        Object::from("indeed"),
     ];
     assert_eval(input, &expected);
 }

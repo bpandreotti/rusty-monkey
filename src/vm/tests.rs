@@ -77,9 +77,9 @@ fn test_strings() {
         r#""mon" + "key" + "banana""#,
     ];
     let expected = [
-        Object::Str(Box::new("monkey".into())),
-        Object::Str(Box::new("monkey".into())),
-        Object::Str(Box::new("monkeybanana".into())),
+        Object::from("monkey"),
+        Object::from("monkey"),
+        Object::from("monkeybanana"),
     ];
     assert_vm_runs(&input, &expected);
 }
@@ -88,43 +88,34 @@ fn test_strings() {
 fn test_arrays() {
     let input = ["[]", "[1, 2, 3]", "[1 + 2, 3 - 4, 5 * 6]"];
     let expected = [
-        Object::Array(Box::new(vec![])),
-        Object::Array(Box::new(vec![
+        monkey_array![],
+        monkey_array![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(3),
-        ])),
-        Object::Array(Box::new(vec![
+        ],
+        monkey_array![
             Object::Integer(3),
             Object::Integer(-1),
             Object::Integer(30),
-        ])),
+        ],
     ];
     assert_vm_runs(&input, &expected);
 }
 
 #[test]
 fn test_hashes() {
-    macro_rules! map {
-        ($($key:expr => $value:expr),*) => {
-            Box::new({
-                let mut _map = HashMap::new();
-                $(_map.insert($key, $value);)*
-                _map
-            })
-        };
-    }
     let input = ["#{}", "#{ 1: 2, 2: 3 }", "#{ 1 + 1: 2 * 2, 3 + 3: 4 * 4 }"];
     let expected = [
-        Object::Hash(map! {}),
-        Object::Hash(map! {
+        monkey_hash! {},
+        monkey_hash! {
             HashableObject::Integer(1) => Object::Integer(2),
             HashableObject::Integer(2) => Object::Integer(3)
-        }),
-        Object::Hash(map! {
+        },
+        monkey_hash! {
             HashableObject::Integer(2) => Object::Integer(4),
             HashableObject::Integer(6) => Object::Integer(16)
-        }),
+        },
     ];
     assert_vm_runs(&input, &expected)
 }

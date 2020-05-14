@@ -3,6 +3,7 @@ use crate::compiler::code;
 use crate::interpreter::{builtins::BuiltinFn, environment};
 use crate::parser::ast;
 use std::collections::HashMap;
+use std::convert::From;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -94,6 +95,12 @@ impl Object {
     }
 }
 
+impl From<&str> for Object {
+    fn from(s: &str) -> Self {
+        Object::Str(Box::new(s.into()))
+    }    
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompiledFunction {
     pub instructions: code::Instructions,
@@ -144,4 +151,10 @@ impl HashableObject {
             _ => None,
         }
     }
+}
+
+impl From<&str> for HashableObject {
+    fn from(s: &str) -> Self {
+        HashableObject::Str(Box::new(s.into()))
+    }    
 }

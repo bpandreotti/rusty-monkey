@@ -79,7 +79,7 @@ fn assert_object_type_string(obj: &Object) -> Result<&String, RuntimeError> {
         Ok(s)
     } else {
         Err(RuntimeError::TypeError(
-            Object::Str(Box::new("".into())).type_str(),
+            Object::from("").type_str(),
             obj.type_str(),
         ))
     }
@@ -87,7 +87,7 @@ fn assert_object_type_string(obj: &Object) -> Result<&String, RuntimeError> {
 
 fn builtin_type(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
-    Ok(Object::Str(Box::new(args[0].type_str().into())))
+    Ok(Object::from(args[0].type_str()))
 }
 
 fn builtin_puts(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {

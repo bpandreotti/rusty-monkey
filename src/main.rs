@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[macro_use]
+mod test_utils;
+
 mod compiler;
 mod error;
 mod interpreter;
@@ -5,8 +9,6 @@ mod lexer;
 mod object;
 mod parser;
 mod repl;
-#[cfg(test)]
-mod test_utils;
 mod vm;
 
 use error::MonkeyError;
