@@ -1,4 +1,4 @@
-use crate::vm::object::Object;
+use crate::object::Object;
 use crate::lexer::token;
 
 use std::convert::TryInto;

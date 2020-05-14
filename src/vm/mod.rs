@@ -1,12 +1,10 @@
-pub mod object;
 #[cfg(test)]
 mod tests;
 
 use crate::compiler::code::*;
 use crate::error::{MonkeyError, MonkeyResult, RuntimeError::*};
-use crate::hashable::HashableObject;
 use crate::lexer::token::Token;
-use object::*;
+use crate::object::*;
 
 use std::collections::HashMap;
 
@@ -149,7 +147,7 @@ impl VM {
                     let num_elements = frame_stack.read_u16_from_top() as usize;
                     let arr = self.stack.split_off(self.sp - num_elements);
                     self.sp -= num_elements;
-                    self.push(Object::Array(arr))?;
+                    self.push(Object::Array(Box::new(arr)))?;
                 }
                 OpHash => {
                     let num_elements = frame_stack.read_u16_from_top() as usize;
@@ -158,12 +156,12 @@ impl VM {
                     for i in 0..num_elements {
                         let key = &entries[i * 2];
                         let value = &entries[i * 2 + 1];
-                        let hashable = HashableObject::from_vm_object(key.clone())
+                        let hashable = HashableObject::from_object(key.clone())
                             .ok_or_else(|| MonkeyError::Vm(HashKeyTypeError(key.type_str())))?;
                         map.insert(hashable, value.clone());
                     }
                     self.sp -= num_elements * 2;
-                    self.push(Object::Hash(map))?;
+                    self.push(Object::Hash(Box::new(map)))?;
                 }
                 OpIndex => {
                     let index = self.pop()?;
@@ -274,7 +272,7 @@ impl VM {
     }
 
     fn execute_str_concat(&mut self, left: &str, right: &str) -> MonkeyResult<()> {
-        self.push(Object::Str(left.to_string() + right))
+        self.push(Object::Str(Box::new(left.to_string() + right)))
     }
 
     fn execute_prefix_operation(&mut self, op: OpCode) -> MonkeyResult<()> {
@@ -312,9 +310,9 @@ impl VM {
             (Object::Array(_), other) => Err(IndexTypeError(other.type_str())),
             (Object::Hash(map), key) => {
                 let key_type = key.type_str();
-                let key = HashableObject::from_vm_object(key.clone())
+                let key = HashableObject::from_object(key.clone())
                     .ok_or(MonkeyError::Vm(HashKeyTypeError(key_type)))?;
-                let value = map.get(&key).ok_or(MonkeyError::Vm(Custom("WIP".into())))?; // @TODO
+                let value = map.get(&key).ok_or(MonkeyError::Vm(KeyError(key)))?;
                 Ok(value.clone())
             }
             (Object::Str(s), Object::Integer(i)) => {
@@ -322,7 +320,7 @@ impl VM {
                 if i < 0 || i >= chars.len() as i64 {
                     Err(IndexOutOfBounds(i))
                 } else {
-                    Ok(Object::Str(chars[i as usize].to_string()))
+                    Ok(Object::Str(Box::new(chars[i as usize].to_string())))
                 }
             }
             (Object::Str(_), other) => Err(IndexTypeError(other.type_str())),
@@ -339,26 +337,21 @@ impl VM {
         // to be popped off later.
         let func = self.stack.remove(self.sp - 1 - num_args);
         self.sp -= 1;
-        if let Object::CompiledFunction {
-            instructions,
-            num_locals,
-            num_params,
-        } = func
-        {
-            if num_params as usize != num_args {
+        if let Object::CompiledFunc(func) = func {
+            if func.num_params as usize != num_args {
                 return Err(MonkeyError::Vm(WrongNumberOfArgs(
-                    num_params as usize,
+                    func.num_params as usize,
                     num_args,
                 )));
             }
             frame_stack.top_mut().pc += 1;
             let new_frame = Frame {
-                instructions,
+                instructions: func.instructions,
                 pc: 0,
                 base_pointer: self.sp - num_args,
             };
             frame_stack.push(new_frame);
-            self.sp += num_locals as usize;
+            self.sp += func.num_locals as usize;
             // @PERFORMANCE: This resize is slow, because it has to copy over `Object::Nil`. It
             // would be faster to use `Vec::resize`, but that method is unsafe. I'm fairly certain
             // that it would be fine (safety wise) in these circumstances, but just to be sure I'm

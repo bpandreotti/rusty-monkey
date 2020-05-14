@@ -17,12 +17,7 @@ fn assert_compile(
     let bytecode =
         test_utils::parse_and_compile(input).expect("Parser or compiler error during test");
     for (exp, got) in expected_constants.iter().zip(bytecode.constants) {
-        assert!(
-            test_utils::compare_vm_objects(exp, &got),
-            "expected: {:?}, got: {:?}",
-            exp,
-            got
-        );
+        assert_eq!(exp, &got);
     }
     assert_eq!(expected_instructions, bytecode.instructions);
 }
@@ -357,7 +352,7 @@ fn test_index_expressions() {
 
 #[test]
 fn test_function_literals() {
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
             (OpCode::OpConstant, 0),
             (OpCode::OpConstant, 1),
@@ -366,20 +361,20 @@ fn test_function_literals() {
         },
         num_locals: 0,
         num_params: 0,
-    };
+    }));
     assert_compile(
         "fn() { return 5 + 10; }",
         vec![Object::Integer(5), Object::Integer(10), expected_func],
         instructions! { (OpCode::OpConstant, 2) },
     );
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
             (OpCode::OpConstant, 0),
             (OpCode::OpReturn),
         },
         num_locals: 0,
         num_params: 0,
-    };
+    }));
     assert_compile(
         "fn() { 1 }",
         vec![Object::Integer(1), expected_func],
@@ -389,14 +384,14 @@ fn test_function_literals() {
 
 #[test]
 fn test_function_calls() {
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
             (OpCode::OpConstant, 0),
             (OpCode::OpReturn),
         },
         num_locals: 0,
         num_params: 0,
-    };
+    }));
     assert_compile(
         "fn() { 24 }()",
         vec![Object::Integer(24), expected_func.clone()],
@@ -413,11 +408,11 @@ fn test_function_calls() {
         },
     );
 
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! { (OpCode::OpGetLocal, 0), (OpCode::OpReturn) },
         num_locals: 1,
         num_params: 1,
-    };
+    }));
     assert_compile(
         "let one_arg = fn(x) { x }; one_arg(0)",
         vec![expected_func, Object::Integer(0)],
@@ -430,7 +425,7 @@ fn test_function_calls() {
         },
     );
 
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
            (OpCode::OpGetLocal, 0),
            (OpCode::OpPop),
@@ -441,7 +436,7 @@ fn test_function_calls() {
         },
         num_locals: 3,
         num_params: 3,
-    };
+    }));
     assert_compile(
         "let many_arg = fn(x, y, z) { x; y; z }; many_arg(24, 25, 26)",
         vec![
@@ -464,14 +459,14 @@ fn test_function_calls() {
 
 #[test]
 fn test_binding_scopes() {
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
             (OpCode::OpGetGlobal, 0),
             (OpCode::OpReturn),
         },
         num_locals: 0,
         num_params: 0,
-    };
+    }));
     assert_compile(
         "let num = 55; fn() { num }",
         vec![Object::Integer(55), expected_func],
@@ -481,7 +476,7 @@ fn test_binding_scopes() {
             (OpCode::OpConstant, 1),
         },
     );
-    let expected_func = Object::CompiledFunction {
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
             (OpCode::OpConstant, 0),
             (OpCode::OpSetLocal, 0),
@@ -490,7 +485,7 @@ fn test_binding_scopes() {
         },
         num_locals: 1,
         num_params: 0,
-    };
+    }));
     assert_compile(
         "fn() { let num = 55; num }",
         vec![Object::Integer(55), expected_func],

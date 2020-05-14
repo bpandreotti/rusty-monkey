@@ -6,8 +6,8 @@ mod tests;
 
 use crate::error::{CompilerError::*, MonkeyError, MonkeyResult};
 use crate::lexer::token::Token;
+use crate::object::*;
 use crate::parser::ast::*;
-use crate::vm::object::Object;
 use code::*;
 use symbol_table::*;
 
@@ -205,7 +205,7 @@ impl Compiler {
                 self.emit(OpCode::OpFalse, &[]);
             }
             Expression::StringLiteral(s) => {
-                let obj = Object::Str(s);
+                let obj = Object::Str(Box::new(s));
                 let constant_index = self.add_constant(obj);
                 self.emit(OpCode::OpConstant, &[constant_index]);
             }
@@ -301,12 +301,13 @@ impl Compiler {
                     .expect("No symbol table")
                     .num_definitions() as u8;
                 let instructions = self.pop_scope().instructions;
-                let compiled_fn = self.add_constant(Object::CompiledFunction {
+                let compiled_fn = CompiledFunction {
                     instructions,
                     num_locals,
                     num_params,
-                });
-                self.emit(OpCode::OpConstant, &[compiled_fn]);
+                };
+                let index = self.add_constant(Object::CompiledFunc(Box::new(compiled_fn)));
+                self.emit(OpCode::OpConstant, &[index]);
             }
             Expression::CallExpression {
                 function,

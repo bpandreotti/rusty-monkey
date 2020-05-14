@@ -7,7 +7,7 @@ fn assert_vm_runs(input: &[&str], expected: &[Object]) {
             test_utils::parse_and_compile(program).expect("Parser or compiler error during test");
         let mut vm = VM::new();
         vm.run(bytecode).unwrap();
-        assert!(test_utils::compare_vm_objects(exp, vm.stack_top().unwrap()));
+        assert_eq!(exp, vm.stack_top().unwrap());
     }
 }
 
@@ -77,9 +77,9 @@ fn test_strings() {
         r#""mon" + "key" + "banana""#,
     ];
     let expected = [
-        Object::Str("monkey".into()),
-        Object::Str("monkey".into()),
-        Object::Str("monkeybanana".into()),
+        Object::Str(Box::new("monkey".into())),
+        Object::Str(Box::new("monkey".into())),
+        Object::Str(Box::new("monkeybanana".into())),
     ];
     assert_vm_runs(&input, &expected);
 }
@@ -88,17 +88,17 @@ fn test_strings() {
 fn test_arrays() {
     let input = ["[]", "[1, 2, 3]", "[1 + 2, 3 - 4, 5 * 6]"];
     let expected = [
-        Object::Array(vec![]),
-        Object::Array(vec![
+        Object::Array(Box::new(vec![])),
+        Object::Array(Box::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(3),
-        ]),
-        Object::Array(vec![
+        ])),
+        Object::Array(Box::new(vec![
             Object::Integer(3),
             Object::Integer(-1),
             Object::Integer(30),
-        ]),
+        ])),
     ];
     assert_vm_runs(&input, &expected);
 }
@@ -107,11 +107,11 @@ fn test_arrays() {
 fn test_hashes() {
     macro_rules! map {
         ($($key:expr => $value:expr),*) => {
-            {
+            Box::new({
                 let mut _map = HashMap::new();
                 $(_map.insert($key, $value);)*
                 _map
-            }
+            })
         };
     }
     let input = ["#{}", "#{ 1: 2, 2: 3 }", "#{ 1 + 1: 2 * 2, 3 + 3: 4 * 4 }"];

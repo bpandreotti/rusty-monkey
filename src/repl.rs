@@ -124,7 +124,7 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
     let mut comp = compiler::Compiler::new();
     let mut vm = vm::VM::new();
 
-    let mut run_line = |line: String| -> MonkeyResult<Vec<vm::object::Object>> {
+    let mut run_line = |line: String| -> MonkeyResult<Vec<object::Object>> {
         let parsed = parser::parse(line)?;
         comp.compile_block(parsed)?;
         let new_bytecode = comp.reset_instructions();
@@ -135,7 +135,7 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
     loop {
         match read_line(&mut rl) {
             Some(line) => print_results(run_line(line)),
-            None => break Ok(()),
+            None => return Ok(()),
         }
     }
 }
@@ -152,7 +152,7 @@ fn start_interpreted(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::i
     loop {
         match read_line(&mut rl) {
             Some(line) => print_results(run_line(line)),
-            None => break Ok(()),
+            None => return Ok(()),
         }
     }
 }

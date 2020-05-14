@@ -11,6 +11,7 @@ pub enum Object {
     Nil,
     Integer(i64),
     Boolean(bool),
+    // @PERFORMANCE: Since strings are immutable in monkey, it might be better to use a `Box<str>`.
     Str(Box<String>),
     // @PERFORMANCE: We use `Box<Vec<_>>` instead of just `Vec<_>` because we want the object
     // representation to be as small as possible. Currently the size of `Object` is 16 bytes -- if
