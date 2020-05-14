@@ -187,14 +187,6 @@ impl VM {
         Ok(())
     }
 
-    pub fn stack_top(&self) -> MonkeyResult<&Object> {
-        if self.sp == 0 {
-            Err(MonkeyError::Vm(StackUnderflow))
-        } else {
-            Ok(&self.stack[self.sp - 1])
-        }
-    }
-
     fn push(&mut self, obj: Object) -> MonkeyResult<()> {
         if self.sp >= STACK_SIZE {
             Err(MonkeyError::Vm(StackOverflow))
@@ -205,7 +197,7 @@ impl VM {
         }
     }
 
-    fn pop(&mut self) -> MonkeyResult<Object> {
+    pub fn pop(&mut self) -> MonkeyResult<Object> {
         if self.sp == 0 {
             Err(MonkeyError::Vm(StackUnderflow))
         } else {

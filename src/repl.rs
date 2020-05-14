@@ -129,7 +129,7 @@ fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::
         comp.compile_block(parsed)?;
         let new_bytecode = comp.reset_instructions();
         vm.run(new_bytecode)?;
-        Ok(vec![vm.stack_top()?.clone()])
+        Ok(vec![vm.pop()?])
     };
 
     loop {
