@@ -1,6 +1,7 @@
 // @WIP
+use crate::builtins::BuiltinFn;
 use crate::compiler::code;
-use crate::interpreter::{builtins::BuiltinFn, environment};
+use crate::interpreter::environment;
 use crate::parser::ast;
 use std::collections::HashMap;
 use std::convert::From;

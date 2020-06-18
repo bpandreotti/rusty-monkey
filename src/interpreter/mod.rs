@@ -1,5 +1,4 @@
 // @TODO: Document this module
-pub mod builtins;
 pub mod environment;
 #[cfg(test)]
 mod tests;
@@ -109,7 +108,7 @@ pub fn eval_expression(expression: &NodeExpression, env: &EnvHandle) -> MonkeyRe
                 evaluated_args.push(eval_expression(exp, env)?);
             }
 
-            eval_call_expression(obj, evaluated_args, expression.position, env)
+            eval_call_expression(obj, evaluated_args, expression.position)
         }
         Expression::IndexExpression(obj, index) => {
             let obj = eval_expression(obj, env)?;
@@ -214,12 +213,11 @@ pub fn eval_call_expression(
     obj: Object,
     args: Vec<Object>,
     call_position: (usize, usize), // We need the caller position to properly report errors
-    env: &EnvHandle,               // Some built-ins, like "import" need the caller environment
 ) -> MonkeyResult<Object> {
     match obj {
         Object::InterpreterFunc(fo) => call_function_object(*fo, args, call_position),
         Object::Builtin(b) => {
-            b.0(args, env).map_err(|e| MonkeyError::Interpreter(call_position, e))
+            b.0(args).map_err(|e| MonkeyError::Interpreter(call_position, e))
         }
         other => Err(MonkeyError::Interpreter(
             call_position,

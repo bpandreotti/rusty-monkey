@@ -2,6 +2,7 @@
 #[macro_use]
 mod test_utils;
 
+mod builtins;
 mod compiler;
 mod error;
 mod interpreter;

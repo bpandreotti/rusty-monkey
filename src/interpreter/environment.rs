@@ -1,4 +1,4 @@
-use super::builtins;
+use crate::builtins;
 use crate::object::Object;
 
 use std::cell::RefCell;

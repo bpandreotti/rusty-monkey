@@ -1,11 +1,10 @@
-use super::environment::EnvHandle;
 use crate::error::*;
 use crate::object::*;
 
 use std::fmt;
 
 #[derive(Clone)]
-pub struct BuiltinFn(pub fn(Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeError>);
+pub struct BuiltinFn(pub fn(Vec<Object>) -> Result<Object, RuntimeError>);
 
 impl fmt::Debug for BuiltinFn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -31,13 +30,10 @@ pub fn get_builtin(name: &str) -> Option<Object> {
         "type" => make_builtin!(builtin_type),
         "puts" => make_builtin!(builtin_puts),
         "len" => make_builtin!(builtin_len),
-        "get" => make_builtin!(builtin_get),
         "push" => make_builtin!(builtin_push),
         "cons" => make_builtin!(builtin_cons),
         "head" => make_builtin!(builtin_head),
         "tail" => make_builtin!(builtin_tail),
-        "import" => make_builtin!(builtin_import),
-        "map" => make_builtin!(builtin_map),
         "range" => make_builtin!(builtin_range),
         "assert" => make_builtin!(builtin_assert),
         _ => None,
@@ -85,12 +81,12 @@ fn assert_object_type_string(obj: &Object) -> Result<&String, RuntimeError> {
     }
 }
 
-fn builtin_type(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_type(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
     Ok(Object::from(args[0].type_str()))
 }
 
-fn builtin_puts(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_puts(args: Vec<Object>) -> Result<Object, RuntimeError> {
     if args.is_empty() {
         return Err(RuntimeError::WrongNumberOfArgs(1, 0));
     }
@@ -103,7 +99,7 @@ fn builtin_puts(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError
     Ok(Object::Nil)
 }
 
-fn builtin_len(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_len(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
 
     let length = match &args[0] {
@@ -120,26 +116,14 @@ fn builtin_len(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError>
     Ok(Object::Integer(length as i64))
 }
 
-fn builtin_get(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
-    assert_num_arguments(&args, 2)?;
-
-    // Evaluate an index expression using the arguments passed and deal with any error encountered
-    super::eval_index_expression(&args[0], &args[1]).or_else(|error| match error {
-        // If the error is IndexOutOfBounds or KeyError, we return 'nil'
-        RuntimeError::IndexOutOfBounds(_) | RuntimeError::KeyError(_) => Ok(Object::Nil),
-        // Otherwise, we forward the error
-        _ => Err(error),
-    })
-}
-
-fn builtin_push(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_push(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 2)?;
     let mut array = assert_object_type_array(&args[0])?.clone();
     array.push(args[1].clone());
     Ok(Object::Array(Box::new(array)))
 }
 
-fn builtin_cons(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_cons(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 2)?;
     let tail = assert_object_type_array(&args[1])?;
     let mut new = vec![args[0].clone()];
@@ -147,7 +131,7 @@ fn builtin_cons(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError
     Ok(Object::Array(Box::new(new)))
 }
 
-fn builtin_head(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_head(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
     let array = assert_object_type_array(&args[0])?;
     if let Some(obj) = array.get(0) {
@@ -157,7 +141,7 @@ fn builtin_head(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError
     }
 }
 
-fn builtin_tail(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_tail(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
     let array = assert_object_type_array(&args[0])?;
     match array.get(1..) {
@@ -166,55 +150,7 @@ fn builtin_tail(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError
     }
 }
 
-fn builtin_import(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeError> {
-    use crate::lexer::Lexer;
-    use crate::parser::Parser;
-    use std::fs;
-
-    assert_num_arguments(&args, 1)?;
-    let file_name = assert_object_type_string(&args[0])?;
-    // @TODO: Read file using BufRead instead of reading to string
-    // @TODO: Change the error formatting to be a bit more readable
-    let contents = fs::read_to_string(file_name)
-        .map_err(|e| RuntimeError::Custom(format!("File error: {}", e)))?;
-    let lexer = Lexer::from_string(contents)
-        .map_err(|e| RuntimeError::Custom(format!("Error constructing lexer: {}", e)))?;
-    let parsed_program = Parser::new(lexer)
-        .map_err(|e| RuntimeError::Custom(format!("Error constructing parser: {}", e)))?
-        .parse_program()
-        .map_err(|e| RuntimeError::Custom(format!("Parser error: {}", e)))?;
-    for statement in parsed_program {
-        super::eval_statement(&statement, &env).map_err(|e| {
-            RuntimeError::Custom(format!("Error while evaluating imported file: {}", e))
-        })?;
-    }
-    Ok(Object::Nil)
-}
-
-fn builtin_map(args: Vec<Object>, env: &EnvHandle) -> Result<Object, RuntimeError> {
-    assert_num_arguments(&args, 2)?;
-    let array = assert_object_type_array(&args[1])?;
-
-    let mut new_vector = Vec::new();
-    for element in array {
-        let call_result = super::eval_call_expression(
-            args[0].clone(),
-            vec![element.clone()],
-            (0, 0), // This position will get thrown out anyway
-            env,
-        );
-        match call_result {
-            Ok(v) => new_vector.push(v),
-            Err(monkey_err) => match monkey_err {
-                MonkeyError::Interpreter(_, e) => return Err(e),
-                _ => unreachable!(),
-            },
-        }
-    }
-    Ok(Object::Array(Box::new(new_vector)))
-}
-
-fn builtin_range(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_range(args: Vec<Object>) -> Result<Object, RuntimeError> {
     if args.is_empty() {
         return Err(RuntimeError::WrongNumberOfArgs(1, 0));
     } else if args.len() > 3 {
@@ -249,7 +185,7 @@ fn builtin_range(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeErro
     )))
 }
 
-fn builtin_assert(args: Vec<Object>, _: &EnvHandle) -> Result<Object, RuntimeError> {
+fn builtin_assert(args: Vec<Object>) -> Result<Object, RuntimeError> {
     assert_num_arguments(&args, 1)?;
     if args[0].is_truthy() {
         Ok(Object::Nil)
