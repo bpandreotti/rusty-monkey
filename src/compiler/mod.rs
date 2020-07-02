@@ -4,6 +4,7 @@ pub mod symbol_table;
 #[cfg(test)]
 mod tests;
 
+use crate::builtins;
 use crate::error::{CompilerError::*, MonkeyError, MonkeyResult};
 use crate::lexer::token::Token;
 use crate::object::*;
@@ -26,10 +27,15 @@ impl Compiler {
         let root_scope = CompilationScope {
             instructions: Instructions(Vec::new()),
         };
+        let mut builtins_table = SymbolTable::new();
+        for (index, &(name, _)) in builtins::ALL_BUILTINS.iter().enumerate() {
+            builtins_table.define_builtin(name.into(), index);
+        }
+
         Compiler {
             scopes: vec![root_scope],
             constants: Vec::new(),
-            symbol_table: Some(SymbolTable::new()),
+            symbol_table: Some(builtins_table),
         }
     }
 
@@ -270,9 +276,9 @@ impl Compiler {
                         IdenNotFound(name),
                     ))?;
                 let op = match symbol.scope {
+                    SymbolScope::Builtin => OpCode::OpGetBuiltin,
                     SymbolScope::Global => OpCode::OpGetGlobal,
                     SymbolScope::Local => OpCode::OpGetLocal,
-                    _ => todo!(),
                 };
                 self.emit(op, &[symbol.index]);
             }
@@ -301,7 +307,7 @@ impl Compiler {
                     .symbol_table
                     .as_ref()
                     .expect("No symbol table")
-                    .num_definitions() as u8;
+                    .num_definitions as u8;
                 let instructions = self.pop_scope().instructions;
                 let compiled_fn = CompiledFunction {
                     instructions,

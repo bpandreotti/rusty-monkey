@@ -17,6 +17,7 @@ pub struct Symbol {
 pub struct SymbolTable {
     pub outer: Option<Box<SymbolTable>>,
     store: HashMap<String, Symbol>,
+    pub num_definitions: usize,
 }
 
 impl SymbolTable {
@@ -24,6 +25,7 @@ impl SymbolTable {
         SymbolTable {
             outer: None,
             store: HashMap::new(),
+            num_definitions: 0,
         }
     }
 
@@ -31,22 +33,32 @@ impl SymbolTable {
         SymbolTable {
             outer: Some(outer),
             store: HashMap::new(),
+            num_definitions: 0,
         }
     }
 
-    pub fn define<S: Into<String>>(&mut self, name: S) -> &Symbol {
-        self.define_with_scope(
-            name.into(),
-            if self.outer.is_none() {
-                SymbolScope::Global
-            } else {
-                SymbolScope::Local
-            },
-        )
+    pub fn define(&mut self, name: String) -> &Symbol {
+        let scope = if self.outer.is_none() {
+            SymbolScope::Global
+        } else {
+            SymbolScope::Local
+        };
+        let symbol = Symbol {
+            scope,
+            index: self.num_definitions,
+        };
+        self.num_definitions += 1;
+        self.store.insert(name.clone(), symbol);
+        self.store.get(&name).unwrap()
     }
 
-    pub fn define_builtin<S: Into<String>>(&mut self, name: S) -> &Symbol {
-        self.define_with_scope(name.into(), SymbolScope::Builtin)
+    pub fn define_builtin(&mut self, name: String, index: usize) -> &Symbol {
+        let symbol = Symbol {
+            scope: SymbolScope::Builtin,
+            index,
+        };
+        self.store.insert(name.clone(), symbol);
+        self.store.get(&name).unwrap()
     }
 
     pub fn resolve(&self, name: &str) -> Option<Symbol> {
@@ -54,19 +66,6 @@ impl SymbolTable {
             .get(name)
             .cloned()
             .or_else(|| self.outer.as_ref().and_then(|outer| outer.resolve(name)))
-    }
-
-    pub fn num_definitions(&self) -> usize {
-        self.store.len()
-    }
-
-    fn define_with_scope(&mut self, name: String, scope: SymbolScope) -> &Symbol {
-        let symbol = Symbol {
-            scope,
-            index: self.store.len(),
-        };
-        self.store.insert(name.clone(), symbol);
-        self.store.get(&name).unwrap()
     }
 }
 
@@ -77,7 +76,7 @@ mod tests {
     #[test]
     fn test_define_global() {
         let mut global = SymbolTable::new();
-        let a = global.define("a");
+        let a = global.define("a".into());
         assert_eq!(
             Symbol {
                 scope: SymbolScope::Global,
@@ -85,7 +84,7 @@ mod tests {
             },
             *a
         );
-        let b = global.define("b");
+        let b = global.define("b".into());
         assert_eq!(
             Symbol {
                 scope: SymbolScope::Global,
@@ -98,8 +97,8 @@ mod tests {
     #[test]
     fn test_resolve_global() {
         let mut global = SymbolTable::new();
-        global.define("a");
-        global.define("b");
+        global.define("a".into());
+        global.define("b".into());
         assert_eq!(
             Symbol {
                 scope: SymbolScope::Global,
@@ -120,8 +119,8 @@ mod tests {
     fn test_resolve_builtin() {
         let builtins = &[("a", 0), ("b", 1), ("c", 2), ("d", 3)];
         let mut table = SymbolTable::new();
-        for &(b, _) in builtins {
-            table.define_builtin(b);
+        for &(b, i) in builtins {
+            table.define_builtin(b.into(), i);
         }
 
         for _ in 0..4 {
