@@ -140,6 +140,7 @@ impl Compiler {
                 let op = match symbol.scope {
                     SymbolScope::Global => OpCode::OpSetGlobal,
                     SymbolScope::Local => OpCode::OpSetLocal,
+                    _ => todo!(),
                 };
                 let index = symbol.index;
                 self.emit(op, &[index]);
@@ -271,6 +272,7 @@ impl Compiler {
                 let op = match symbol.scope {
                     SymbolScope::Global => OpCode::OpGetGlobal,
                     SymbolScope::Local => OpCode::OpGetLocal,
+                    _ => todo!(),
                 };
                 self.emit(op, &[symbol.index]);
             }

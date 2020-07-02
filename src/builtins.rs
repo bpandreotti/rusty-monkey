@@ -19,25 +19,23 @@ impl PartialEq for BuiltinFn {
     }
 }
 
-macro_rules! make_builtin {
-    ($x:expr) => {
-        Some(Object::Builtin(BuiltinFn($x)))
-    };
-}
+pub const ALL_BUILTINS: [(&str, BuiltinFn); 9] = [
+    ("type", BuiltinFn(builtin_type)),
+    ("puts", BuiltinFn(builtin_puts)),
+    ("len", BuiltinFn(builtin_len)),
+    ("push", BuiltinFn(builtin_push)),
+    ("cons", BuiltinFn(builtin_cons)),
+    ("head", BuiltinFn(builtin_head)),
+    ("tail", BuiltinFn(builtin_tail)),
+    ("range", BuiltinFn(builtin_range)),
+    ("assert", BuiltinFn(builtin_assert)),
+];
 
 pub fn get_builtin(name: &str) -> Option<Object> {
-    match name {
-        "type" => make_builtin!(builtin_type),
-        "puts" => make_builtin!(builtin_puts),
-        "len" => make_builtin!(builtin_len),
-        "push" => make_builtin!(builtin_push),
-        "cons" => make_builtin!(builtin_cons),
-        "head" => make_builtin!(builtin_head),
-        "tail" => make_builtin!(builtin_tail),
-        "range" => make_builtin!(builtin_range),
-        "assert" => make_builtin!(builtin_assert),
-        _ => None,
-    }
+    ALL_BUILTINS
+        .iter()
+        .find(|(s, _)| s == &name)
+        .map(|(_, f)| Object::Builtin(f.clone()))
 }
 
 fn assert_num_arguments(args: &[Object], expected: usize) -> Result<(), RuntimeError> {
@@ -65,17 +63,6 @@ fn assert_object_type_array(obj: &Object) -> Result<&Vec<Object>, RuntimeError> 
     } else {
         Err(RuntimeError::TypeError(
             Object::Array(Box::new(vec![])).type_str(),
-            obj.type_str(),
-        ))
-    }
-}
-
-fn assert_object_type_string(obj: &Object) -> Result<&String, RuntimeError> {
-    if let Object::Str(s) = obj {
-        Ok(s)
-    } else {
-        Err(RuntimeError::TypeError(
-            Object::from("").type_str(),
             obj.type_str(),
         ))
     }

@@ -492,3 +492,38 @@ fn test_binding_scopes() {
         instructions! { (OpCode::OpConstant, 1) },
     );
 }
+
+#[test]
+fn test_builtins() {
+    assert_compile(
+        "len([]); push([], 1);",
+        vec![Object::Integer(1)],
+        instructions! {
+            (OpCode::OpGetBuiltin, 2),
+            (OpCode::OpArray, 0),
+            (OpCode::OpCall, 1),
+            (OpCode::OpPop),
+            (OpCode::OpGetBuiltin, 3),
+            (OpCode::OpArray, 0),
+            (OpCode::OpConstant, 0),
+            (OpCode::OpCall, 2),
+        },
+    );
+    let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
+        instructions: instructions! {
+            (OpCode::OpGetBuiltin, 2),
+            (OpCode::OpArray, 0),
+            (OpCode::OpCall, 1),
+            (OpCode::OpReturn),
+        },
+        num_locals: 0,
+        num_params: 0,
+    }));
+    assert_compile(
+        "fn() { len([]) }",
+        vec![expected_func],
+        instructions! {
+            (OpCode::OpConstant, 0),
+        },
+    );
+}

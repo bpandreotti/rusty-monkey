@@ -180,6 +180,7 @@ impl VM {
                     self.push(returned_value)?;
                     continue;
                 }
+                _ => todo!(),
             }
 
             frame_stack.top_mut().pc += 1;
