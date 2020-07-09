@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::builtins::{self, BuiltinFn};
 use crate::compiler::code::*;
 use crate::error::{MonkeyError, MonkeyResult, RuntimeError::*};
 use crate::lexer::token::Token;
@@ -169,8 +170,20 @@ impl VM {
                     self.execute_index_operation(obj, index)?;
                 }
                 OpCall => {
-                    self.execute_function_call(&mut frame_stack)?;
-                    continue; // Skip the pc increment
+                    let num_args = frame_stack.read_u8_from_top() as usize;
+                    // @PERFORMANCE: This `remove` might be slow. Specifically, it's O(num_args).
+                    // Using `swap_remove` would be faster, but it would leave an object in the
+                    // stack that would have to be popped off later.
+                    let func = self.stack.remove(self.sp - 1 - num_args);
+                    self.sp -= 1;
+                    match func {
+                        Object::CompiledFunc(f) => {
+                            self.execute_function_call(&mut frame_stack, *f, num_args)?;
+                            continue; // Skip the pc increment
+                        }
+                        Object::Builtin(f) => self.execute_builtin_call(f, num_args)?,
+                        _ => return Err(MonkeyError::Vm(NotCallable(func.type_str()))),
+                    }
                 }
                 OpReturn => {
                     let returned_value = self.pop()?;
@@ -180,7 +193,11 @@ impl VM {
                     self.push(returned_value)?;
                     continue;
                 }
-                _ => todo!(),
+                OpCode::OpGetBuiltin => {
+                    let index = frame_stack.read_u8_from_top() as usize;
+                    let builtin = builtins::ALL_BUILTINS[index].1.clone();
+                    self.push(Object::Builtin(builtin))?;
+                }
             }
 
             frame_stack.top_mut().pc += 1;
@@ -323,36 +340,40 @@ impl VM {
         self.push(result)
     }
 
-    fn execute_function_call(&mut self, frame_stack: &mut FrameStack) -> MonkeyResult<()> {
-        let num_args = frame_stack.read_u8_from_top() as usize;
-        // @PERFORMANCE: This `remove` might be slow. Specifically, it's O(num_args). Using
-        // `swap_remove` would be faster, but it would leave an object in the stack that would have
-        // to be popped off later.
-        let func = self.stack.remove(self.sp - 1 - num_args);
-        self.sp -= 1;
-        if let Object::CompiledFunc(func) = func {
-            if func.num_params as usize != num_args {
-                return Err(MonkeyError::Vm(WrongNumberOfArgs(
-                    func.num_params as usize,
-                    num_args,
-                )));
-            }
-            frame_stack.top_mut().pc += 1;
-            let new_frame = Frame {
-                instructions: func.instructions,
-                pc: 0,
-                base_pointer: self.sp - num_args,
-            };
-            frame_stack.push(new_frame);
-            self.sp += func.num_locals as usize;
-            // @PERFORMANCE: This resize is slow, because it has to copy over `Object::Nil`. It
-            // would be faster to use `Vec::resize`, but that method is unsafe. I'm fairly certain
-            // that it would be fine (safety wise) in these circumstances, but just to be sure I'm
-            // using `resize` for now.
-            self.stack.resize(self.sp, Object::Nil);
-            Ok(())
-        } else {
-            Err(MonkeyError::Vm(NotCallable(func.type_str())))
+    fn execute_function_call(
+        &mut self,
+        frame_stack: &mut FrameStack,
+        func: CompiledFunction,
+        num_args: usize,
+    ) -> MonkeyResult<()> {
+        if func.num_params as usize != num_args {
+            return Err(MonkeyError::Vm(WrongNumberOfArgs(
+                func.num_params as usize,
+                num_args,
+            )));
         }
+        frame_stack.top_mut().pc += 1;
+        let new_frame = Frame {
+            instructions: func.instructions,
+            pc: 0,
+            base_pointer: self.sp - num_args,
+        };
+        frame_stack.push(new_frame);
+        self.sp += func.num_locals as usize;
+        // @PERFORMANCE: This resize is slow, because it has to copy over `Object::Nil`. It
+        // would be faster to use `Vec::set_len`, but that method is unsafe. I'm fairly certain
+        // that it would be fine (safety wise) in these circumstances, but just to be sure I'm
+        // using `resize` for now.
+        self.stack.resize(self.sp, Object::Nil);
+        Ok(())
+    }
+
+    fn execute_builtin_call(&mut self, func: BuiltinFn, num_args: usize) -> MonkeyResult<()> {
+        // @PERFORMANCE: This has to allocate a vector and move over the arguments. It might be
+        // better for the built-in functions to just take a slice of objects instead of a `Vec`.
+        let args = self.stack.split_off(self.sp - num_args);
+        self.sp -= num_args;
+        let result = func.0(args).map_err(MonkeyError::Vm)?;
+        self.push(result)
     }
 }

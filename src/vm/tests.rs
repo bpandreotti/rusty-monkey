@@ -89,16 +89,8 @@ fn test_arrays() {
     let input = ["[]", "[1, 2, 3]", "[1 + 2, 3 - 4, 5 * 6]"];
     let expected = [
         monkey_array![],
-        monkey_array![
-            Object::Integer(1),
-            Object::Integer(2),
-            Object::Integer(3),
-        ],
-        monkey_array![
-            Object::Integer(3),
-            Object::Integer(-1),
-            Object::Integer(30),
-        ],
+        monkey_array![Object::Integer(1), Object::Integer(2), Object::Integer(3)],
+        monkey_array![Object::Integer(3), Object::Integer(-1), Object::Integer(30)],
     ];
     assert_vm_runs(&input, &expected);
 }
@@ -223,10 +215,41 @@ fn test_function_arguments() {
         };
         outer() + global_num;",
     ];
+    let expected = [Object::Integer(4), Object::Integer(3), Object::Integer(50)];
+    assert_vm_runs(&input, &expected);
+}
+
+#[test]
+fn test_builtin_functions() {
+    let input = [
+        "len(\"\")",
+        "len(\"four\")",
+        "len(\"hello world\")",
+        "len([1, 2, 3])",
+        "len([])",
+        "puts(\"hi\")",
+        "head([1, 2, 3, 4])",
+        "head([])",
+        "tail([1, 2, 3, 4])",
+        "tail([])",
+        "tail([0])",
+        "push([], 0)",
+        "push([1, 2], 0)",
+    ];
     let expected = [
+        Object::Integer(0),
         Object::Integer(4),
+        Object::Integer(11),
         Object::Integer(3),
-        Object::Integer(50),
+        Object::Integer(0),
+        Object::Nil,
+        Object::Integer(1),
+        Object::Nil,
+        monkey_array![Object::Integer(2), Object::Integer(3), Object::Integer(4)],
+        Object::Nil,
+        monkey_array![],
+        monkey_array![Object::Integer(0)],
+        monkey_array![Object::Integer(1), Object::Integer(2), Object::Integer(0)],
     ];
     assert_vm_runs(&input, &expected);
 }
