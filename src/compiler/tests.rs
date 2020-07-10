@@ -371,7 +371,7 @@ fn test_function_literals() {
     assert_compile(
         "fn() { return 5 + 10; }",
         vec![Object::Integer(5), Object::Integer(10), expected_func],
-        instructions! { (OpCode::OpConstant, 2) },
+        instructions! { (OpCode::OpClosure, 2, 0) },
     );
     let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
         instructions: instructions! {
@@ -384,7 +384,7 @@ fn test_function_literals() {
     assert_compile(
         "fn() { 1 }",
         vec![Object::Integer(1), expected_func],
-        instructions! { (OpCode::OpConstant, 1) },
+        instructions! { (OpCode::OpClosure, 1, 0) },
     );
 }
 
@@ -401,13 +401,13 @@ fn test_function_calls() {
     assert_compile(
         "fn() { 24 }()",
         vec![Object::Integer(24), expected_func.clone()],
-        instructions! { (OpCode::OpConstant, 1), (OpCode::OpCall, 0) },
+        instructions! { (OpCode::OpClosure, 1, 0), (OpCode::OpCall, 0) },
     );
     assert_compile(
         "let foo = fn() { 24 }; foo()",
         vec![Object::Integer(24), expected_func],
         instructions! {
-            (OpCode::OpConstant, 1),
+            (OpCode::OpClosure, 1, 0),
             (OpCode::OpSetGlobal, 0),
             (OpCode::OpGetGlobal, 0),
             (OpCode::OpCall, 0),
@@ -423,7 +423,7 @@ fn test_function_calls() {
         "let one_arg = fn(x) { x }; one_arg(0)",
         vec![expected_func, Object::Integer(0)],
         instructions! {
-            (OpCode::OpConstant, 0),
+            (OpCode::OpClosure, 0, 0),
             (OpCode::OpSetGlobal, 0),
             (OpCode::OpGetGlobal, 0),
             (OpCode::OpConstant, 1),
@@ -452,7 +452,7 @@ fn test_function_calls() {
             Object::Integer(26),
         ],
         instructions! {
-            (OpCode::OpConstant, 0),
+            (OpCode::OpClosure, 0, 0),
             (OpCode::OpSetGlobal, 0),
             (OpCode::OpGetGlobal, 0),
             (OpCode::OpConstant, 1),
@@ -479,7 +479,7 @@ fn test_binding_scopes() {
         instructions! {
             (OpCode::OpConstant, 0),
             (OpCode::OpSetGlobal, 0),
-            (OpCode::OpConstant, 1),
+            (OpCode::OpClosure, 1, 0),
         },
     );
     let expected_func = Object::CompiledFunc(Box::new(CompiledFunction {
@@ -495,7 +495,7 @@ fn test_binding_scopes() {
     assert_compile(
         "fn() { let num = 55; num }",
         vec![Object::Integer(55), expected_func],
-        instructions! { (OpCode::OpConstant, 1) },
+        instructions! { (OpCode::OpClosure, 1, 0) },
     );
 }
 
@@ -529,7 +529,7 @@ fn test_builtins() {
         "fn() { len([]) }",
         vec![expected_func],
         instructions! {
-            (OpCode::OpConstant, 0),
+            (OpCode::OpClosure, 0, 0),
         },
     );
 }

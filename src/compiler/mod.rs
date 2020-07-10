@@ -315,7 +315,7 @@ impl Compiler {
                     num_params,
                 };
                 let index = self.add_constant(Object::CompiledFunc(Box::new(compiled_fn)));
-                self.emit(OpCode::OpConstant, &[index]);
+                self.emit(OpCode::OpClosure, &[index, 0]);
             }
             Expression::CallExpression {
                 function,

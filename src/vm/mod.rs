@@ -177,8 +177,8 @@ impl VM {
                     let func = self.stack.remove(self.sp - 1 - num_args);
                     self.sp -= 1;
                     match func {
-                        Object::CompiledFunc(f) => {
-                            self.execute_function_call(&mut frame_stack, *f, num_args)?;
+                        Object::Closure(c) => {
+                            self.execute_closure_call(&mut frame_stack, *c, num_args)?;
                             continue; // Skip the pc increment
                         }
                         Object::Builtin(f) => self.execute_builtin_call(f, num_args)?,
@@ -193,12 +193,25 @@ impl VM {
                     self.push(returned_value)?;
                     continue;
                 }
-                OpCode::OpGetBuiltin => {
+                OpGetBuiltin => {
                     let index = frame_stack.read_u8_from_top() as usize;
                     let builtin = builtins::ALL_BUILTINS[index].1.clone();
                     self.push(Object::Builtin(builtin))?;
                 }
-                _ => todo!(),
+                OpClosure => {
+                    let constant_index = frame_stack.read_u16_from_top() as usize;
+                    let _num_free_variables = frame_stack.read_u8_from_top() as usize; // @WIP
+                    let func = constants[constant_index].clone();
+                    if let Object::CompiledFunc(func) = func {
+                        let closure = Closure {
+                            func: *func,
+                            free_vars: vec![],
+                        };
+                        self.push(Object::Closure(Box::new(closure)))?;
+                    } else {
+                        panic!("Trying to build closure with non-function object");
+                    }
+                },
             }
 
             frame_stack.top_mut().pc += 1;
@@ -341,26 +354,26 @@ impl VM {
         self.push(result)
     }
 
-    fn execute_function_call(
+    fn execute_closure_call(
         &mut self,
         frame_stack: &mut FrameStack,
-        func: CompiledFunction,
+        closure: Closure,
         num_args: usize,
     ) -> MonkeyResult<()> {
-        if func.num_params as usize != num_args {
+        if closure.func.num_params as usize != num_args {
             return Err(MonkeyError::Vm(WrongNumberOfArgs(
-                func.num_params as usize,
+                closure.func.num_params as usize,
                 num_args,
             )));
         }
         frame_stack.top_mut().pc += 1;
         let new_frame = Frame {
-            instructions: func.instructions,
+            instructions: closure.func.instructions,
             pc: 0,
             base_pointer: self.sp - num_args,
         };
         frame_stack.push(new_frame);
-        self.sp += func.num_locals as usize;
+        self.sp += closure.func.num_locals as usize;
         // @PERFORMANCE: This resize is slow, because it has to copy over `Object::Nil`. It
         // would be faster to use `Vec::set_len`, but that method is unsafe. I'm fairly certain
         // that it would be fine (safety wise) in these circumstances, but just to be sure I'm
