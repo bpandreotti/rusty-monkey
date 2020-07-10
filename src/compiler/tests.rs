@@ -33,6 +33,10 @@ fn test_make() {
         &*make!(OpCode::OpGetLocal, 255)
     );
     assert_eq!(&[OpCode::OpAdd as u8], &*make!(OpCode::OpAdd));
+    assert_eq!(
+        &[OpCode::OpClosure as u8, 255, 254, 42],
+        &*make!(OpCode::OpClosure, 65534, 42)
+    );
 }
 
 #[test]
@@ -41,11 +45,13 @@ fn test_instruction_printing() {
         (OpCode::OpAdd),
         (OpCode::OpConstant, 2),
         (OpCode::OpConstant, 65535),
+        (OpCode::OpClosure, 65534, 42),
     };
     let expected = "\
     0000 OpAdd\n\
     0001 OpConstant 2\n\
     0004 OpConstant 65535\n\
+    0007 OpClosure 65534 42\n\
     ";
     assert_eq!(expected, format!("{}", input));
 }

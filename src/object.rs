@@ -22,6 +22,7 @@ pub enum Object {
     Array(Box<Vec<Object>>),
     Hash(Box<HashMap<HashableObject, Object>>),
     CompiledFunc(Box<CompiledFunction>),
+    Closure(Box<Closure>),
     InterpreterFunc(Box<InterpreterFunctionObject>),
     Builtin(BuiltinFn),
 }
@@ -58,7 +59,9 @@ impl fmt::Display for Object {
                 }
                 write!(f, "}}")
             }
-            Object::CompiledFunc(_) | Object::InterpreterFunc(_) => write!(f, "<function>"),
+            Object::CompiledFunc(_) | Object::Closure(_) | Object::InterpreterFunc(_) => {
+                write!(f, "<function>")
+            }
             Object::Builtin(_) => write!(f, "<built-in function>"),
         }
     }
@@ -66,14 +69,15 @@ impl fmt::Display for Object {
 
 impl Object {
     pub fn type_str(&self) -> &'static str {
+        use Object::*;
         match self {
-            Object::Nil => "nil",
-            Object::Integer(_) => "int",
-            Object::Boolean(_) => "bool",
-            Object::Str(_) => "string",
-            Object::Array(_) => "array",
-            Object::Hash(_) => "hash",
-            Object::CompiledFunc(_) | Object::InterpreterFunc(_) | Object::Builtin(_) => "function",
+            Nil => "nil",
+            Integer(_) => "int",
+            Boolean(_) => "bool",
+            Str(_) => "string",
+            Array(_) => "array",
+            Hash(_) => "hash",
+            CompiledFunc(_) | Closure(_) | InterpreterFunc(_) | Builtin(_) => "function",
         }
     }
 
@@ -102,11 +106,19 @@ impl From<&str> for Object {
     }    
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct CompiledFunction {
     pub instructions: code::Instructions,
     pub num_locals: u8,
     pub num_params: u8,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct Closure {
+    pub func: CompiledFunction,
+    pub free_vars: Vec<Object>,
 }
 
 #[derive(Debug, Clone)]

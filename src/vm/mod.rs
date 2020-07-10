@@ -198,6 +198,7 @@ impl VM {
                     let builtin = builtins::ALL_BUILTINS[index].1.clone();
                     self.push(Object::Builtin(builtin))?;
                 }
+                _ => todo!(),
             }
 
             frame_stack.top_mut().pc += 1;
