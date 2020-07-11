@@ -69,6 +69,7 @@ pub enum OpCode {
     OpSetLocal,
     OpGetBuiltin,
     OpClosure,
+    OpGetFree,
 }
 
 impl OpCode {
@@ -104,6 +105,7 @@ impl OpCode {
             OpCode::OpSetLocal => &[1],
             OpCode::OpGetBuiltin => &[1],
             OpCode::OpClosure => &[2, 1],
+            OpCode::OpGetFree => &[1],
         }
     }
 
@@ -111,7 +113,7 @@ impl OpCode {
         // Safety: `OpCode` is #[repr(u8)], so as long as `byte` represents a valid enum
         // variant, this transmute will be safe. We make sure of that by asserting that `byte`
         // is no greater than the last variant.
-        assert!(byte <= (OpCode::OpClosure as u8), "byte does not represent valid opcode");
+        assert!(byte <= (OpCode::OpGetFree as u8), "byte does not represent valid opcode");
         unsafe { mem::transmute(byte) }
     }
 

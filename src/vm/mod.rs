@@ -212,6 +212,7 @@ impl VM {
                         panic!("Trying to build closure with non-function object");
                     }
                 },
+                OpGetFree => todo!(),
             }
 
             frame_stack.top_mut().pc += 1;

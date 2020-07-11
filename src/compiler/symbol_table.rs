@@ -5,6 +5,7 @@ pub enum SymbolScope {
     Builtin,
     Global,
     Local,
+    Free,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -17,6 +18,7 @@ pub struct Symbol {
 pub struct SymbolTable {
     pub outer: Option<Box<SymbolTable>>,
     store: HashMap<String, Symbol>,
+    pub free_symbols: Vec<Symbol>,
     pub num_definitions: usize,
 }
 
@@ -25,6 +27,7 @@ impl SymbolTable {
         SymbolTable {
             outer: None,
             store: HashMap::new(),
+            free_symbols: Vec::new(),
             num_definitions: 0,
         }
     }
@@ -33,6 +36,7 @@ impl SymbolTable {
         SymbolTable {
             outer: Some(outer),
             store: HashMap::new(),
+            free_symbols: Vec::new(),
             num_definitions: 0,
         }
     }
@@ -61,11 +65,29 @@ impl SymbolTable {
         self.store.get(&name).unwrap()
     }
 
-    pub fn resolve(&self, name: &str) -> Option<Symbol> {
-        self.store
-            .get(name)
-            .cloned()
-            .or_else(|| self.outer.as_ref().and_then(|outer| outer.resolve(name)))
+    pub fn define_free(&mut self, name: String, original: Symbol) -> &Symbol {
+        self.free_symbols.push(original);
+        let symbol = Symbol {
+            scope: SymbolScope::Free,
+            index: self.free_symbols.len() - 1,
+        };
+        self.store.insert(name.clone(), symbol);
+        self.store.get(&name).unwrap()
+    }
+
+    pub fn resolve(&mut self, name: &str) -> Option<Symbol> {
+        self.store.get(name).cloned().or_else(|| {
+            let outer_def = self.outer.as_mut().and_then(|outer| outer.resolve(name));
+            if let Some(symbol) = outer_def {
+                if symbol.scope == SymbolScope::Local || symbol.scope == SymbolScope::Free {
+                    Some(self.define_free(name.into(), symbol).clone())
+                } else {
+                    Some(symbol)
+                }
+            } else {
+                outer_def
+            }
+        })
     }
 }
 
@@ -135,5 +157,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_resolve_free() {
+        let mut global = SymbolTable::new();
+        global.define("a".into());
+        global.define("b".into());
+        
+        let mut first_local = SymbolTable::from_outer(Box::new(global));
+        first_local.define("c".into());
+        first_local.define("d".into());
+
+        let tests = [
+            ("a", Symbol { scope: SymbolScope::Global, index: 0 }),
+            ("b", Symbol { scope: SymbolScope::Global, index: 1 }),
+            ("c", Symbol { scope: SymbolScope::Local, index: 0 }),
+            ("d", Symbol { scope: SymbolScope::Local, index: 1 }),
+        ];
+        for (name, expected) in &tests {
+            assert_eq!(first_local.resolve(name).as_ref(), Some(expected))
+        }
+
+        let mut second_local = SymbolTable::from_outer(Box::new(first_local));
+        second_local.define("e".into());
+        second_local.define("f".into());
+
+        let tests = [
+            ("a", Symbol { scope: SymbolScope::Global, index: 0 }),
+            ("b", Symbol { scope: SymbolScope::Global, index: 1 }),
+            ("c", Symbol { scope: SymbolScope::Free, index: 0 }),
+            ("d", Symbol { scope: SymbolScope::Free, index: 1 }),
+            ("e", Symbol { scope: SymbolScope::Local, index: 0 }),
+            ("f", Symbol { scope: SymbolScope::Local, index: 1 }),
+        ];
+        for (name, expected) in &tests {
+            assert_eq!(second_local.resolve(name).as_ref(), Some(expected))
+        }        
     }
 }

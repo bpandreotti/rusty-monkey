@@ -114,6 +114,16 @@ impl Compiler {
         }
     }
 
+    fn load_symbol(&mut self, symbol: Symbol) {
+        let op = match symbol.scope {
+            SymbolScope::Builtin => OpCode::OpGetBuiltin,
+            SymbolScope::Global => OpCode::OpGetGlobal,
+            SymbolScope::Local => OpCode::OpGetLocal,
+            SymbolScope::Free => OpCode::OpGetFree,
+        };
+        self.emit(op, &[symbol.index]);
+    }
+
     pub fn compile_block(&mut self, block: Vec<NodeStatement>) -> MonkeyResult<()> {
         if block.is_empty() {
             // Empty blocks evaluate to `nil`
@@ -268,19 +278,14 @@ impl Compiler {
             Expression::Identifier(name) => {
                 let symbol = self
                     .symbol_table
-                    .as_ref()
+                    .as_mut()
                     .expect("No symbol table")
                     .resolve(&name)
                     .ok_or(MonkeyError::Compiler(
                         expression.position,
                         IdenNotFound(name),
                     ))?;
-                let op = match symbol.scope {
-                    SymbolScope::Builtin => OpCode::OpGetBuiltin,
-                    SymbolScope::Global => OpCode::OpGetGlobal,
-                    SymbolScope::Local => OpCode::OpGetLocal,
-                };
-                self.emit(op, &[symbol.index]);
+                self.load_symbol(symbol);
             }
             Expression::IndexExpression(obj, index) => {
                 self.compile_expression(*obj)?;
@@ -303,19 +308,24 @@ impl Compiler {
                 if *self.current_instructions().0.last().unwrap() != OpCode::OpReturn as u8 {
                     self.emit(OpCode::OpReturn, &[]);
                 }
-                let num_locals = self
-                    .symbol_table
-                    .as_ref()
-                    .expect("No symbol table")
-                    .num_definitions as u8;
+
+                let table = self.symbol_table.as_mut().expect("No symbol table");
+                let num_locals = table.num_definitions as u8;
+                let free_symbols = table.free_symbols.clone().into_iter();
                 let instructions = self.pop_scope().instructions;
+
+                let num_free_symbols = free_symbols.len();
+                for symbol in free_symbols {
+                    self.load_symbol(symbol)
+                }
+
                 let compiled_fn = CompiledFunction {
                     instructions,
                     num_locals,
                     num_params,
                 };
                 let index = self.add_constant(Object::CompiledFunc(Box::new(compiled_fn)));
-                self.emit(OpCode::OpClosure, &[index, 0]);
+                self.emit(OpCode::OpClosure, &[index, num_free_symbols]);
             }
             Expression::CallExpression {
                 function,

@@ -533,3 +533,68 @@ fn test_builtins() {
         },
     );
 }
+
+#[test]
+fn test_closures() {
+    let outer_func = Object::CompiledFunc(Box::new(CompiledFunction {
+        instructions: instructions! {
+            (OpCode::OpGetLocal, 0),
+            (OpCode::OpClosure, 0, 1),
+            (OpCode::OpReturn),
+        },
+        num_locals: 1,
+        num_params: 1,
+    }));
+    let inner_func = Object::CompiledFunc(Box::new(CompiledFunction {
+        instructions: instructions! {
+            (OpCode::OpGetFree, 0),
+            (OpCode::OpGetLocal, 0),
+            (OpCode::OpAdd),
+            (OpCode::OpReturn),
+        },
+        num_locals: 1,
+        num_params: 1,
+    }));
+    assert_compile(
+        "fn(a) { fn(b) { a + b } }",
+        vec![inner_func, outer_func],
+        instructions! { (OpCode::OpClosure, 1, 0) },
+    );
+
+    let outer_func = Object::CompiledFunc(Box::new(CompiledFunction {
+        instructions: instructions! {
+            (OpCode::OpGetLocal, 0),
+            (OpCode::OpClosure, 1, 1),
+            (OpCode::OpReturn),
+        },
+        num_locals: 1,
+        num_params: 1,
+    }));
+    let inner_func = Object::CompiledFunc(Box::new(CompiledFunction {
+        instructions: instructions! {
+            (OpCode::OpGetFree, 0),
+            (OpCode::OpGetLocal, 0),
+            (OpCode::OpClosure, 0, 2),
+            (OpCode::OpReturn),
+        },
+        num_locals: 1,
+        num_params: 1,
+    }));
+    let inner_inner_func = Object::CompiledFunc(Box::new(CompiledFunction {
+        instructions: instructions! {
+            (OpCode::OpGetFree, 0),
+            (OpCode::OpGetFree, 1),
+            (OpCode::OpAdd),
+            (OpCode::OpGetLocal, 0),
+            (OpCode::OpAdd),
+            (OpCode::OpReturn),
+        },
+        num_locals: 1,
+        num_params: 1,
+    }));
+    assert_compile(
+        "fn(a) { fn(b) { fn(c) { a + b + c } } }",
+        vec![inner_inner_func, inner_func, outer_func],
+        instructions! { (OpCode::OpClosure, 2, 0) },
+    );
+}
