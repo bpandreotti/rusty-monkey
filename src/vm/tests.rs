@@ -313,3 +313,19 @@ fn test_closures() {
     ];
     assert_vm_runs(&input, &expected);
 }
+
+#[test]
+fn test_recursive_fibonacci() {
+    let input = ["
+        let fibonacci = fn(n) {
+            if n < 2 {
+                n
+            } else {
+                fibonacci(n - 1) + fibonacci(n - 2)
+            }
+        };
+        fibonacci(30)
+    "];
+    let expected = [Object::Integer(610)];
+    assert_vm_runs(&input, &expected);
+}

@@ -91,7 +91,7 @@ impl Highlighter for ReplHelper {
     }
 }
 
-pub fn start(compiled: bool) -> Result<(), std::io::Error> {
+pub fn start(compiled: bool) -> MonkeyResult<()> {
     eprintln!("Now with an even fancier REPL!");
     eprintln!(
         "(running using {})",
@@ -117,7 +117,7 @@ pub fn start(compiled: bool) -> Result<(), std::io::Error> {
         start_interpreted(rl)
     };
     eprintln!("Goodbye!");
-    res
+    res.map_err(|e| e.into())
 }
 
 fn start_compiled(mut rl: rustyline::Editor<ReplHelper>) -> Result<(), std::io::Error> {

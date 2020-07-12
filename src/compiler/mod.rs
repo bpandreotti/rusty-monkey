@@ -147,7 +147,6 @@ impl Compiler {
             }
             Statement::Let(let_statement) => {
                 let (name, exp) = *let_statement;
-                self.compile_expression(exp)?;
                 let symbol = self
                     .symbol_table
                     .as_mut()
@@ -159,6 +158,7 @@ impl Compiler {
                     _ => todo!(),
                 };
                 let index = symbol.index;
+                self.compile_expression(exp)?;
                 self.emit(op, &[index]);
                 // If the "let" statement is the last in the block, it evaluates to `nil`
                 if last {
