@@ -14,6 +14,7 @@ pub const GLOBALS_SIZE: usize = 65536;
 
 struct Frame {
     instructions: Instructions,
+    free_vars: Vec<Object>,
     pc: usize,
     base_pointer: usize,
 }
@@ -78,6 +79,7 @@ impl VM {
         let mut frame_stack = FrameStack({
             let root_frame = Frame {
                 instructions: bytecode.instructions,
+                free_vars: Vec::new(),
                 pc: 0,
                 base_pointer: 0,
             };
@@ -146,13 +148,12 @@ impl VM {
                 }
                 OpArray => {
                     let num_elements = frame_stack.read_u16_from_top() as usize;
-                    let arr = self.stack.split_off(self.sp - num_elements);
-                    self.sp -= num_elements;
+                    let arr = self.take(num_elements);
                     self.push(Object::Array(Box::new(arr)))?;
                 }
                 OpHash => {
                     let num_elements = frame_stack.read_u16_from_top() as usize;
-                    let entries = self.stack.split_off(self.sp - (2 * num_elements));
+                    let entries = self.take(2 * num_elements);
                     let mut map = HashMap::new();
                     for i in 0..num_elements {
                         let key = &entries[i * 2];
@@ -161,7 +162,6 @@ impl VM {
                             .ok_or_else(|| MonkeyError::Vm(HashKeyTypeError(key.type_str())))?;
                         map.insert(hashable, value.clone());
                     }
-                    self.sp -= num_elements * 2;
                     self.push(Object::Hash(Box::new(map)))?;
                 }
                 OpIndex => {
@@ -200,19 +200,23 @@ impl VM {
                 }
                 OpClosure => {
                     let constant_index = frame_stack.read_u16_from_top() as usize;
-                    let _num_free_variables = frame_stack.read_u8_from_top() as usize; // @WIP
+                    let num_free_vars = frame_stack.read_u8_from_top() as usize;
                     let func = constants[constant_index].clone();
+                    let free_vars = self.take(num_free_vars);
                     if let Object::CompiledFunc(func) = func {
                         let closure = Closure {
                             func: *func,
-                            free_vars: vec![],
+                            free_vars,
                         };
                         self.push(Object::Closure(Box::new(closure)))?;
                     } else {
                         panic!("Trying to build closure with non-function object");
                     }
                 },
-                OpGetFree => todo!(),
+                OpGetFree => {
+                    let index = frame_stack.read_u8_from_top() as usize;
+                    self.push(frame_stack.top().free_vars[index].clone())?;
+                },
             }
 
             frame_stack.top_mut().pc += 1;
@@ -237,6 +241,12 @@ impl VM {
             self.sp -= 1;
             Ok(self.stack.pop().unwrap())
         }
+    }
+
+    fn take(&mut self, num_items: usize) -> Vec<Object> {
+        let v = self.stack.split_off(self.sp - num_items);
+        self.sp -= num_items;
+        v
     }
 
     fn execute_binary_operation(&mut self, operation: OpCode) -> MonkeyResult<()> {
@@ -370,6 +380,7 @@ impl VM {
         frame_stack.top_mut().pc += 1;
         let new_frame = Frame {
             instructions: closure.func.instructions,
+            free_vars: closure.free_vars,
             pc: 0,
             base_pointer: self.sp - num_args,
         };
@@ -386,8 +397,7 @@ impl VM {
     fn execute_builtin_call(&mut self, func: BuiltinFn, num_args: usize) -> MonkeyResult<()> {
         // @PERFORMANCE: This has to allocate a vector and move over the arguments. It might be
         // better for the built-in functions to just take a slice of objects instead of a `Vec`.
-        let args = self.stack.split_off(self.sp - num_args);
-        self.sp -= num_args;
+        let args = self.take(num_args);
         let result = func.0(args).map_err(MonkeyError::Vm)?;
         self.push(result)
     }

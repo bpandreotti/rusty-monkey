@@ -253,3 +253,63 @@ fn test_builtin_functions() {
     ];
     assert_vm_runs(&input, &expected);
 }
+
+#[test]
+fn test_closures() {
+    let input = [
+        "fn(a) { fn(b) { fn(c) { a + b + c } } }(1)(3)(5)",
+
+        "let make_closure = fn(a) {
+            fn() { a }
+        };
+        let closure = make_closure(4);
+        closure()",
+
+        "let new_adder = fn(a, b) {
+            fn(c) { a + b + c }
+        };
+        new_adder(1, 2)(8)",
+        "let new_adder = fn(a, b) {
+            let c = a + b;
+            fn(d) { c + d }
+        };
+        new_adder(1, 2)(8)",
+
+        "let new_adder_outer = fn(a, b) {
+            let c = a + b;
+            fn(d) {
+                let e = d + c;
+                fn(f) { e + f }
+            }
+        };
+        let new_adder_inner = new_adder_outer(1, 2);
+        let adder = new_adder_inner(3);
+        adder(8);",
+
+        "let a = 1;
+        let new_adder_outer = fn(b) {
+            fn(c) { fn(d) { a + b + c + d } }
+        };
+        let new_adder_inner = new_adder_outer(2);
+        let adder = new_adder_inner(3);
+        adder(8);",
+
+        "let new_closure = fn(a, b) {
+            let first = fn() { a };
+            let second = fn() { b };
+            fn() { first() + second() }
+        };
+        let closure = new_closure(9, 90);
+        closure();",
+    ];
+    let expected = [
+        Object::Integer(9),
+        Object::Integer(4),
+        Object::Integer(11),
+        Object::Integer(11),
+        Object::Integer(14),
+        Object::Integer(14),
+        Object::Integer(99),
+    ];
+    assert_vm_runs(&input, &expected);
+}
